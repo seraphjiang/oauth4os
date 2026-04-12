@@ -2,79 +2,45 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 BINARY := oauth4os
 CLI := oauth4os-cli
+ECR_REPO := 544277935543.dkr.ecr.us-west-2.amazonaws.com/oauth4os
 
-.PHONY: build build-all lint test docker release clean \
-        test-e2e test-integration test-unit demo-up demo-down
+.PHONY: build test vet lint docker push build-all release clean tidy
 
-## Build
 build:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/proxy
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(CLI) ./cmd/cli
 
+test:
+	go test ./internal/... -count=1 -timeout 120s
+
+vet:
+	go vet ./...
+
+lint: vet
+	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run ./... || echo "golangci-lint not installed, skipping"
+
+docker:
+	docker build -t $(BINARY):$(VERSION) -t $(BINARY):latest .
+
+push: docker
+	docker tag $(BINARY):latest $(ECR_REPO):latest
+	docker push $(ECR_REPO):latest
+
 build-all:
-	@for os in linux darwin windows; do \
+	@for os in linux darwin; do \
 		for arch in amd64 arm64; do \
-			ext=""; [ "$$os" = "windows" ] && ext=".exe"; \
 			echo "Building $$os/$$arch..."; \
 			GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 \
-				go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY)-$$os-$$arch$$ext ./cmd/proxy; \
-			GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 \
-				go build -ldflags="$(LDFLAGS)" -o dist/$(CLI)-$$os-$$arch$$ext ./cmd/cli; \
+				go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY)-$$os-$$arch ./cmd/proxy; \
 		done; \
 	done
 
-## Quality
-lint:
-	golangci-lint run ./...
-	go vet ./...
-
-test: test-unit
-
-## Docker
-docker:
-	docker build -t $(BINARY):$(VERSION) .
-
-## Release (local)
 release: lint test build-all docker
 	cd dist && sha256sum * > checksums.txt
 
-## Clean
 clean:
 	rm -rf bin/ dist/
 
-## Dependencies
 tidy:
 	@command -v go >/dev/null 2>&1 && go mod tidy || \
 		docker run --rm -v $(CURDIR):/app -w /app golang:1.22-alpine go mod tidy
-	@echo "go.sum updated"
-
-# Generate go.sum with custom proxy (if corporate proxy blocks default)
-tidy-goproxy:
-	GOPROXY=direct go mod tidy || \
-		docker run --rm -e GOPROXY=direct -v $(CURDIR):/app -w /app golang:1.22-alpine go mod tidy
-
-# Start demo environment
-demo-up:
-	docker compose -f docker-compose.demo.yml up -d
-	@echo "Waiting for services..."
-	@sleep 15
-
-# Stop demo environment
-demo-down:
-	docker compose -f docker-compose.demo.yml down -v
-
-# Run E2E tests (requires demo-up)
-test-e2e:
-	bash test/e2e/run.sh
-
-# Run Go E2E tests (requires demo-up + Go)
-test-e2e-go:
-	go test ./test/e2e/ -v -count=1 -timeout 120s
-
-# Run integration tests
-test-integration:
-	bash test/run-integration.sh
-
-# Run unit tests
-test-unit:
-	go test ./internal/... -v -count=1

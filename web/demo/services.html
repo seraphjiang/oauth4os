@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Service Map</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow:hidden;height:100vh}
+a{color:var(--accent);text-decoration:none}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:relative;z-index:2}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+canvas{display:block;width:100%;height:calc(100vh - 42px)}
+#tooltip{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;pointer-events:none;display:none;z-index:10;max-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+#tooltip h4{font-size:13px;margin-bottom:4px}
+#tooltip .stat{color:var(--muted);margin-bottom:2px}
+#tooltip .badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🗺️ Service <span>Map</span></div>
+  <nav>
+    <a href="./">Demo App</a>
+    <a href="../">← oauth4os</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+<canvas id="canvas"></canvas>
+<div id="tooltip"></div>
+
+<script>
+const PROXY = window.location.origin;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+
+const services = [
+  { id:'payment',   icon:'💳', color:'#58a6ff', x:0.5,  y:0.3,  errors:0, requests:0, latency:0 },
+  { id:'auth',      icon:'🔐', color:'#bc8cff', x:0.25, y:0.2,  errors:0, requests:0, latency:0 },
+  { id:'cart',      icon:'🛒', color:'#3fb950', x:0.75, y:0.2,  errors:0, requests:0, latency:0 },
+  { id:'shipping',  icon:'📦', color:'#f0883e', x:0.35, y:0.7,  errors:0, requests:0, latency:0 },
+  { id:'inventory', icon:'📋', color:'#f85149', x:0.65, y:0.7,  errors:0, requests:0, latency:0 },
+];
+
+const edges = [
+  { from:'auth',    to:'payment',   label:'authenticate' },
+  { from:'cart',    to:'payment',   label:'checkout' },
+  { from:'cart',    to:'inventory', label:'check stock' },
+  { from:'payment', to:'shipping',  label:'fulfill' },
+  { from:'payment', to:'inventory', label:'reserve' },
+  { from:'shipping',to:'inventory', label:'update stock' },
+];
+
+let nodeRadius = 40;
+let hovered = null;
+let animT = 0;
+
+function resize() {
+  canvas.width = canvas.clientWidth * devicePixelRatio;
+  canvas.height = canvas.clientHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+
+function pos(s) {
+  return { x: s.x * canvas.clientWidth, y: s.y * canvas.clientHeight };
+}
+
+function draw() {
+  animT += 0.02;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  const cs = getComputedStyle(document.documentElement);
+  const bg = cs.getPropertyValue('--bg').trim();
+  const surface = cs.getPropertyValue('--surface').trim();
+  const border = cs.getPropertyValue('--border').trim();
+  const text = cs.getPropertyValue('--text').trim();
+  const muted = cs.getPropertyValue('--muted').trim();
+
+  // Draw edges
+  edges.forEach(e => {
+    const from = services.find(s => s.id === e.from);
+    const to = services.find(s => s.id === e.to);
+    const a = pos(from), b = pos(to);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Animated dot along edge
+    const t = ((animT * 0.5 + edges.indexOf(e) * 0.15) % 1);
+    const dx = a.x + (b.x - a.x) * t;
+    const dy = a.y + (b.y - a.y) * t;
+    ctx.beginPath();
+    ctx.arc(dx, dy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = from.color;
+    ctx.globalAlpha = 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Edge label
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.fillStyle = muted;
+    ctx.textAlign = 'center';
+    ctx.fillText(e.label, mx, my - 6);
+
+    // Arrow
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const arrowX = b.x - Math.cos(angle) * (nodeRadius + 4);
+    const arrowY = b.y - Math.sin(angle) * (nodeRadius + 4);
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowY);
+    ctx.lineTo(arrowX - 8 * Math.cos(angle - 0.4), arrowY - 8 * Math.sin(angle - 0.4));
+    ctx.lineTo(arrowX - 8 * Math.cos(angle + 0.4), arrowY - 8 * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = border;
+    ctx.fill();
+  });
+
+  // Draw nodes
+  services.forEach(s => {
+    const p = pos(s);
+    const isHover = hovered === s.id;
+    const r = isHover ? nodeRadius + 6 : nodeRadius;
+
+    // Glow
+    if (isHover) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r + 8, 0, Math.PI * 2);
+      ctx.fillStyle = s.color + '22';
+      ctx.fill();
+    }
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = surface;
+    ctx.fill();
+    ctx.strokeStyle = isHover ? s.color : border;
+    ctx.lineWidth = isHover ? 2.5 : 1.5;
+    ctx.stroke();
+
+    // Health ring
+    const errRate = s.requests > 0 ? s.errors / s.requests : 0;
+    const ringColor = errRate > 0.1 ? '#f85149' : errRate > 0.01 ? '#f0883e' : '#3fb950';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r + 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, 1 - errRate), false);
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Icon
+    ctx.font = '22px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s.icon, p.x, p.y - 4);
+
+    // Label
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.fillStyle = text;
+    ctx.fillText(s.id, p.x, p.y + 18);
+  });
+
+  requestAnimationFrame(draw);
+}
+
+// Hover
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let found = null;
+  services.forEach(s => {
+    const p = pos(s);
+    if (Math.hypot(mx - p.x, my - p.y) < nodeRadius + 10) found = s;
+  });
+  hovered = found?.id || null;
+  canvas.style.cursor = found ? 'pointer' : 'default';
+  if (found) {
+    const errRate = found.requests > 0 ? (found.errors / found.requests * 100).toFixed(1) : '0.0';
+    const health = errRate > 10 ? '🔴 Degraded' : errRate > 1 ? '🟡 Warning' : '🟢 Healthy';
+    const conns = edges.filter(ed => ed.from === found.id || ed.to === found.id);
+    tooltip.innerHTML = `<h4>${found.icon} ${found.id}</h4>
+      <div class="stat">${health}</div>
+      <div class="stat">Requests: ${found.requests}</div>
+      <div class="stat">Errors: ${found.errors} (${errRate}%)</div>
+      <div class="stat">p50 latency: ${found.latency}ms</div>
+      <div class="stat" style="margin-top:4px">Connections: ${conns.map(c => c.from === found.id ? '→ ' + c.to : '← ' + c.from).join(', ')}</div>`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = Math.min(e.clientX + 12, window.innerWidth - 280) + 'px';
+    tooltip.style.top = (e.clientY + 12) + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => { hovered = null; tooltip.style.display = 'none'; });
+
+// Fetch live stats
+async function fetchStats() {
+  const token = sessionStorage.getItem('oauth4os_token');
+  if (!token) {
+    // Try getting one
+    try {
+      const r = await fetch(PROXY + '/oauth/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+      });
+      if (r.ok) { const d = await r.json(); sessionStorage.setItem('oauth4os_token', d.access_token); }
+    } catch {}
+  }
+  const t = sessionStorage.getItem('oauth4os_token');
+  if (!t) return;
+  for (const s of services) {
+    try {
+      const r = await fetch(PROXY + '/logs-*/_search', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size: 0, query: { term: { 'service.keyword': s.id } },
+          aggs: { errors: { filter: { term: { 'level.keyword': 'ERROR' } } }, latency: { avg: { field: 'latency_ms' } } } })
+      });
+      if (r.ok) {
+        const d = await r.json();
+        s.requests = d.hits?.total?.value ?? d.hits?.total ?? 0;
+        s.errors = d.aggregations?.errors?.doc_count ?? 0;
+        s.latency = Math.round(d.aggregations?.latency?.value ?? 0);
+      }
+    } catch {}
+  }
+}
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+// Init
+window.addEventListener('resize', () => { resize(); });
+resize();
+fetchStats();
+setInterval(fetchStats, 15000);
+draw();
+</script>
+</body>
+</html>

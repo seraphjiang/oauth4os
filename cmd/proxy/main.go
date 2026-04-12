@@ -195,7 +195,9 @@ func main() {
 	}
 
 	// mTLS client auth (optional)
+	_ = webhookAuth // TODO: wire into request handler
 	var mtlsMap *mtls.ClientMap
+	_ = mtlsMap // TODO: wire into TLS config
 	if len(cfg.MTLS.Clients) > 0 {
 		entries := make(map[string]*mtls.ClientEntry)
 		for cn, c := range cfg.MTLS.Clients {
@@ -476,6 +478,17 @@ func main() {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			// mTLS client cert auth (alternative to Bearer token)
+			if mtlsMap != nil && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+				entry, err := mtlsMap.Identify(r.TLS.PeerCertificates[0])
+				if err == nil {
+					authSuccess.Add(1)
+					r.Header.Set("X-Proxy-User", entry.ClientID)
+					r.Header.Set("X-Proxy-Roles", strings.Join(entry.Scopes, ","))
+					engineProxy.ServeHTTP(w, r)
+					return
+				}
+			}
 			// Strip proxy-trust headers on unauthenticated path — prevents impersonation
 			r.Header.Del("X-Proxy-User")
 			r.Header.Del("X-Proxy-Roles")
@@ -547,6 +560,22 @@ func main() {
 			return
 		}
 		tracer.EndSpan(cedarSpan, "ok")
+
+		// Webhook external authorization (optional)
+		if webhookAuth != nil {
+			if err := webhookAuth.Check(webhook.Request{
+				ClientID: claims.ClientID,
+				Subject:  claims.Subject,
+				Scopes:   claims.Scopes,
+				Action:   r.Method,
+				Resource: r.URL.Path,
+				IP:       r.RemoteAddr,
+			}); err != nil {
+				requestsFailed.Add(1)
+				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+		}
 
 		r.Header.Del("Authorization")
 		r.Header.Del("Cookie")

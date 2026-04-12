@@ -37,6 +37,7 @@ var (
 	authSuccess     atomic.Int64
 	authFailed      atomic.Int64
 	cedarDenied     atomic.Int64
+	rateLimited     atomic.Int64
 	upstreamErrors  atomic.Int64
 	startTime       = time.Now()
 )
@@ -155,6 +156,9 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_cedar_denied Cedar policy denials\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_cedar_denied counter\n")
 		fmt.Fprintf(w, "oauth4os_cedar_denied %d\n", cedarDenied.Load())
+		fmt.Fprintf(w, "# HELP oauth4os_rate_limited Rate limited requests\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_rate_limited counter\n")
+		fmt.Fprintf(w, "oauth4os_rate_limited %d\n", rateLimited.Load())
 		fmt.Fprintf(w, "# HELP oauth4os_upstream_errors Upstream connection errors\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_upstream_errors counter\n")
 		fmt.Fprintf(w, "oauth4os_upstream_errors %d\n", upstreamErrors.Load())

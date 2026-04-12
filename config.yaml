@@ -48,3 +48,12 @@ tls:
   cert_file: ""
   key_file: ""
   insecure_skip_verify: true  # for self-signed OpenSearch certs
+
+ip_filter:
+  global:
+    deny:
+      - "0.0.0.0/32"       # block unroutable
+  # clients:
+  #   ci-agent:
+  #     allow:
+  #       - "10.0.0.0/8"   # only from internal network

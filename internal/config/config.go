@@ -14,6 +14,19 @@ type Config struct {
 	Listen       string            `yaml:"listen"`
 	TLS          TLSConfig         `yaml:"tls"`
 	RateLimits   map[string]int    `yaml:"rate_limits"`
+	IPFilter     IPFilterConfig    `yaml:"ip_filter"`
+}
+
+// IPFilterConfig holds IP allowlist/denylist rules.
+type IPFilterConfig struct {
+	Global  *IPFilterRule            `yaml:"global,omitempty"`
+	Clients map[string]*IPFilterRule `yaml:"clients,omitempty"`
+}
+
+// IPFilterRule holds CIDR lists.
+type IPFilterRule struct {
+	Allow []string `yaml:"allow,omitempty"`
+	Deny  []string `yaml:"deny,omitempty"`
 }
 
 // Tenant holds per-provider scope mapping and Cedar policies.

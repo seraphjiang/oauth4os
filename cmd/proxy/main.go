@@ -46,6 +46,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/demo"
 	"github.com/seraphjiang/oauth4os/internal/tokenui"
 	corsmw "github.com/seraphjiang/oauth4os/internal/cors"
+	"github.com/seraphjiang/oauth4os/internal/apikey"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 )

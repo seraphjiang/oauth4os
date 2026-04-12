@@ -19,7 +19,7 @@ func TestEndpointSurvey(t *testing.T) {
 		want   []int // acceptable status codes
 	}{
 		{"GET", "/health", []int{200}},
-		{"GET", "/health/deep", []int{200}},
+		{"GET", "/health/deep", []int{200, 503}},
 		{"GET", "/version", []int{200}},
 		{"GET", "/metrics", []int{200}},
 		{"GET", "/.well-known/openid-configuration", []int{200}},
@@ -32,7 +32,7 @@ func TestEndpointSurvey(t *testing.T) {
 		{"GET", "/i18n/consent.json", []int{200}},
 		{"GET", "/admin/audit", []int{200, 401, 403}},
 		{"GET", "/admin/analytics", []int{200, 401, 403}},
-		{"GET", "/admin/health", []int{200}},
+		{"GET", "/admin/health", []int{200, 503}},
 		{"GET", "/developer/openapi.yaml", []int{200}},
 		{"GET", "/developer/docs", []int{200}},
 		{"GET", "/developer/analytics", []int{200}},

@@ -17,7 +17,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Man page updated for all 26 commands
 - Fuzz tests: config (101K executions), client store (7K executions), 0 panics
 - Mutation tests: 87 mutations killed (accesslog, events, CORS, compress, healthcheck, retry, webhook, timeout, CIBA)
-- 673 tests across 46+ packages
+- 771 tests across 47 packages
 
 ### Fixed
 - CRITICAL: Cedar policy engine data race — added RWMutex on hot path

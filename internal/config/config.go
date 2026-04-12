@@ -11,6 +11,14 @@ type Config struct {
 	Providers    []Provider        `yaml:"providers"`
 	ScopeMapping map[string]Role   `yaml:"scope_mapping"`
 	Listen       string            `yaml:"listen"`
+	TLS          TLSConfig         `yaml:"tls"`
+}
+
+type TLSConfig struct {
+	Enabled            bool   `yaml:"enabled"`
+	CertFile           string `yaml:"cert_file"`
+	KeyFile            string `yaml:"key_file"`
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"` // for self-signed upstream certs
 }
 
 type Upstream struct {

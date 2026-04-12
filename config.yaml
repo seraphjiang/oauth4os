@@ -1,6 +1,6 @@
 upstream:
-  engine: https://localhost:9200
-  dashboards: https://localhost:5601
+  engine: http://opensearch:9200
+  dashboards: http://opensearch-dashboards:5601
 
 providers:
   - name: keycloak
@@ -22,3 +22,9 @@ scope_mapping:
     backend_roles: [all_access]
 
 listen: :8443
+
+tls:
+  enabled: false
+  cert_file: ""
+  key_file: ""
+  insecure_skip_verify: true  # for self-signed OpenSearch certs

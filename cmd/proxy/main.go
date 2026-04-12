@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -10,11 +11,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/seraphjiang/oauth4os/internal/audit"
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 	"github.com/seraphjiang/oauth4os/internal/token"
-	"github.com/seraphjiang/oauth4os/internal/audit"
 )
 
 func main() {
@@ -31,11 +32,19 @@ func main() {
 	tokenMgr := token.NewManager()
 	auditor := audit.NewAuditor(os.Stdout)
 
+	// Transport for upstream connections (handles self-signed certs)
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if cfg.TLS.InsecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
 	engineURL, _ := url.Parse(cfg.Upstream.Engine)
 	dashboardsURL, _ := url.Parse(cfg.Upstream.Dashboards)
 
 	engineProxy := httputil.NewSingleHostReverseProxy(engineURL)
+	engineProxy.Transport = transport
 	dashboardsProxy := httputil.NewSingleHostReverseProxy(dashboardsURL)
+	dashboardsProxy.Transport = transport
 
 	mux := http.NewServeMux()
 
@@ -55,7 +64,6 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			// No OAuth token — pass through to engine (existing auth handles it)
 			engineProxy.ServeHTTP(w, r)
 			return
 		}
@@ -67,22 +75,18 @@ func main() {
 			return
 		}
 
-		// Map scopes to backend roles
 		roles := mapper.Map(claims.Scopes)
 		if len(roles) == 0 {
 			http.Error(w, `{"error":"insufficient_scope"}`, http.StatusForbidden)
 			return
 		}
 
-		// Inject backend credentials
 		r.Header.Del("Authorization")
 		r.Header.Set("X-Proxy-User", claims.ClientID)
 		r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
 
-		// Audit
 		auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
 
-		// Route: /api/* → Dashboards, everything else → Engine
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			dashboardsProxy.ServeHTTP(w, r)
 		} else {
@@ -94,8 +98,14 @@ func main() {
 	if addr == "" {
 		addr = ":8443"
 	}
-	log.Printf("oauth4os proxy listening on %s", addr)
+
+	log.Printf("oauth4os proxy listening on %s (tls=%v)", addr, cfg.TLS.Enabled)
 	log.Printf("  Engine:     %s", cfg.Upstream.Engine)
 	log.Printf("  Dashboards: %s", cfg.Upstream.Dashboards)
-	log.Fatal(http.ListenAndServe(addr, mux))
+
+	if cfg.TLS.Enabled && cfg.TLS.CertFile != "" && cfg.TLS.KeyFile != "" {
+		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.CertFile, cfg.TLS.KeyFile, mux))
+	} else {
+		log.Fatal(http.ListenAndServe(addr, mux))
+	}
 }

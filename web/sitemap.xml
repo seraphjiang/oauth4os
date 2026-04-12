@@ -10,4 +10,7 @@
   <url><loc>/playground/</loc><priority>0.8</priority></url>
   <url><loc>/analytics/</loc><priority>0.6</priority></url>
   <url><loc>/benchmark/</loc><priority>0.6</priority></url>
+  <url><loc>/setup/</loc><priority>0.9</priority></url>
+  <url><loc>/changelog/</loc><priority>0.5</priority></url>
+  <url><loc>/status/</loc><priority>0.5</priority></url>
 </urlset>

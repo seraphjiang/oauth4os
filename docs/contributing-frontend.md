@@ -15,6 +15,7 @@ web/
 ├── admin/index.html    # Admin console (8 tabs)
 ├── analytics/index.html # Token analytics dashboard
 ├── benchmark/index.html # Performance benchmark tool
+├── changelog/index.html # Release history (parses CHANGELOG.md)
 ├── demo/
 │   ├── index.html      # Log viewer dashboard (PWA)
 │   ├── services.html   # Service map (canvas)
@@ -25,6 +26,7 @@ web/
 │   └── sw.js           # Service worker
 ├── developer/index.html # OAuth app management
 ├── playground/index.html # Cedar policy playground
+├── setup/index.html    # Interactive setup wizard
 └── status/index.html   # System status page
 ```
 

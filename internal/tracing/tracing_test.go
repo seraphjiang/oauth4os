@@ -79,3 +79,35 @@ func TestMiddleware_ErrorStatus(t *testing.T) {
 		t.Errorf("current middleware always reports ok, got %s", tr.Spans[0].Status)
 	}
 }
+
+func TestSpanCorrelation(t *testing.T) {
+	tracer := &CollectingTracer{}
+	ctx := context.Background()
+
+	// Parent span
+	ctx, parent := tracer.StartSpan(ctx, "request", nil)
+	if parent.TraceID == "" {
+		t.Fatal("parent should have TraceID")
+	}
+
+	// Child span inherits TraceID and sets ParentID
+	ctx, child := tracer.StartSpan(ctx, "jwt.validate", nil)
+	if child.TraceID != parent.TraceID {
+		t.Fatalf("child TraceID %s != parent %s", child.TraceID, parent.TraceID)
+	}
+	if child.ParentID != parent.SpanID {
+		t.Fatalf("child ParentID %s != parent SpanID %s", child.ParentID, parent.SpanID)
+	}
+	if child.SpanID == parent.SpanID {
+		t.Fatal("child and parent should have different SpanIDs")
+	}
+
+	// Grandchild
+	_, grandchild := tracer.StartSpan(ctx, "upstream", nil)
+	if grandchild.TraceID != parent.TraceID {
+		t.Fatal("grandchild should share TraceID")
+	}
+	if grandchild.ParentID != child.SpanID {
+		t.Fatalf("grandchild ParentID %s != child SpanID %s", grandchild.ParentID, child.SpanID)
+	}
+}

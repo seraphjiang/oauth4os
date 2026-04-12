@@ -870,6 +870,10 @@ func main() {
 	mux.HandleFunc("GET /register/", serveWebFile("register/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/clients", serveWebFile("admin/clients.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/tokens", serveWebFile("admin/tokens.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tokenMgr.Stats())
+	})
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))

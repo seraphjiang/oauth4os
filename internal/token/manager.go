@@ -224,9 +224,26 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	oldToken.Revoked = true
 	delete(m.refresh, refreshToken)
 	m.usedRefresh[refreshToken] = clientID // track for reuse detection
+	scopes := oldToken.Scopes
 	m.mu.Unlock()
 
-	tok, newRefresh := m.createToken(clientID, oldToken.Scopes)
+	// RFC 6749 §6: client may request narrower scope on refresh
+	if requestedScope := r.FormValue("scope"); requestedScope != "" {
+		requested := strings.Fields(requestedScope)
+		allowed := make(map[string]bool, len(scopes))
+		for _, s := range scopes {
+			allowed[s] = true
+		}
+		for _, s := range requested {
+			if !allowed[s] {
+				writeError(w, http.StatusBadRequest, "invalid_scope", "requested scope exceeds original grant")
+				return
+			}
+		}
+		scopes = requested
+	}
+
+	tok, newRefresh := m.createToken(clientID, scopes)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

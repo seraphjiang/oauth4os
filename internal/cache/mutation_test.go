@@ -61,3 +61,19 @@ func TestMutation_StatusCodeLost(t *testing.T) {
 		t.Errorf("MUTATION SURVIVED: expected 404, got %d", e.StatusCode)
 	}
 }
+
+// Mutation: remove Stop → reap goroutine must terminate
+func TestMutation_StopTerminates(t *testing.T) {
+	c := New(50*time.Millisecond, 10)
+	c.Set("/test", 200, nil, []byte("data"))
+	done := make(chan struct{})
+	go func() {
+		c.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop must terminate the reap goroutine")
+	}
+}

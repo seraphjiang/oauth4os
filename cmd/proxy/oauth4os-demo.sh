@@ -1132,10 +1132,9 @@ cmd_env() {
 }
 
 cmd_audit() {
-  local tok n="${1:-20}"
-  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+  local n="${1:-20}"
   local resp
-  resp=$(curl -sf -H "Authorization: Bearer ${tok}" "${PROXY}/admin/audit?limit=${n}" 2>/dev/null)
+  resp=$(authed_curl "${PROXY}/admin/audit?limit=${n}")
   if [ -z "$resp" ]; then
     echo -e "${RED}Failed to fetch audit log${NC}" >&2; return 1
   fi
@@ -1149,10 +1148,8 @@ cmd_audit() {
 }
 
 cmd_alerts() {
-  local tok
-  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
   local resp
-  resp=$(curl -sf -H "Authorization: Bearer ${tok}" "${PROXY}/admin/alerts" 2>/dev/null)
+  resp=$(authed_curl "${PROXY}/admin/alerts" 2>/dev/null)
   if [ -z "$resp" ]; then
     # Fallback: show metrics-based status
     local metrics

@@ -20,6 +20,7 @@ Manual test checklist for all oauth4os web pages.
 | 12 | Status | `/status/` | ✅ |
 | 13 | Changelog | `/changelog/` | ✅ |
 | 14 | 404 | `/404.html` | ✅ |
+| 15 | Live Logs | `/logs/` | ✅ |
 
 ## Per-Page Checks
 

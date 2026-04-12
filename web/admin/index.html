@@ -192,6 +192,68 @@ async function deleteKey(id) {
   loadTab();
 }
 
+async function renderConfig(el) {
+  let configText = '';
+  try {
+    const r = await fetch(API + '/admin/config');
+    if (r.ok) configText = await r.text();
+  } catch {}
+  if (!configText) configText = '# Config not available via API.\n# Edit config.yaml on the server and restart.\n\n# Example:\nupstream:\n  engine: https://your-opensearch:9200\n  sigv4:\n    region: us-west-2\n    service: aoss\n\nproviders:\n  - name: keycloak\n    issuer: https://keycloak.example.com/realms/opensearch\n    jwks_uri: auto\n\nscope_mapping:\n  "read:logs-*":\n    backend_roles: [logs_read_access]\n  "admin":\n    backend_roles: [all_access]\n\nlisten: :8443\n\nrate_limits:\n  "read:logs-*": 600\n  "write:logs-*": 120';
+
+  el.innerHTML = `<h2>Configuration</h2>
+    <div class="card">
+      <h3>config.yaml</h3>
+      <textarea id="configEditor" style="width:100%;min-height:400px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.5;resize:vertical;tab-size:2" spellcheck="false" aria-label="Configuration editor">${esc(configText)}</textarea>
+      <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+        <button class="btn" aria-label="Validate config" onclick="validateConfig()">✅ Validate</button>
+        <button class="btn" aria-label="Copy config" onclick="copyConfig()">📋 Copy</button>
+        <button class="btn" aria-label="Download config" onclick="downloadConfig()">💾 Download</button>
+        <span id="configStatus" style="font-size:12px;margin-left:auto"></span>
+      </div>
+    </div>
+    <div class="card"><h3>Config Reference</h3><div class="kv">
+      <div class="k">upstream.engine</div><div class="v">OpenSearch endpoint URL</div>
+      <div class="k">upstream.sigv4</div><div class="v">AWS SigV4 signing (region, service)</div>
+      <div class="k">providers[]</div><div class="v">OIDC providers (name, issuer, jwks_uri)</div>
+      <div class="k">scope_mapping</div><div class="v">Scope → backend_roles mapping</div>
+      <div class="k">listen</div><div class="v">Proxy listen address (default :8443)</div>
+      <div class="k">rate_limits</div><div class="v">Per-scope rate limits (requests/min)</div>
+      <div class="k">webhook_urls</div><div class="v">Event notification endpoints</div>
+      <div class="k">tracing.otlp_endpoint</div><div class="v">OpenTelemetry collector URL</div>
+      <div class="k">cedar.policy_file</div><div class="v">Path to Cedar policy file</div>
+    </div></div>`;
+}
+
+function validateConfig() {
+  const text = document.getElementById('configEditor').value;
+  const status = document.getElementById('configStatus');
+  const lines = text.split('\n');
+  let errors = [];
+  lines.forEach((l, i) => {
+    if (l.includes('\t')) errors.push(`Line ${i + 1}: tabs not allowed (use spaces)`);
+    if (l.match(/^\s+\S/) && !l.match(/^\s*[-#]/)) {
+      const indent = l.match(/^(\s*)/)[1].length;
+      if (indent % 2 !== 0) errors.push(`Line ${i + 1}: odd indentation (use 2 spaces)`);
+    }
+  });
+  if (!text.includes('upstream:')) errors.push('Missing required: upstream');
+  if (!text.includes('listen:')) errors.push('Missing required: listen');
+  status.innerHTML = errors.length ? `<span style="color:var(--red)">❌ ${errors.length} issue(s): ${esc(errors[0])}</span>` : '<span style="color:var(--green)">✅ Config looks valid</span>';
+}
+
+function copyConfig() {
+  navigator.clipboard.writeText(document.getElementById('configEditor').value);
+  document.getElementById('configStatus').innerHTML = '<span style="color:var(--green)">📋 Copied</span>';
+}
+
+function downloadConfig() {
+  const blob = new Blob([document.getElementById('configEditor').value], { type: 'text/yaml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'config.yaml';
+  a.click();
+}
+
 async function renderRateLimits(el) {
   const metrics = await fetch(API + '/metrics').then(r => r.text()).catch(() => '');
   const lines = metrics.split('\n').filter(l => l && !l.startsWith('#'));

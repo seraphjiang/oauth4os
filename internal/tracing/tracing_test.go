@@ -152,3 +152,32 @@ func TestPadHex(t *testing.T) {
 		t.Errorf("padHex(abcdef01,8) = %q", got)
 	}
 }
+
+func TestOTLPTracer(t *testing.T) {
+	var received []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received, _ = io.ReadAll(r.Body)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	tr := NewOTLPTracer(srv.URL)
+	ctx, span := tr.StartSpan(context.Background(), "test-op", map[string]string{"k": "v"})
+	if span.Name != "test-op" {
+		t.Errorf("span name = %q", span.Name)
+	}
+	tr.EndSpan(span, "ok")
+
+	// Child span
+	_, child := tr.StartSpan(ctx, "child-op", nil)
+	if child.ParentID != span.SpanID {
+		t.Error("child should reference parent span")
+	}
+	tr.EndSpan(child, "ok")
+
+	tr.Stop()
+
+	if len(received) == 0 {
+		t.Error("expected spans exported to server")
+	}
+}

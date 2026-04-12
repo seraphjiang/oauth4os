@@ -393,7 +393,7 @@ async function doSearch() {
     renderStats(hits, total);
     renderLogs(hits);
   } catch (e) {
-    document.getElementById('logBody').innerHTML = `<tr><td colspan="4" style="color:var(--red)">Error: ${esc(e.message)}</td></tr>`;
+    document.getElementById('logBody').innerHTML = `<tr><td colspan="4" style="color:var(--red)">⚠️ ${esc(e.message)} <button onclick="doSearch()" style="margin-left:8px;padding:2px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:11px">Retry</button></td></tr>`;
   } finally {
     searching = false;
     document.getElementById('searchBtn').disabled = false;

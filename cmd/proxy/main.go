@@ -170,7 +170,7 @@ func main() {
 	pkceHandler := pkce.NewHandler(func(clientID string, scopes []string) (string, string) {
 		tok, refresh := tokenMgr.CreateTokenForClient(clientID, scopes)
 		return tok.ID, refresh
-	})
+	}, tokenMgr.ValidateRedirectURI)
 	mux.HandleFunc("GET /oauth/authorize", pkceHandler.Authorize)
 	mux.HandleFunc("POST /oauth/authorize/token", pkceHandler.Exchange)
 

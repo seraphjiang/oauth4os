@@ -4,7 +4,7 @@
 #        docker compose -f docker-compose.test.yml down -v
 services:
   opensearch:
-    image: opensearchproject/opensearch:3.5.0
+    image: opensearchproject/opensearch:latest
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true

@@ -256,6 +256,23 @@ The demo app at `/demo/app` demonstrates scope enforcement:
 - Write operations (PUT, POST, DELETE) are blocked by Cedar policy → returns 403
 - The CLI (`oauth4os-demo`) shows the same behavior
 
+## v0.5.0 Security Features
+
+| Feature | Security Benefit |
+|---|---|
+| API key auth (X-API-Key) | M2M auth with constant-time compare, per-key rate limits |
+| Token binding | Binds tokens to client fingerprint (IP+UA), prevents stolen token reuse |
+| RFC 7009 revocation | Standard token revocation, always returns 200 (prevents scanning) |
+| DPoP prep (RFC 9449) | JWK thumbprint validation, method+freshness checks |
+| PAR (RFC 9126) | Pushed auth requests prevent parameter tampering, one-time use |
+| CIBA | Backchannel auth for headless services, 5-min expiry |
+| Device flow (RFC 8628) | CLI/IoT auth without browser on device, 10-min code expiry |
+| Introspection caching | 30s TTL cache reduces token store load under high traffic |
+| client_secret_basic | HTTP Basic auth on token/refresh/revoke endpoints |
+| Sliding window tokens | Auto-extend on active use, idle tokens expire normally |
+| Webhook auth | External auth decisions, fail-closed by default |
+| mTLS | Client cert auth as alternative to Bearer tokens |
+
 ## Known Limitations
 
 1. **In-memory token store** — tokens (not clients) are lost on restart. Client registrations persist to `data/clients.json`. Production deployments should use Redis or DynamoDB for tokens.

@@ -1,7 +1,6 @@
 package pkce
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"testing"
 )

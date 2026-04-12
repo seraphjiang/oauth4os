@@ -114,9 +114,9 @@ It validates JWTs, maps OAuth scopes to OpenSearch roles, enforces Cedar authori
 |--------|-------|
 | Go source (non-test) | 9,000 lines |
 | Test code | 9,500 lines |
-| Test functions | 558 |
-| Internal packages | 46 |
-| Commits | 442 |
+| Test functions | 771 |
+| Internal packages | 47 |
+| Commits | 528 |
 | OAuth RFCs implemented | 4 (7636, 7662, 8693, 7591) |
 | External dependencies | 2 (jwt, yaml) |
 

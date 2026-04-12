@@ -75,3 +75,19 @@ func TestMutation_ContentType(t *testing.T) {
 		t.Errorf("expected application/json, got %q", ct)
 	}
 }
+
+// Mutation: remove Stop → drain goroutine must terminate cleanly
+func TestMutation_StopDrains(t *testing.T) {
+	n := New(nil)
+	n.Emit(Event{Type: TokenIssued, ClientID: "app"})
+	done := make(chan struct{})
+	go func() {
+		n.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop must terminate the drain goroutine")
+	}
+}

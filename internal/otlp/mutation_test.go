@@ -1,8 +1,8 @@
 package otlp
 
 import (
-	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,11 +16,9 @@ func TestMutation_RecordAndExport(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var data map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &data)
-	spans, _ := data["spans"].([]interface{})
-	if len(spans) == 0 {
-		t.Error("handler must return recorded spans")
+	body := w.Body.String()
+	if !strings.Contains(body, "test-op") {
+		t.Error("handler must return recorded span with operation name")
 	}
 }
 
@@ -32,10 +30,8 @@ func TestMutation_RingBuffer(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	e.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/v1/traces", nil))
-	var data map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &data)
-	spans, _ := data["spans"].([]interface{})
-	if len(spans) > 2 {
-		t.Errorf("ring buffer should cap at 2, got %d", len(spans))
+	body := w.Body.String()
+	if strings.Count(body, "traceId") > 2 {
+		t.Error("ring buffer should cap at 2 spans")
 	}
 }

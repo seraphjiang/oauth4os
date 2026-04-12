@@ -142,7 +142,7 @@ func (m *Manager) handleClientCredentials(w http.ResponseWriter, r *http.Request
 	}
 
 	// Authenticate client
-	if err := m.authenticateClient(clientID, clientSecret); err != nil {
+	if err := m.AuthenticateClient(clientID, clientSecret); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_client", "authentication failed")
 		return
 	}
@@ -185,7 +185,7 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		clientSecret = basicSecret
 	}
 
-	if err := m.authenticateClient(clientID, clientSecret); err != nil {
+	if err := m.AuthenticateClient(clientID, clientSecret); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_client", "authentication failed")
 		return
 	}
@@ -327,7 +327,7 @@ func (m *Manager) RevokeRFC7009(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if clientID != "" {
-		if err := m.authenticateClient(clientID, clientSecret); err != nil {
+		if err := m.AuthenticateClient(clientID, clientSecret); err != nil {
 			writeError(w, http.StatusUnauthorized, "invalid_client", "authentication failed")
 			return
 		}

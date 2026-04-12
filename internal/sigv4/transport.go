@@ -23,6 +23,7 @@ type Transport struct {
 	AccessKey string
 	SecretKey string
 	Token     string // optional session token
+	credsExp  time.Time
 }
 
 // New creates a SigV4 transport using env vars, ECS/AppRunner container creds, or provided credentials.
@@ -60,6 +61,9 @@ func (t *Transport) refreshContainerCreds() {
 	t.AccessKey = jsonVal(string(body), "AccessKeyId")
 	t.SecretKey = jsonVal(string(body), "SecretAccessKey")
 	t.Token = jsonVal(string(body), "Token")
+	if exp := jsonVal(string(body), "Expiration"); exp != "" {
+		t.credsExp, _ = time.Parse(time.RFC3339, exp)
+	}
 }
 
 func jsonVal(body, key string) string {
@@ -83,8 +87,10 @@ func jsonVal(body, key string) string {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Refresh container creds (AppRunner/ECS) on each request
-	t.refreshContainerCreds()
+	// Refresh container creds only when near expiry (5 min buffer)
+	if t.AccessKey == "" || (!t.credsExp.IsZero() && time.Until(t.credsExp) < 5*time.Minute) {
+		t.refreshContainerCreds()
+	}
 
 	// Clone request to avoid mutating the original
 	r := req.Clone(req.Context())

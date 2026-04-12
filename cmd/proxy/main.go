@@ -26,10 +26,12 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/exchange"
 	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
+	"github.com/seraphjiang/oauth4os/internal/keyring"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
 	"github.com/seraphjiang/oauth4os/internal/ratelimit"
 	"github.com/seraphjiang/oauth4os/internal/registration"
 	"github.com/seraphjiang/oauth4os/internal/scope"
+	"github.com/seraphjiang/oauth4os/internal/session"
 	"github.com/seraphjiang/oauth4os/internal/token"
 	"github.com/seraphjiang/oauth4os/internal/tracing"
 )
@@ -64,6 +66,8 @@ func main() {
 	auditor := audit.NewJSONAuditor(os.Stdout)
 	auditStore, _ := audit.NewMemoryStore(10000, "")
 	auditor.WithStore(auditStore)
+
+	sessionMgr := session.New(map[string]int{"*": 100})
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
@@ -200,6 +204,21 @@ func main() {
 	}
 	mux.HandleFunc("GET /.well-known/openid-configuration",
 		discovery.Handler(discovery.Config{Issuer: issuerURL}, scopeNames))
+
+	// Key rotation + JWKS endpoint
+	rotateInterval := 24 * time.Hour
+	if v := os.Getenv("OAUTH4OS_KEY_ROTATE_HOURS"); v != "" {
+		if h, err := time.ParseDuration(v + "h"); err == nil {
+			rotateInterval = h
+		}
+	}
+	keys, err := keyring.New(2048, rotateInterval)
+	if err != nil {
+		log.Fatalf("Failed to initialize keyring: %v", err)
+	}
+	defer keys.Stop()
+	mux.HandleFunc("GET /.well-known/jwks.json", keys.JWKSHandler())
+	_ = keys // available for token signing in future
 
 	// Prometheus metrics
 	mux.HandleFunc("GET /admin/audit", func(w http.ResponseWriter, r *http.Request) {

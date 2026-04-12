@@ -57,6 +57,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:600}
       <a data-tab="clusters">🌐 Clusters</a>
       <a data-tab="apikeys">🔑 API Keys</a>
       <a data-tab="webhooks">🔔 Webhooks</a>
+      <a data-tab="ratelimits">⚡ Rate Limits</a>
     </nav>
     <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
       <a href="../">← oauth4os</a><br>
@@ -97,6 +98,7 @@ async function loadTab() {
     case 'clusters': await renderClusters(el); break;
     case 'apikeys': await renderApiKeys(el); break;
     case 'webhooks': await renderWebhooks(el); break;
+    case 'ratelimits': await renderRateLimits(el); break;
   }
 }
 
@@ -186,6 +188,49 @@ async function deleteKey(id) {
   if (!id) return;
   await fetch(API + '/admin/apikeys/' + id, { method: 'DELETE' });
   loadTab();
+}
+
+async function renderRateLimits(el) {
+  const metrics = await fetch(API + '/metrics').then(r => r.text()).catch(() => '');
+  const lines = metrics.split('\n').filter(l => l && !l.startsWith('#'));
+  const rlMetrics = lines.filter(l => l.includes('ratelimit') || l.includes('rate_limit'));
+  const total = lines.find(l => l.startsWith('oauth4os_requests_total'))?.split(' ')[1] || '—';
+  const limited = lines.find(l => l.includes('rate_limited'))?.split(' ')[1] || '0';
+
+  el.innerHTML = `<h2>Rate Limits</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+      <div class="card" style="text-align:center"><div style="font-size:24px;font-weight:800">${esc(total)}</div><div style="font-size:11px;color:var(--muted)">TOTAL REQUESTS</div></div>
+      <div class="card" style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--orange)">${esc(limited)}</div><div style="font-size:11px;color:var(--muted)">RATE LIMITED (429)</div></div>
+      <div class="card" style="text-align:center"><div style="font-size:24px;font-weight:800;color:var(--green)">${total !== '—' ? ((1 - parseInt(limited) / Math.max(1, parseInt(total))) * 100).toFixed(1) + '%' : '—'}</div><div style="font-size:11px;color:var(--muted)">SUCCESS RATE</div></div>
+    </div>
+    <div class="card"><h3>Configuration</h3><div class="kv">
+      <div class="k">Strategy</div><div class="v">Token bucket per client_id / API key</div>
+      <div class="k">Default Rate</div><div class="v">100 requests/minute</div>
+      <div class="k">Scope Overrides</div><div class="v"><code>admin:*</code> → 200/min, <code>read:*</code> → 100/min</div>
+      <div class="k">Headers</div><div class="v"><code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code></div>
+      <div class="k">Exceeded</div><div class="v">429 Too Many Requests + <code>Retry-After</code> header</div>
+    </div></div>
+    <div class="card"><h3>Per-Client Metrics</h3>
+      ${rlMetrics.length ? `<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+        ${rlMetrics.map(l => { const [k, v] = l.split(' '); return `<tr><td><code>${esc(k)}</code></td><td>${esc(v)}</td></tr>`; }).join('')}
+      </tbody></table>` : '<div style="color:var(--muted);font-size:12px">No rate limit metrics yet — make some requests to populate.</div>'}
+    </div>
+    <div class="card"><h3>Test Rate Limit</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Send rapid requests to see rate limiting in action:</p>
+      <button class="btn btn-sm" aria-label="Test rate limit" onclick="testRateLimit()">⚡ Send 10 rapid requests</button>
+      <div id="rlResult" style="margin-top:8px;font-size:12px"></div>
+    </div>`;
+}
+
+async function testRateLimit() {
+  const el = document.getElementById('rlResult');
+  el.innerHTML = '⏳ Sending...';
+  let ok = 0, limited = 0;
+  const promises = Array(10).fill(0).map(() =>
+    fetch(API + '/health').then(r => { if (r.status === 429) limited++; else ok++; }).catch(() => limited++)
+  );
+  await Promise.all(promises);
+  el.innerHTML = `✅ ${ok} succeeded, 🚫 ${limited} rate-limited (429)`;
 }
 
 async function renderWebhooks(el) {

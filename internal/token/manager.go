@@ -266,7 +266,8 @@ func (m *Manager) CreateTokenForClient(clientID string, scopes []string) (*Token
 	return m.createToken(clientID, scopes)
 }
 
-func (m *Manager) authenticateClient(clientID, secret string) error {
+// AuthenticateClient validates client credentials. Exported for PAR/revocation.
+func (m *Manager) AuthenticateClient(clientID, secret string) error {
 	m.mu.RLock()
 	client, ok := m.clients[clientID]
 	m.mu.RUnlock()

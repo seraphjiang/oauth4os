@@ -67,3 +67,30 @@ func TestMutation_RetryAfter(t *testing.T) {
 		t.Error("shed response must include Retry-After header")
 	}
 }
+
+// Mutation: remove Stats → must return active and rejected counts
+func TestMutation_StatsAccurate(t *testing.T) {
+	s := New(1)
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		w.WriteHeader(200)
+	})
+	handler := s.Middleware(inner)
+
+	// Start a request that holds the slot
+	go func() {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	// This one should be rejected
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+
+	time.Sleep(60 * time.Millisecond) // wait for first to finish
+	_, rejected := s.Stats()
+	if rejected == 0 {
+		t.Error("Stats must report rejected requests")
+	}
+}

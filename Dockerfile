@@ -2,7 +2,7 @@ FROM golang:1.22-alpine AS builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 COPY go.mod go.sum ./
-ENV GOPROXY=direct GONOSUMDB=* GOFLAGS=-insecure
+ENV GOPROXY=direct GONOSUMDB=* GONOSUMCHECK=* GOINSECURE=*
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -ldflags="-s -w" -o oauth4os ./cmd/proxy

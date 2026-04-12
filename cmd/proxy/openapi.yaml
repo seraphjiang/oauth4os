@@ -136,6 +136,9 @@ paths:
     post:
       tags: [Introspection]
       summary: Introspect a token (RFC 7662)
+      description: Requires client authentication (Basic Auth or form-encoded client_id/client_secret)
+      security:
+        - basicAuth: []
       requestBody:
         required: true
         content:
@@ -1027,6 +1030,9 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    basicAuth:
+      type: http
+      scheme: basic
 
   schemas:
     TokenResponse:

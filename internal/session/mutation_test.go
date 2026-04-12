@@ -51,7 +51,7 @@ func TestMutation_TouchUpdates(t *testing.T) {
 	if len(sessions) != 1 {
 		t.Fatal("expected 1 session")
 	}
-	if time.Since(sessions[0].LastActive) > 50*time.Millisecond {
+	if time.Since(sessions[0].LastSeen) > 50*time.Millisecond {
 		t.Error("Touch must update LastActive")
 	}
 }

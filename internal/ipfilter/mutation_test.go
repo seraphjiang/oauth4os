@@ -6,7 +6,7 @@ import (
 
 // Mutation: remove allowlist check → allowed IP must pass
 func TestMutation_AllowlistPass(t *testing.T) {
-	r, err := New(Config{Filters: []FilterConfig{{ClientID: "app", Allow: []string{"10.0.0.0/8"}}}})
+	r, err := New(Config{Clients: map[string]*FilterConfig{"app": {Allow: []string{"10.0.0.0/8"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,7 +17,7 @@ func TestMutation_AllowlistPass(t *testing.T) {
 
 // Mutation: remove denylist check → denied IP must be rejected
 func TestMutation_DenylistBlock(t *testing.T) {
-	r, err := New(Config{Filters: []FilterConfig{{ClientID: "app", Deny: []string{"192.168.0.0/16"}}}})
+	r, err := New(Config{Clients: map[string]*FilterConfig{"app": {Deny: []string{"192.168.0.0/16"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestMutation_IPExtraction(t *testing.T) {
 
 // Mutation: unconfigured client → must pass (no rules = allow all)
 func TestMutation_NoRulesAllow(t *testing.T) {
-	r, err := New(Config{Filters: []FilterConfig{{ClientID: "other", Allow: []string{"10.0.0.0/8"}}}})
+	r, err := New(Config{Clients: map[string]*FilterConfig{"other": {Allow: []string{"10.0.0.0/8"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

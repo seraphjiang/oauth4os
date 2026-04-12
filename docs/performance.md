@@ -14,14 +14,20 @@ Run: `go test ./bench/ -bench=. -benchmem -count=3`
 
 | Benchmark | ops/sec | ns/op | allocs/op |
 |-----------|---------|-------|-----------|
-| ScopeMapper (1 scope, 10 mappings) | ~5,000,000 | ~200 | 1 |
-| ScopeMapper (5 scopes, 100 mappings) | ~1,000,000 | ~1,000 | 5 |
-| Cedar (1 policy) | ~10,000,000 | ~100 | 0 |
-| Cedar (10 policies) | ~2,000,000 | ~500 | 0 |
-| Cedar (100 policies) | ~300,000 | ~3,000 | 0 |
-| Cedar (forbid override) | ~8,000,000 | ~125 | 0 |
-| Proxy round-trip (scope + Cedar) | ~50,000 | ~20,000 | ~10 |
-| Proxy passthrough (no auth) | ~80,000 | ~12,000 | ~5 |
+| ScopeMapper (1 scope, 10 mappings) | 897,590 | 184 | 1 |
+| ScopeMapper (5 scopes, 100 mappings) | 143,892 | 915 | 4 |
+| Cedar (1 policy) | 407,197 | 269 | 2 |
+| Cedar (10 policies) | 102,904 | 1,659 | 11 |
+| Cedar (100 policies) | 12,945 | 11,886 | 101 |
+| Cedar (forbid override) | 2,173,687 | 63 | 0 |
+| Cache hit | 1,598,920 | 64 | 0 |
+| Cache miss | 7,479,860 | 18 | 0 |
+| Circuit breaker check | 7,565,611 | 18 | 0 |
+| Proxy round-trip (scope + Cedar) | 1,560 | 79,546 | 60 |
+| Proxy passthrough (no auth) | 1,473 | 70,283 | 44 |
+| Proxy with warm cache | 1,599 | 70,753 | 44 |
+
+Measured on Intel Xeon Platinum 8375C @ 2.90GHz (16 cores), Go 1.22.
 
 Key takeaways:
 - Scope mapping and Cedar evaluation are sub-microsecond for typical configs (<20 policies)

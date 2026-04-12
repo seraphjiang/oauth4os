@@ -4,7 +4,7 @@ info:
   description: |
     OAuth 2.0 proxy that validates JWT tokens, maps scopes to OpenSearch
     security roles, and forwards requests to Engine and Dashboards.
-  version: 0.2.0
+  version: 1.0.0
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0

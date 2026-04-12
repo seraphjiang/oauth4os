@@ -195,9 +195,7 @@ func main() {
 	}
 
 	// mTLS client auth (optional)
-	_ = webhookAuth // TODO: wire into request handler
 	var mtlsMap *mtls.ClientMap
-	_ = mtlsMap // TODO: wire into TLS config
 	if len(cfg.MTLS.Clients) > 0 {
 		entries := make(map[string]*mtls.ClientEntry)
 		for cn, c := range cfg.MTLS.Clients {

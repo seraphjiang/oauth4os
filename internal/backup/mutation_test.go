@@ -3,6 +3,7 @@ package backup
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/seraphjiang/oauth4os/internal/config"

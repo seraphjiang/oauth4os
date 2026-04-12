@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os configuration viewer and Cedar policy tester">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Config</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}.container{max-width:800px;margin:0 auto;padding:20px}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}header nav a{color:var(--muted);font-size:13px}
+h1{font-size:20px;margin-bottom:4px}.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:12px}
+.section h2{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.kv{display:grid;grid-template-columns:180px 1fr;gap:4px 12px;font-size:12px}
+.kv .k{color:var(--muted);font-weight:600}.kv .v{font-family:'SF Mono',Consolas,monospace;font-size:11px;word-break:break-all}
+.badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;margin:1px}
+.badge-on{background:#3fb95020;color:var(--green)}.badge-off{background:#f8514920;color:var(--red)}
+.tester{background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:20px;margin-bottom:12px}
+.tester h2{font-size:14px;margin-bottom:10px;color:var(--accent)}
+.tester-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.tester input,.tester select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px;font-family:inherit}
+.tester input{flex:1;min-width:120px}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.result{margin-top:8px;padding:12px;border-radius:6px;font-size:13px;font-weight:600;display:none}
+.result.permit{display:block;background:#3fb95015;border:1px solid var(--green);color:var(--green)}
+.result.deny{display:block;background:#f8514915;border:1px solid var(--red);color:var(--red)}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⚙️ <span>Config</span></div>
+  <nav><a href="clients.html">Clients</a><a href="tokens.html">Tokens</a><a href="policies.html">Policies</a><a href="keys.html">Keys</a><a href="./">Admin</a><a href="../">← oauth4os</a><button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button></nav>
+</header>
+<div class="container" id="main">
+  <h1>Proxy Configuration</h1>
+  <p class="sub">Read-only view of current runtime configuration</p>
+
+  <div class="tester">
+    <h2>🧪 Cedar Policy Tester</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Test if a request would be permitted or denied by Cedar policies</p>
+    <div class="tester-row">
+      <select id="tMethod" aria-label="HTTP method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+      <input id="tPath" placeholder="/logs-*/_search" value="/logs-*/_search" aria-label="Request path">
+      <input id="tScopes" placeholder="read:logs-*" value="read:logs-*" aria-label="Token scopes">
+      <button class="btn btn-primary" onclick="testPolicy()" aria-label="Test policy">▶ Test</button>
+    </div>
+    <div class="result" id="tResult"></div>
+  </div>
+
+  <div id="config"><div class="empty">Loading configuration...</div></div>
+</div>
+<script>
+const API=window.location.origin;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function badge(v){return v?'<span class="badge badge-on">✓ enabled</span>':'<span class="badge badge-off">✗ disabled</span>'}
+
+async function load(){
+  const el=document.getElementById('config');
+  // Try multiple config endpoints
+  let cfg=null;
+  for(const url of ['/admin/config','/health/deep','/version']){
+    try{const r=await fetch(API+url);if(r.ok){const d=await r.json();if(url==='/admin/config')cfg=d;else if(!cfg)cfg=cfg||{};Object.assign(cfg||{},d)}}catch{}
+  }
+  // Also get health
+  try{const r=await fetch(API+'/health');if(r.ok)Object.assign(cfg||{},await r.json())}catch{}
+  if(!cfg||!Object.keys(cfg).length){el.innerHTML='<div class="empty">Could not load config. Is the proxy running?</div>';return}
+
+  const c=cfg;
+  el.innerHTML=`
+  <div class="section"><h2>🔧 General</h2><div class="kv">
+    <div class="k">Listen</div><div class="v">${esc(c.listen||c.Listen||':8443')}</div>
+    <div class="k">Version</div><div class="v">${esc(c.version||c.Version||'—')}</div>
+    <div class="k">Upstream Engine</div><div class="v">${esc(c.upstream?.engine||c.Upstream?.engine||'—')}</div>
+    <div class="k">Upstream Dashboards</div><div class="v">${esc(c.upstream?.dashboards||c.Upstream?.dashboards||'—')}</div>
+    <div class="k">TLS</div><div class="v">${badge(c.tls?.cert_file||c.TLS?.cert_file)}</div>
+    <div class="k">Clusters</div><div class="v">${Object.keys(c.clusters||c.Clusters||{}).length} configured</div>
+  </div></div>
+
+  <div class="section"><h2>🔑 Authentication</h2><div class="kv">
+    <div class="k">JWT Access Tokens</div><div class="v">${badge(c.jwt_access_token||c.JWTAccessToken)}</div>
+    <div class="k">Issuer</div><div class="v">${esc(c.issuer||c.Issuer||'auto')}</div>
+    <div class="k">Token Store</div><div class="v">${esc(c.token_store||c.TokenStore||'memory')}</div>
+    <div class="k">Refresh Token TTL</div><div class="v">${esc(c.refresh_token_ttl||c.RefreshTokenTTL||'720h')}</div>
+    <div class="k">Refresh Max Life</div><div class="v">${esc(c.refresh_max_life||c.RefreshMaxLife||'2160h')}</div>
+    <div class="k">Providers</div><div class="v">${(c.providers||c.Providers||[]).length} configured</div>
+    <div class="k">Scope Mappings</div><div class="v">${Object.keys(c.scope_mapping||c.ScopeMapping||{}).length} rules</div>
+  </div></div>
+
+  <div class="section"><h2>🛡️ Security</h2><div class="kv">
+    <div class="k">Rate Limits</div><div class="v">${Object.keys(c.rate_limits||c.RateLimits||{}).length} rules</div>
+    <div class="k">CORS Origins</div><div class="v">${esc((c.cors?.origins||c.CORS?.origins||['*']).join(', '))}</div>
+    <div class="k">mTLS</div><div class="v">${badge(c.mtls?.enabled||c.MTLS?.enabled)}</div>
+    <div class="k">IP Filter</div><div class="v">${badge(c.ip_filter?.enabled||c.IPFilter?.enabled)}</div>
+    <div class="k">Webhook Auth</div><div class="v">${c.webhook?.url?esc(c.webhook.url):'<span class="badge badge-off">not configured</span>'}</div>
+  </div></div>
+
+  <div class="section"><h2>📊 Observability</h2><div class="kv">
+    <div class="k">Metrics</div><div class="v"><a href="/metrics">/metrics</a> (Prometheus)</div>
+    <div class="k">Health</div><div class="v"><a href="/health">/health</a> · <a href="/health/deep">/health/deep</a></div>
+    <div class="k">JWKS</div><div class="v"><a href="/.well-known/jwks.json">/.well-known/jwks.json</a></div>
+    <div class="k">Discovery</div><div class="v"><a href="/.well-known/openid-configuration">/.well-known/openid-configuration</a></div>
+    <div class="k">Audit Log</div><div class="v"><a href="/admin/audit">/admin/audit</a></div>
+  </div></div>`;
+}
+
+async function testPolicy(){
+  const method=document.getElementById('tMethod').value;
+  const path=document.getElementById('tPath').value.trim();
+  const scopes=document.getElementById('tScopes').value.trim();
+  const el=document.getElementById('tResult');
+  if(!path){el.className='result';el.style.display='none';return}
+
+  // Get a token with the specified scopes and try the request
+  try{
+    const tr=await fetch(API+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope='+encodeURIComponent(scopes)});
+    if(!tr.ok){el.className='result deny';el.textContent='❌ DENY — could not get token with scope: '+scopes;return}
+    const td=await tr.json();
+
+    const rr=await fetch(API+path,{method,headers:{'Authorization':'Bearer '+td.access_token,'Content-Type':'application/json'},
+      body:method!=='GET'?'{"query":{"match_all":{}},"size":1}':undefined});
+
+    if(rr.status===403){el.className='result deny';el.textContent='❌ DENY — Cedar policy blocked '+method+' '+path+' with scope '+scopes}
+    else if(rr.status===401){el.className='result deny';el.textContent='❌ DENY — token invalid or expired'}
+    else if(rr.ok||rr.status===404){el.className='result permit';el.textContent='✅ PERMIT — '+method+' '+path+' allowed with scope '+scopes+' (HTTP '+rr.status+')'}
+    else{el.className='result deny';el.textContent='⚠️ HTTP '+rr.status+' — '+method+' '+path}
+  }catch(e){el.className='result deny';el.textContent='❌ Error: '+e.message}
+}
+
+load();
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+<script src="/web/feedback.js"></script>
+</body>
+</html>

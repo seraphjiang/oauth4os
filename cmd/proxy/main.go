@@ -47,6 +47,8 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/tokenui"
 	corsmw "github.com/seraphjiang/oauth4os/internal/cors"
 	"github.com/seraphjiang/oauth4os/internal/apikey"
+	"github.com/seraphjiang/oauth4os/internal/device"
+	"github.com/seraphjiang/oauth4os/internal/tokenbind"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 	"github.com/seraphjiang/oauth4os/internal/cache"
@@ -476,6 +478,31 @@ func main() {
 			}
 		}
 		entries, _ := auditor.Query(filter)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(entries)
+	})
+
+	// Audit export (CSV)
+	mux.HandleFunc("GET /admin/audit/export", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		filter := audit.QueryFilter{ClientID: q.Get("client_id"), Event: q.Get("event"), Limit: 10000}
+		if since := q.Get("since"); since != "" {
+			if t, err := time.Parse(time.RFC3339, since); err == nil {
+				filter.Since = t
+			}
+		}
+		entries, _ := auditor.Query(filter)
+		format := q.Get("format")
+		if format == "csv" {
+			w.Header().Set("Content-Type", "text/csv")
+			w.Header().Set("Content-Disposition", "attachment; filename=audit.csv")
+			fmt.Fprintln(w, "timestamp,level,event,client_id,method,path,status,latency_ms,error")
+			for _, e := range entries {
+				fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s,%d,%.1f,%s\n",
+					e.Timestamp, e.Level, e.Event, e.ClientID, e.Method, e.Path, e.Status, e.Latency, e.Error)
+			}
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(entries)
 	})

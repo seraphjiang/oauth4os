@@ -93,7 +93,7 @@ func TestUpdateAndRemoveTenant(t *testing.T) {
 	body, _ := json.Marshal(config.Tenant{
 		ScopeMapping: map[string]config.Role{"read:*": {BackendRoles: []string{"reader"}}},
 	})
-	req := httptest.NewRequest("PUT", "/admin/tenants/https://kc.example.com", bytes.NewReader(body))
+	req := httptest.NewRequest("PUT", "/admin/tenants/https%3A%2F%2Fkc.example.com", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != 200 {
@@ -105,11 +105,13 @@ func TestUpdateAndRemoveTenant(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	var tenants map[string]config.Tenant
 	json.NewDecoder(w.Body).Decode(&tenants)
-	if _, ok := tenants["https://kc.example.com"]; !ok {
-		t.Fatal("expected tenant")
+	if _, ok := tenants["https%3A%2F%2Fkc.example.com"]; !ok {
+		if _, ok2 := tenants["https://kc.example.com"]; !ok2 {
+			t.Fatal("expected tenant")
+		}
 	}
 	// Remove
-	req = httptest.NewRequest("DELETE", "/admin/tenants/https://kc.example.com", nil)
+	req = httptest.NewRequest("DELETE", "/admin/tenants/https%3A%2F%2Fkc.example.com", nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != 204 {

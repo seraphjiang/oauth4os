@@ -176,7 +176,14 @@ func evalConditions(conds []Condition, req Request) bool {
 
 func resolveField(field string, req Request) string {
 	parts := strings.SplitN(field, ".", 2)
-	if len(parts) != 2 {
+	if len(parts) == 1 {
+		// Unqualified field — check principal first, then resource
+		if v, ok := req.Principal[field]; ok {
+			return v
+		}
+		if v, ok := req.Resource[field]; ok {
+			return v
+		}
 		return ""
 	}
 	switch parts[0] {

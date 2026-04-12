@@ -50,7 +50,7 @@ func TestMutation_GlobStarBroken(t *testing.T) {
 
 // Mutation: What if when condition was ignored?
 func TestMutation_WhenConditionIgnored(t *testing.T) {
-	p, _ := ParsePolicy("p", `permit(*, *, *) when { scope == "admin" };`)
+	p, _ := ParsePolicy("p", `permit(*, *, *) when { principal.scope == "admin" };`)
 	e := NewEngine([]Policy{p})
 	d := e.Evaluate(Request{
 		Principal: map[string]string{"sub": "u", "scope": "readonly"},
@@ -64,7 +64,7 @@ func TestMutation_WhenConditionIgnored(t *testing.T) {
 
 // Mutation: What if unless condition was ignored?
 func TestMutation_UnlessConditionIgnored(t *testing.T) {
-	p, _ := ParsePolicy("p", `permit(*, *, *) unless { scope == "readonly" };`)
+	p, _ := ParsePolicy("p", `permit(*, *, *) unless { principal.scope == "readonly" };`)
 	e := NewEngine([]Policy{p})
 	d := e.Evaluate(Request{
 		Principal: map[string]string{"sub": "u", "scope": "readonly"},

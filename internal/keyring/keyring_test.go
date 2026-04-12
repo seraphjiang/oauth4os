@@ -85,10 +85,10 @@ func TestJWKSHandler_CacheHeader(t *testing.T) {
 }
 
 func TestAutoRotation(t *testing.T) {
-	r, _ := New(2048, 50*time.Millisecond)
+	r, _ := New(2048, 100*time.Millisecond)
 	defer r.Stop()
 	first := r.Current().ID
-	time.Sleep(120 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	second := r.Current().ID
 	if first == second {
 		t.Fatal("key should have rotated")

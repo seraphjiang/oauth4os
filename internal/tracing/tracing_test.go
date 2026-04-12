@@ -111,3 +111,44 @@ func TestSpanCorrelation(t *testing.T) {
 		t.Fatalf("grandchild ParentID %s != child SpanID %s", grandchild.ParentID, child.SpanID)
 	}
 }
+
+func TestGenID(t *testing.T) {
+	id := GenID()
+	if len(id) == 0 {
+		t.Fatal("GenID returned empty string")
+	}
+	id2 := GenID()
+	if id == id2 {
+		t.Fatal("GenID should return unique values")
+	}
+}
+
+func TestSplitTraceparent(t *testing.T) {
+	tp := "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	parts := splitTraceparent(tp)
+	if len(parts) < 4 {
+		t.Fatalf("expected 4 parts, got %d", len(parts))
+	}
+	if parts[1] != "0af7651916cd43dd8448eb211c80319c" {
+		t.Errorf("traceID = %q", parts[1])
+	}
+	if parts[2] != "b7ad6b7169203331" {
+		t.Errorf("spanID = %q", parts[2])
+	}
+}
+
+func TestSplitTraceparentInvalid(t *testing.T) {
+	parts := splitTraceparent("garbage")
+	if len(parts) >= 4 {
+		t.Error("invalid traceparent should return fewer than 4 parts")
+	}
+}
+
+func TestPadHex(t *testing.T) {
+	if got := padHex("abc", 8); got != "00000abc" {
+		t.Errorf("padHex(abc,8) = %q", got)
+	}
+	if got := padHex("abcdef01", 8); got != "abcdef01" {
+		t.Errorf("padHex(abcdef01,8) = %q", got)
+	}
+}

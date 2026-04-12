@@ -107,3 +107,6 @@ func traceIDFromContext(ctx context.Context) string {
 	}
 	return ""
 }
+
+// GenID generates a random hex ID (32 chars / 16 bytes).
+func GenID() string { return genID(16) }

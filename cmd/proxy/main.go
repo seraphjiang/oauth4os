@@ -490,6 +490,103 @@ func main() {
 		json.NewEncoder(w).Encode(sessionMgr.List(clientID))
 	})
 
+	// Admin health dashboard — all subsystem statuses
+	mux.HandleFunc("GET /admin/health", func(w http.ResponseWriter, r *http.Request) {
+		type sub struct {
+			Status string `json:"status"`
+			Detail string `json:"detail,omitempty"`
+		}
+		result := map[string]sub{}
+		overall := "ok"
+
+		// Upstream
+		resp, err := healthClient.Get(cfg.Upstream.Engine)
+		if err != nil {
+			result["upstream"] = sub{"error", err.Error()}
+			overall = "degraded"
+		} else {
+			resp.Body.Close()
+			result["upstream"] = sub{"ok", fmt.Sprintf("status=%d", resp.StatusCode)}
+		}
+
+		// JWKS per provider
+		for _, p := range cfg.Providers {
+			uri := strings.TrimSuffix(p.Issuer, "/") + "/.well-known/openid-configuration"
+			if p.JWKSURI != "" && p.JWKSURI != "auto" {
+				uri = p.JWKSURI
+			}
+			resp, err := healthClient.Get(uri)
+			if err != nil {
+				result["jwks_"+p.Name] = sub{"error", err.Error()}
+				overall = "degraded"
+			} else {
+				resp.Body.Close()
+				result["jwks_"+p.Name] = sub{"ok", fmt.Sprintf("status=%d", resp.StatusCode)}
+			}
+		}
+
+		// TLS cert
+		if cfg.TLS.Enabled && cfg.TLS.CertFile != "" {
+			if certPEM, err := os.ReadFile(cfg.TLS.CertFile); err == nil {
+				block, _ := pem.Decode(certPEM)
+				if block != nil {
+					if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
+						days := int(time.Until(cert.NotAfter).Hours() / 24)
+						s := "ok"
+						if days < 30 {
+							s = "warning"
+							overall = "degraded"
+						}
+						result["tls_cert"] = sub{s, fmt.Sprintf("expires_in_days=%d", days)}
+					}
+				}
+			}
+		} else {
+			result["tls_cert"] = sub{"ok", "disabled"}
+		}
+
+		// Rate limiter
+		result["rate_limiter"] = sub{"ok", fmt.Sprintf("scopes=%d", len(cfg.RateLimits))}
+
+		// Client store
+		if clientStore != nil {
+			result["client_store"] = sub{"ok", "persistent"}
+		} else {
+			result["client_store"] = sub{"ok", "in-memory"}
+		}
+
+		// Audit
+		result["audit_store"] = sub{"ok", fmt.Sprintf("entries=%d", auditStore.Len())}
+
+		// Sessions
+		result["sessions"] = sub{"ok", fmt.Sprintf("active=%d", sessionMgr.Count())}
+
+		// SigV4
+		if cfg.Upstream.SigV4 != nil {
+			result["sigv4"] = sub{"ok", fmt.Sprintf("region=%s,service=%s", cfg.Upstream.SigV4.Region, cfg.Upstream.SigV4.Service)}
+		}
+
+		result["overall"] = sub{overall, fmt.Sprintf("version=%s,uptime=%ds", version, int(time.Since(startTime).Seconds()))}
+
+		// HTML or JSON based on Accept header
+		if strings.Contains(r.Header.Get("Accept"), "text/html") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, "<html><head><title>oauth4os Health</title><meta http-equiv=refresh content=10>")
+			fmt.Fprint(w, "<style>body{font-family:monospace;max-width:700px;margin:40px auto}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px;text-align:left}.ok{color:green}.error{color:red}.warning{color:orange}.degraded{color:orange}</style></head><body>")
+			fmt.Fprintf(w, "<h2>oauth4os Health Dashboard</h2><table><tr><th>Subsystem</th><th>Status</th><th>Detail</th></tr>")
+			for name, s := range result {
+				fmt.Fprintf(w, "<tr><td>%s</td><td class=%s>%s</td><td>%s</td></tr>", name, s.Status, s.Status, s.Detail)
+			}
+			fmt.Fprint(w, "</table></body></html>")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if overall != "ok" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		json.NewEncoder(w).Encode(result)
+	})
+
 	mux.HandleFunc("GET /developer/analytics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, developerAnalyticsHTML)
@@ -706,6 +803,7 @@ func main() {
 		r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))
 
 		auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
+		logger.Info("request", "request_id", reqID, "client", claims.ClientID, "method", r.Method, "path", r.URL.Path)
 		analyticsTracker.Record(claims.ClientID, claims.Scopes, index)
 
 		// Span: upstream forwarding
@@ -748,9 +846,16 @@ func main() {
 	// Tracing middleware (outermost) → rate limiting → mux
 	traced := tracing.Middleware(rateLimited, tracer)
 
+	// CORS middleware
+	corsHandler := corsmw.Middleware(corsmw.Config{
+		Origins: cfg.CORS.Origins,
+		Methods: cfg.CORS.Methods,
+		Headers: cfg.CORS.Headers,
+	})(traced)
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      traced,
+		Handler:      corsHandler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

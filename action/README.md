@@ -1,6 +1,6 @@
 # oauth4os GitHub Action
 
-Get a scoped OAuth token from your oauth4os proxy in CI/CD pipelines. Use it to query OpenSearch securely from GitHub Actions.
+Get a scoped OAuth token from oauth4os for OpenSearch operations in CI/CD pipelines.
 
 ## Usage
 
@@ -12,13 +12,13 @@ Get a scoped OAuth token from your oauth4os proxy in CI/CD pipelines. Use it to 
     proxy-url: ${{ secrets.OAUTH4OS_URL }}
     client-id: ${{ secrets.OAUTH4OS_CLIENT_ID }}
     client-secret: ${{ secrets.OAUTH4OS_CLIENT_SECRET }}
-    scope: 'read:logs-*'
+    scope: 'read:logs-* write:logs-*'
 
 - name: Query OpenSearch
   run: |
     curl -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
-      ${{ secrets.OAUTH4OS_URL }}/logs-*/_search \
-      -d '{"query":{"match":{"level":"error"}}}'
+      "${{ secrets.OAUTH4OS_URL }}/logs-*/_search" \
+      -d '{"query":{"match_all":{}}}'
 ```
 
 ## Inputs
@@ -28,80 +28,57 @@ Get a scoped OAuth token from your oauth4os proxy in CI/CD pipelines. Use it to 
 | `proxy-url` | ✅ | — | oauth4os proxy URL |
 | `client-id` | ✅ | — | OAuth client ID |
 | `client-secret` | ✅ | — | OAuth client secret |
-| `scope` | ❌ | `read:logs-*` | OAuth scope |
-| `verify-ssl` | ❌ | `true` | Verify SSL certificates |
+| `scope` | ❌ | `read:*` | Requested scope |
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
-| `token` | OAuth access token (automatically masked in logs) |
-| `expires-in` | Token expiry in seconds |
-| `token-type` | Token type (Bearer) |
+| `token` | OAuth access token (masked in logs) |
+| `expires-in` | Token TTL in seconds |
 
 ## Examples
 
-### Query logs after deployment
+### Index logs after build
 
 ```yaml
-name: Post-Deploy Smoke Test
-on:
-  workflow_run:
-    workflows: [Deploy]
-    types: [completed]
-
 jobs:
-  smoke-test:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: seraphjiang/oauth4os/action@main
         id: auth
         with:
           proxy-url: ${{ secrets.OAUTH4OS_URL }}
-          client-id: ci-smoke-test
+          client-id: ci-agent
           client-secret: ${{ secrets.CI_SECRET }}
-          scope: 'read:logs-*'
+          scope: 'write:logs-*'
 
-      - name: Check for errors in last 5 minutes
+      - name: Push build logs
         run: |
-          ERRORS=$(curl -s -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
-            "${{ secrets.OAUTH4OS_URL }}/logs-*/_count" \
-            -d '{"query":{"bool":{"must":[{"match":{"level":"error"}},{"range":{"@timestamp":{"gte":"now-5m"}}}]}}}' \
-            | jq .count)
-          echo "Errors in last 5m: $ERRORS"
-          if [ "$ERRORS" -gt 10 ]; then
-            echo "::error::Too many errors after deploy: $ERRORS"
-            exit 1
-          fi
+          curl -X POST \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            "${{ secrets.OAUTH4OS_URL }}/logs-ci/_doc" \
+            -H "Content-Type: application/json" \
+            -d '{"event":"deploy","status":"success","sha":"${{ github.sha }}"}'
 ```
 
-### Index test results
+### Read-only query in PR check
 
 ```yaml
-- uses: seraphjiang/oauth4os/action@main
-  id: auth
-  with:
-    proxy-url: ${{ secrets.OAUTH4OS_URL }}
-    client-id: ci-writer
-    client-secret: ${{ secrets.CI_WRITER_SECRET }}
-    scope: 'write:ci-results-*'
+      - uses: seraphjiang/oauth4os/action@main
+        id: auth
+        with:
+          proxy-url: ${{ secrets.OAUTH4OS_URL }}
+          client-id: pr-checker
+          client-secret: ${{ secrets.PR_SECRET }}
+          scope: 'read:logs-*'
 
-- name: Index test results
-  run: |
-    curl -X POST -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
-      "${{ secrets.OAUTH4OS_URL }}/ci-results-${{ github.repository_owner }}/_doc" \
-      -H 'Content-Type: application/json' \
-      -d '{
-        "repo": "${{ github.repository }}",
-        "sha": "${{ github.sha }}",
-        "status": "passed",
-        "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-      }'
+      - name: Check for errors
+        run: |
+          ERRORS=$(curl -sf \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            "${{ secrets.OAUTH4OS_URL }}/logs-*/_count" \
+            -d '{"query":{"match":{"level":"error"}}}' | jq '.count')
+          echo "Found $ERRORS errors"
 ```
-
-## Security
-
-- The token is automatically masked in GitHub Actions logs via `::add-mask::`
-- Store `client-secret` in GitHub Secrets — never hardcode
-- Use the minimum scope needed for your workflow
-- Tokens expire (default 1 hour) — no long-lived credentials in CI

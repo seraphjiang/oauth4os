@@ -36,6 +36,7 @@ func Middleware(next http.Handler) http.Handler {
 		defer gz.Close()
 
 		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Vary", "Accept-Encoding")
 		w.Header().Del("Content-Length")
 		next.ServeHTTP(&gzipWriter{ResponseWriter: w, gz: gz}, r)
 	})

@@ -74,5 +74,9 @@ func (s *ClientStore) Save(mgr *Manager) error {
 	if err := os.WriteFile(tmp, data, 0644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	if err := os.Rename(tmp, s.path); err != nil {
+		os.Remove(tmp) // clean up orphaned temp file
+		return err
+	}
+	return nil
 }

@@ -9,6 +9,8 @@ import (
 )
 
 // Middleware adds ETag headers and handles If-None-Match for 304 responses.
+// Note: buffers the full response body to compute the hash. Best suited for
+// small, static responses (health, discovery, config). Not for large proxy responses.
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" && r.Method != "HEAD" {

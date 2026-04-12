@@ -155,13 +155,13 @@ oauth4os status</code></pre>
     <div class="try-grid">
       <div class="try-card">
         <h3>1. Check Health</h3>
-        <pre id="health-cmd"><code>curl https://oauth4os.huanji.profile.aws.dev/health</code></pre>
+        <pre id="health-cmd"><code>curl https://f5cmk2hxwx.us-west-2.awsapprunner.com/health</code></pre>
         <button class="btn btn-sm" onclick="runDemo('health')">▶ Run</button>
         <pre class="result" id="health-result"></pre>
       </div>
       <div class="try-card">
         <h3>2. Get a Token</h3>
-        <pre><code>curl -X POST https://oauth4os.huanji.profile.aws.dev/oauth/token \
+        <pre><code>curl -X POST https://f5cmk2hxwx.us-west-2.awsapprunner.com/oauth/token \
   -d "grant_type=client_credentials" \
   -d "client_id=demo-agent" \
   -d "client_secret=demo-secret" \
@@ -171,13 +171,13 @@ oauth4os status</code></pre>
       </div>
       <div class="try-card">
         <h3>3. List Tokens</h3>
-        <pre><code>curl https://oauth4os.huanji.profile.aws.dev/oauth/tokens</code></pre>
+        <pre><code>curl https://f5cmk2hxwx.us-west-2.awsapprunner.com/oauth/tokens</code></pre>
         <button class="btn btn-sm" onclick="runDemo('list')">▶ Run</button>
         <pre class="result" id="list-result"></pre>
       </div>
       <div class="try-card">
         <h3>4. View Metrics</h3>
-        <pre><code>curl https://oauth4os.huanji.profile.aws.dev/metrics</code></pre>
+        <pre><code>curl https://f5cmk2hxwx.us-west-2.awsapprunner.com/metrics</code></pre>
         <button class="btn btn-sm" onclick="runDemo('metrics')">▶ Run</button>
         <pre class="result" id="metrics-result"></pre>
       </div>

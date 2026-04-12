@@ -10,7 +10,7 @@
 [![OpenSearch 2.x | 3.x](https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange?logo=opensearch)](https://opensearch.org)
 
 > 🔗 **RFC**: [opensearch-project/.github#491](https://github.com/opensearch-project/.github/issues/491)
-> · 🎯 **Demo**: [oauth4os.huanji.profile.aws.dev](http://oauth4os.huanji.profile.aws.dev/)
+> · 🎯 **Demo**: [oauth4os.huanji.profile.aws.dev](https://f5cmk2hxwx.us-west-2.awsapprunner.com)
 > · 📖 **Docs**: [docs/](docs/)
 
 ---

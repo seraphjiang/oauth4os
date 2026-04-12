@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Upstream     Upstream          `yaml:"upstream"`
+	Clusters     map[string]Cluster `yaml:"clusters"`
 	Providers    []Provider        `yaml:"providers"`
 	ScopeMapping map[string]Role   `yaml:"scope_mapping"`
 	Tenants      map[string]Tenant `yaml:"tenants"`
@@ -16,6 +17,13 @@ type Config struct {
 	RateLimits   map[string]int    `yaml:"rate_limits"`
 	IPFilter     IPFilterConfig    `yaml:"ip_filter"`
 	MTLS         MTLSConfig        `yaml:"mtls"`
+}
+
+// Cluster defines a named OpenSearch cluster for multi-cluster federation.
+type Cluster struct {
+	Engine     string   `yaml:"engine"`
+	Dashboards string   `yaml:"dashboards,omitempty"`
+	Prefixes   []string `yaml:"prefixes"`
 }
 
 // MTLSConfig holds mutual TLS client auth settings.

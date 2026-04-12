@@ -455,6 +455,15 @@ func main() {
 		fmt.Fprintf(w, `{"status":"ok","version":"%s","uptime_seconds":%d}`,
 			version, int(time.Since(startTime).Seconds()))
 	})
+	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if shuttingDown.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, `{"status":"shutting_down"}`)
+			return
+		}
+		fmt.Fprint(w, `{"status":"ready"}`)
+	})
 
 	// Deep health — checks upstream, JWKS, TLS cert
 	healthClient := &http.Client{Timeout: 5 * time.Second, Transport: transport}
@@ -1196,6 +1205,7 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigCh
 		logger.Info("shutting down", "signal", sig)
+		shuttingDown.Store(true)
 
 		// 1. Drain active connections (30s timeout)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

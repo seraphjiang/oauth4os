@@ -930,6 +930,48 @@ paths:
       responses:
         '200': { description: HTML developer analytics }
 
+  /register/:
+    get:
+      tags: [UI]
+      summary: Client registration form
+      responses:
+        '200': { description: HTML registration page }
+
+  /admin/clients:
+    get:
+      tags: [UI]
+      summary: Client management page
+      responses:
+        '200': { description: HTML client list with CRUD }
+
+  /admin/tokens:
+    get:
+      tags: [UI]
+      summary: Token management page
+      responses:
+        '200': { description: HTML token list with inspect/revoke }
+
+  /admin/policies:
+    get:
+      tags: [UI]
+      summary: Cedar policy editor page
+      responses:
+        '200': { description: HTML policy editor }
+
+  /admin/keys:
+    get:
+      tags: [UI]
+      summary: JWKS key viewer page
+      responses:
+        '200': { description: HTML JWKS viewer }
+
+  /logs/:
+    get:
+      tags: [UI]
+      summary: Live access log viewer
+      responses:
+        '200': { description: HTML terminal-style log viewer }
+
   /version:
     get:
       tags: [Operations]

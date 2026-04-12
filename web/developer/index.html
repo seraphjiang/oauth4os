@@ -251,7 +251,7 @@ function showSecret(app) {
 
 // Rotate
 async function rotateSecret(id) {
-  confirm('Rotate Secret', `Rotate the client secret for this app? The old secret will stop working immediately.`, async () => {
+  showConfirm('Rotate Secret', `Rotate the client secret for this app? The old secret will stop working immediately.`, async () => {
     try {
       const r = await fetch(API + '/oauth/register/' + id + '/rotate', { method: 'POST' });
       if (r.ok) {
@@ -266,7 +266,7 @@ async function rotateSecret(id) {
 
 // Delete
 async function deleteApp(id, name) {
-  confirm('Delete App', `Delete "${name}"? This cannot be undone. All tokens issued to this app will be revoked.`, async () => {
+  showConfirm('Delete App', `Delete "${name}"? This cannot be undone. All tokens issued to this app will be revoked.`, async () => {
     try {
       const r = await fetch(API + '/oauth/register/' + id, { method: 'DELETE' });
       if (r.ok || r.status === 204) {
@@ -280,7 +280,7 @@ async function deleteApp(id, name) {
 
 // Confirm dialog
 let confirmCb = null;
-function confirm(title, msg, cb) {
+function showConfirm(title, msg, cb) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmMsg').textContent = msg;
   confirmCb = cb;

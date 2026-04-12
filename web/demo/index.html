@@ -353,8 +353,11 @@ document.querySelectorAll('[data-page]').forEach(a => {
 });
 
 // Search
+let searching = false;
 async function doSearch() {
-  if (!token) return;
+  if (!token || searching) return;
+  searching = true;
+  document.getElementById('searchBtn').disabled = true;
   const q = document.getElementById('searchQuery').value || '*';
   const svc = document.getElementById('filterService').value;
   const lvl = document.getElementById('filterLevel').value;
@@ -369,6 +372,7 @@ async function doSearch() {
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: { bool: { must } }, size: 50, sort: [{ timestamp: 'desc' }] })
     });
+    if (resp.status === 401) { sessionStorage.clear(); token = null; showLogin(); return; }
     const data = await resp.json();
     const hits = data.hits?.hits || [];
     const total = data.hits?.total?.value ?? data.hits?.total ?? 0;
@@ -376,6 +380,9 @@ async function doSearch() {
     renderLogs(hits);
   } catch (e) {
     document.getElementById('logBody').innerHTML = `<tr><td colspan="4" style="color:var(--red)">Error: ${esc(e.message)}</td></tr>`;
+  } finally {
+    searching = false;
+    document.getElementById('searchBtn').disabled = false;
   }
 }
 

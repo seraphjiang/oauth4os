@@ -432,7 +432,7 @@ async function initLiveSearch() {
   const status = document.getElementById('liveStatus');
   try {
     const h = await fetch(PROXY + '/health').then(r => r.json());
-    status.innerHTML = `<span class="dot" style="background:var(--green)"></span> Connected to oauth4os v${h.version}`;
+    status.innerHTML = `<span class="dot" style="background:var(--green)"></span> Connected to oauth4os v${esc(h.version)}`;
     // Get demo token
     const resp = await fetch(PROXY + '/oauth/token', {
       method: 'POST',

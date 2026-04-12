@@ -41,7 +41,7 @@ func (r *recoveringRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
 }
 
-func TestNoRetryOn2xx(t *testing.T) {
+func TestNoRetryOn2xx_Edge(t *testing.T) {
 	rt := &countingRT{status: 200}
 	tr := &Transport{Base: rt, MaxRetries: 3, BaseDelay: time.Millisecond}
 	req, _ := http.NewRequest("GET", "http://test/", nil)
@@ -54,7 +54,7 @@ func TestNoRetryOn2xx(t *testing.T) {
 	}
 }
 
-func TestNoRetryOn4xx(t *testing.T) {
+func TestNoRetryOn4xx_Edge(t *testing.T) {
 	rt := &countingRT{status: 403}
 	tr := &Transport{Base: rt, MaxRetries: 3, BaseDelay: time.Millisecond}
 	req, _ := http.NewRequest("GET", "http://test/", nil)
@@ -118,16 +118,11 @@ func TestZeroRetries(t *testing.T) {
 }
 
 func TestRequestBodyPreserved(t *testing.T) {
-	var bodies []string
-	rt := http.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// Note: body may be nil on retry if original was consumed
-		return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
-	})
+	rt := &countingRT{status: 200}
 	tr := &Transport{Base: rt, MaxRetries: 1, BaseDelay: time.Millisecond}
 	req, _ := http.NewRequest("POST", "http://test/", strings.NewReader(`{"q":"*"}`))
 	resp, _ := tr.RoundTrip(req)
 	if resp.StatusCode != 200 {
 		t.Fatal("expected 200")
 	}
-	_ = bodies
 }

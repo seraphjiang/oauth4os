@@ -60,7 +60,7 @@ func TestMaxRetriesExhausted(t *testing.T) {
 	}
 }
 
-func TestNoRetryOn4xx(t *testing.T) {
+func TestNoRetryOn4xxClient(t *testing.T) {
 	ct := &countTransport{statuses: []int{403}}
 	tr := &Transport{Base: ct, MaxRetries: 3, BaseDelay: 1 * time.Millisecond}
 	resp, _ := tr.RoundTrip(&http.Request{})

@@ -326,8 +326,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// backup routes handled by admin API — don't double-register
-	_ = backupHandler
+	// Backup/restore routes
+	backupHandler.Register(mux)
 
 	// Issuer URL for discovery + token exchange
 	issuerURL := "http://localhost" + cfg.Listen
@@ -805,8 +805,7 @@ func main() {
 
 	// Config admin UI
 	configUI := configui.New(func() *config.Config { return cfg })
-	// configUI routes overlap with admin API — only register non-conflicting
-	_ = configUI
+	configUI.Register(mux)
 
 	// CIBA (Client Initiated Backchannel Authentication)
 	cibaHandler := ciba.NewHandler(func(clientID string, scopes []string) (string, string) {

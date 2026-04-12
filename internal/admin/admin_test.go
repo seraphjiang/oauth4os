@@ -291,7 +291,7 @@ func TestListProviders(t *testing.T) {
 func TestGetConfig(t *testing.T) {
 	s, mux := setup()
 	s.cfg.Listen = ":8443"
-	s.cfg.Upstream = "https://opensearch:9200"
+	s.cfg.Upstream = config.Upstream{Engine: "https://opensearch:9200"}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/admin/config", nil))
 	if rec.Code != 200 {

@@ -63,6 +63,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/circuit"
 	"github.com/seraphjiang/oauth4os/internal/healthcheck"
 	"github.com/seraphjiang/oauth4os/internal/retry"
+	"github.com/seraphjiang/oauth4os/internal/timeout"
 )
 
 var (

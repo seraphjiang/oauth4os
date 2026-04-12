@@ -152,7 +152,7 @@ No OpenSearch credentials were shared. The token expires. It can be revoked. Eve
 
 ## Next Steps
 
-- [Configuration Guide](configuration.md) — all YAML options
+- [Configuration Guide](deployment.md) — all YAML options
 - [Deployment Guide](deployment.md) — production setup on K8s/ECS
 - [MCP Integration](../examples/mcp-server/README.md) — AI agent setup
-- [Cedar Policies](cedar-policies.md) — fine-grained access control
+- [Cedar Policies](cedar-guide.md) — fine-grained access control

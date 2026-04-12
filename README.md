@@ -37,13 +37,13 @@ oauth4os-demo search 'level:ERROR'
 
 | Metric | Value |
 |--------|-------|
-| Commits | 281 |
-| Files | 305 |
-| Go source (non-test) | 8,000 lines |
-| Test code | 8,500 lines |
-| Test functions | 369 |
-| Test packages passing | 32/32 |
-| Internal packages | 36 |
+| Commits | 348 |
+| Files | 344 |
+| Go source (non-test) | 9,000 lines |
+| Test code | 9,500 lines |
+| Test functions | 405 |
+| Test packages passing | 39/39 |
+| Internal packages | 43 |
 | OAuth RFCs implemented | 4 (7636, 7662, 8693, 7591) |
 | External dependencies | 2 (jwt, yaml) |
 | Throughput | 232 req/s (0.25 vCPU) |

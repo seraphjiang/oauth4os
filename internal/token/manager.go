@@ -89,8 +89,14 @@ func (m *Manager) ValidateRedirectURI(clientID, uri string) bool {
 func (m *Manager) IsValid(tokenID string) bool {
 	m.mu.RLock()
 	tok, ok := m.tokens[tokenID]
+	if !ok {
+		m.mu.RUnlock()
+		return false
+	}
+	revoked := tok.Revoked
+	expires := tok.ExpiresAt
 	m.mu.RUnlock()
-	return ok && !tok.Revoked && time.Now().Before(tok.ExpiresAt)
+	return !revoked && time.Now().Before(expires)
 }
 
 // TouchToken extends a token's expiry if more than half its lifetime has elapsed (sliding window).

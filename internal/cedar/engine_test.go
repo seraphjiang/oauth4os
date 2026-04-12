@@ -161,3 +161,73 @@ func TestParseForbidWithUnless(t *testing.T) {
 		t.Fatalf("expected unless condition, got %+v", p.Unless)
 	}
 }
+
+func TestParseEmptyPolicy(t *testing.T) {
+	_, err := ParsePolicy("empty", "")
+	if err == nil {
+		t.Fatal("expected error for empty policy")
+	}
+}
+
+func TestParseMissingParens(t *testing.T) {
+	_, err := ParsePolicy("bad", "permit *, *, *;")
+	if err == nil {
+		t.Fatal("expected error for missing parens")
+	}
+}
+
+func TestParseTwoTargets(t *testing.T) {
+	_, err := ParsePolicy("bad", "permit(*, *);")
+	if err == nil {
+		t.Fatal("expected error for 2 targets instead of 3")
+	}
+}
+
+func TestParseBadEffect(t *testing.T) {
+	_, err := ParsePolicy("bad", "allow(*, *, *);")
+	if err == nil {
+		t.Fatal("expected error for invalid effect")
+	}
+}
+
+func TestParseBadConditionOp(t *testing.T) {
+	_, err := ParsePolicy("bad", `permit(*, *, *) when { principal.sub > "admin" };`)
+	if err == nil {
+		t.Fatal("expected error for unsupported operator >")
+	}
+}
+
+func TestEvaluateEmptyEngine(t *testing.T) {
+	e := NewEngine(nil)
+	d := e.Evaluate(Request{
+		Principal: map[string]string{"sub": "x"},
+		Action:    "GET",
+		Resource:  map[string]string{"index": "logs"},
+	})
+	if d.Allowed {
+		t.Fatal("expected deny with no policies")
+	}
+}
+
+func TestGlobMatchEdgeCases(t *testing.T) {
+	cases := []struct {
+		pattern, value string
+		want           bool
+	}{
+		{"*", "anything", true},
+		{"*", "", true},
+		{"logs-*", "logs-", true},
+		{"logs-*", "logs-2025", true},
+		{"logs-*", "metrics-2025", false},
+		{"exact", "exact", true},
+		{"exact", "other", false},
+		{"*.json", "data.json", true},
+		{"*.json", "data.csv", false},
+	}
+	for _, c := range cases {
+		got := globMatch(c.pattern, c.value)
+		if got != c.want {
+			t.Errorf("globMatch(%q, %q) = %v, want %v", c.pattern, c.value, got, c.want)
+		}
+	}
+}

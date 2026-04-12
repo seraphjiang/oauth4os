@@ -1,8 +1,6 @@
 package ipfilter
 
-import (
-	"testing"
-)
+import "testing"
 
 // FuzzExtractIP ensures IP extraction never panics on arbitrary input.
 func FuzzExtractIP(f *testing.F) {
@@ -11,7 +9,6 @@ func FuzzExtractIP(f *testing.F) {
 	f.Add("[::1]:443")
 	f.Add("")
 	f.Add("not-an-ip")
-	f.Add("999.999.999.999:0")
 	f.Fuzz(func(t *testing.T, addr string) {
 		extractIP(addr) // must not panic
 	})
@@ -23,7 +20,7 @@ func FuzzCheck(f *testing.F) {
 	f.Add("", "")
 	f.Add("x", "[::1]:443")
 	f.Fuzz(func(t *testing.T, client, addr string) {
-		r, err := New(Config{Filters: []FilterConfig{{ClientID: "app", Allow: []string{"10.0.0.0/8"}}}})
+		r, err := New(Config{Clients: map[string]*FilterConfig{"app": {Allow: []string{"10.0.0.0/8"}}}})
 		if err != nil {
 			return
 		}

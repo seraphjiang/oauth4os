@@ -1,5 +1,15 @@
 # Contributing to oauth4os
 
+## Try It First
+
+```bash
+# Run the latest release (no build needed)
+docker run -p 8443:8443 jianghuan/oauth4os:latest
+
+# Or visit the live demo
+open https://f5cmk2hxwx.us-west-2.awsapprunner.com
+```
+
 ## Dev Setup
 
 ```bash

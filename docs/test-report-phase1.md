@@ -125,31 +125,25 @@ Every internal package now has dedicated unit tests. The highest-risk packages (
 
 ## 5. Recommendations
 
-### Immediate (before Phase 2 ships)
-
-1. **Add unit tests for `internal/jwt`** — expired token, wrong issuer, bad signature, missing kid, JWKS cache refresh.
-2. **Add unit tests for `internal/token`** — client auth failure, scope validation, refresh flow, concurrent access.
-3. **Add unit tests for `internal/ratelimit`** — bucket refill, per-scope RPM, 429 + Retry-After.
-4. **Add unit tests for `internal/introspect`** — active token, revoked token, malformed input.
-5. **Add unit tests for `internal/pkce`** — authorize, exchange, bad verifier, expired code.
-
 ### Before GA
 
-6. Add E2E job to CI using docker-compose.demo.yml.
-7. Add adversarial/fuzzing tests for JWT parsing and proxy request handling.
-8. Add CLI integration tests.
+1. Add E2E job to CI using docker-compose.demo.yml.
+2. Add adversarial/fuzzing tests for JWT parsing and proxy request handling.
+3. Add CLI integration tests.
+4. Test JWKS cache refresh under concurrent load.
 
 ## 6. Test Count Summary
 
 | Level | Count | Coverage |
 |---|---|---|
-| Unit tests | 8 | Cedar only |
-| Integration tests | 25 | Token, scope, Cedar, proxy |
+| Unit tests | 72 | All 9 internal packages |
+| Integration tests | 26 | Token, scope, Cedar, proxy |
 | E2E tests (Go) | 8 | Full flow with real services |
 | E2E tests (Bash) | 12 | Same + audit |
-| **Total** | **53** | |
+| Other (proxy, bench) | 4 | Proxy-level |
+| **Total** | **122** | |
 
-**Verdict:** Integration and E2E coverage is solid for the happy path. Unit test coverage is critically low — only 1 of 8 packages has unit tests. The security-critical packages (jwt, token, introspect, pkce, ratelimit) need unit tests before Phase 2 ships.
+**Verdict:** All internal packages have unit tests. Integration and E2E coverage is solid. Remaining gaps are CLI tests, adversarial inputs, and E2E in CI. No critical risks remain.
 
 ---
 

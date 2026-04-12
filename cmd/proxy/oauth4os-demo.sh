@@ -151,37 +151,51 @@ cmd_login() {
   echo -e "${CYAN}Opening browser for login...${NC}"
   echo -e "If browser doesn't open, visit:\n${AUTH_URL}\n"
 
-  # Open browser
-  if command -v xdg-open >/dev/null 2>&1; then xdg-open "$AUTH_URL" 2>/dev/null
-  elif command -v open >/dev/null 2>&1; then open "$AUTH_URL"
+  # Open browser (cross-platform)
+  if command -v xdg-open >/dev/null 2>&1; then xdg-open "$AUTH_URL" 2>/dev/null &
+  elif command -v open >/dev/null 2>&1; then open "$AUTH_URL" &
+  elif command -v wslview >/dev/null 2>&1; then wslview "$AUTH_URL" &
   fi
 
-  # Start temporary HTTP server to catch the callback
-  echo -e "${CYAN}Waiting for callback on port ${REDIRECT_PORT}...${NC}"
+  # Start callback server — try python3 (reliable), fall back to nc
+  echo -e "${CYAN}Waiting for callback on port ${REDIRECT_PORT} (60s timeout)...${NC}"
+  local AUTH_CODE=""
 
-  # Use a named pipe to capture the auth code
-  FIFO=$(mktemp -u)
-  mkfifo "$FIFO"
-
-  # Serve one request, extract code from query string
-  {
-    read -r REQUEST_LINE < /dev/stdin
-    CODE=$(echo "$REQUEST_LINE" | grep -oP 'code=\K[^& ]+' || true)
-    echo "$CODE" > "$FIFO"
-    printf 'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n<html><body><h2>✅ Login successful!</h2><p>You can close this tab.</p><script>window.close()</script></body></html>\r\n'
-  } | nc -l -p "$REDIRECT_PORT" -q 1 2>/dev/null || \
-  {
-    # macOS nc syntax
-    read -r REQUEST_LINE < /dev/stdin
-    CODE=$(echo "$REQUEST_LINE" | grep -oE 'code=[^& ]+' | cut -d= -f2 || true)
-    echo "$CODE" > "$FIFO"
-    printf 'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n<html><body><h2>✅ Login successful!</h2><p>You can close this tab.</p></body></html>\r\n'
-  } | nc -l localhost "$REDIRECT_PORT" 2>/dev/null &
-  NC_PID=$!
-
-  AUTH_CODE=$(cat "$FIFO")
-  rm -f "$FIFO"
-  wait $NC_PID 2>/dev/null || true
+  if command -v python3 >/dev/null 2>&1; then
+    AUTH_CODE=$(python3 -c "
+import http.server, urllib.parse, sys, threading
+code = [None]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        code[0] = q.get('code',[''])[0]
+        self.send_response(200)
+        self.send_header('Content-Type','text/html')
+        self.end_headers()
+        self.wfile.write(b'<h2>Login successful! Close this tab.</h2>')
+        threading.Thread(target=self.server.shutdown).start()
+    def log_message(self,*a): pass
+s = http.server.HTTPServer(('127.0.0.1',$REDIRECT_PORT),H)
+s.timeout = 60
+try:
+    s.handle_request()
+except: pass
+print(code[0] or '')
+" 2>/dev/null)
+  else
+    # Fallback: nc-based (less reliable)
+    local FIFO=$(mktemp -u)
+    mkfifo "$FIFO"
+    ( timeout 60 bash -c '
+      while IFS= read -r line; do
+        case "$line" in *code=*) echo "$line" | sed "s/.*code=//;s/[& ].*//" > "'"$FIFO"'"; break;; esac
+      done
+      printf "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n<h2>Login successful!</h2>\r\n"
+    ' | nc -l "${REDIRECT_PORT}" 2>/dev/null || nc -l -p "${REDIRECT_PORT}" 2>/dev/null ) &
+    AUTH_CODE=$(timeout 65 cat "$FIFO" 2>/dev/null)
+    rm -f "$FIFO"
+    wait 2>/dev/null
+  fi
 
   if [ -z "${AUTH_CODE:-}" ]; then
     echo -e "${RED}Failed to get authorization code${NC}"

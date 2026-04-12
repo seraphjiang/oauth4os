@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
-<meta name="description" content="oauth4os live access log viewer">
+<meta name="description" content="oauth4os live log stream">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>oauth4os — Live Logs</title>
@@ -11,159 +11,151 @@
 :root{--bg:#0a0a0a;--surface:#111;--border:#222;--text:#ccc;--muted:#666;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149;--cyan:#56d4dd;--yellow:#e3b341}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;background:var(--bg);color:var(--text);font-size:12px;line-height:1.5}
-header{padding:8px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--surface)}
+header{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--surface)}
 .logo{font-size:13px;font-weight:700;color:var(--green)}
-header nav{display:flex;gap:10px;align-items:center}
-header nav a{color:var(--muted);font-size:11px;text-decoration:none}
-.controls{padding:6px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;background:var(--surface);flex-wrap:wrap}
+header nav{display:flex;gap:8px;align-items:center}header nav a{color:var(--muted);font-size:11px;text-decoration:none}
+.controls{padding:6px 12px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;background:var(--surface);flex-wrap:wrap}
 .controls label{font-size:11px;color:var(--muted)}
 select,input{padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-family:inherit;font-size:11px}
 .btn{padding:3px 10px;border:1px solid var(--border);border-radius:3px;background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;font-size:11px}
-.btn:hover{border-color:var(--accent)}
-.btn.active{border-color:var(--green);color:var(--green)}
+.btn:hover{border-color:var(--accent)}.btn.active{border-color:var(--green);color:var(--green)}
 .status{margin-left:auto;font-size:11px}
-.log-area{padding:8px 16px;overflow-y:auto;height:calc(100vh - 82px)}
-.log-line{white-space:pre;padding:1px 0;border-bottom:1px solid #111}
+.log-area{padding:4px 12px;overflow-y:auto;height:calc(100vh - 82px)}
+.log-line{white-space:pre;padding:1px 0;border-bottom:1px solid #0d0d0d}
 .log-line:hover{background:#1a1a1a}
-.ts{color:var(--muted)}
-.method{font-weight:700}
-.method-GET{color:var(--green)}
-.method-POST{color:var(--cyan)}
-.method-PUT{color:var(--orange)}
-.method-DELETE{color:var(--red)}
-.status-2{color:var(--green)}
-.status-3{color:var(--cyan)}
-.status-4{color:var(--orange)}
-.status-5{color:var(--red)}
-.path{color:var(--text)}
-.latency{color:var(--yellow)}
-.client{color:var(--muted)}
+.ts{color:var(--muted)}.method{font-weight:700}
+.method-GET{color:var(--green)}.method-POST{color:var(--cyan)}.method-PUT{color:var(--orange)}.method-DELETE{color:var(--red)}
+.status-2{color:var(--green)}.status-3{color:var(--cyan)}.status-4{color:var(--orange)}.status-5{color:var(--red)}
+.path{color:var(--text)}.latency{color:var(--yellow)}.client{color:var(--muted)}
 .empty{color:var(--muted);text-align:center;padding:40px}
-.stats{padding:4px 16px;border-top:1px solid var(--border);background:var(--surface);font-size:11px;color:var(--muted);display:flex;gap:16px;position:fixed;bottom:0;left:0;right:0}
+.stats{padding:4px 12px;border-top:1px solid var(--border);background:var(--surface);font-size:11px;color:var(--muted);display:flex;gap:12px;position:fixed;bottom:0;left:0;right:0}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:375px){.log-line{font-size:10px}.controls{gap:4px}header nav a{font-size:10px}}
 </style>
 </head>
 <body>
 <header>
-  <div class="logo">▶ oauth4os logs</div>
-  <nav>
-    <a href="../">← oauth4os</a>
-    <a href="../demo/">Demo</a>
-    <a href="../admin/">Admin</a>
-  </nav>
+  <div class="logo" id="modeBadge">▶ logs [connecting]</div>
+  <nav><a href="../dashboard/">Dashboard</a><a href="../admin/">Admin</a><a href="../">← oauth4os</a></nav>
 </header>
 <div class="controls">
-  <label>Filter: <input id="filter" placeholder="path, method, status..." aria-label="Filter logs"></label>
-  <label>Status: <select id="statusFilter" aria-label="Filter by status"><option value="">All</option><option value="2">2xx</option><option value="4">4xx</option><option value="5">5xx</option></select></label>
+  <label>Filter: <input id="filter" placeholder="path, method..." aria-label="Filter logs"></label>
+  <label>Status: <select id="statusFilter" aria-label="Status filter"><option value="">All</option><option value="2">2xx</option><option value="4">4xx</option><option value="5">5xx</option></select></label>
   <button class="btn active" id="pauseBtn" aria-label="Pause/resume">▶ Live</button>
-  <button class="btn" id="clearBtn" aria-label="Clear logs">Clear</button>
-  <div class="status" id="connStatus">⏳ Connecting...</div>
+  <button class="btn" id="clearBtn" aria-label="Clear">Clear</button>
+  <div class="status" id="connStatus"></div>
 </div>
-<div class="log-area" id="logArea">
-  <div class="empty">Waiting for logs...</div>
-</div>
+<div class="log-area" id="logArea"><div class="empty">Waiting for logs...</div></div>
 <div class="stats">
-  <span id="statTotal">0 entries</span>
-  <span id="statRate">0 req/s</span>
-  <span id="stat2xx">2xx: 0</span>
-  <span id="stat4xx">4xx: 0</span>
-  <span id="stat5xx">5xx: 0</span>
+  <span id="sTotal">0</span>
+  <span id="sRate">0/s</span>
+  <span id="s2xx">2xx: 0</span>
+  <span id="s4xx">4xx: 0</span>
+  <span id="s5xx">5xx: 0</span>
+  <span id="sMode">mode: —</span>
 </div>
 <script>
-const API = window.location.origin;
-let entries = [];
-let paused = false;
-let lastCount = 0;
-let autoScroll = true;
+const API=window.location.origin;
+const WSURL=API.replace('http','ws')+'/ws/logs';
+let entries=[],paused=false,autoScroll=true,ws=null,pollTimer=null;
+let prevTotal=0,rateWindow=[];
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 
-function formatLine(e) {
-  const ts = e.ts || e.timestamp || '';
-  const short = ts.replace('T', ' ').replace(/\.\d+Z?$/, '').slice(11);
-  const m = e.method || 'GET';
-  const s = e.status || e.status_code || 200;
-  const sc = String(s)[0];
-  const lat = e.latency_ms ?? e.latency ?? 0;
-  const cid = e.client_id || e.clientId || '';
-  return `<span class="ts">${esc(short)}</span> <span class="method method-${esc(m)}">${esc(m.padEnd(6))}</span> <span class="status-${sc}">${s}</span> <span class="path">${esc((e.path || e.url || '/').substring(0, 60).padEnd(60))}</span> <span class="latency">${String(lat).padStart(4)}ms</span> <span class="client">${esc(cid)}</span>`;
+function fmtLine(e){
+  const ts=(e.ts||e.timestamp||'').replace('T',' ').replace(/\.\d+Z?$/,'').slice(11);
+  const m=e.method||'GET';
+  const s=e.status||e.status_code||200;
+  const sc=String(s)[0];
+  const lat=e.latency_ms??e.latency??0;
+  const p=(e.path||e.url||'/').substring(0,50);
+  return `<span class="ts">${esc(ts)}</span> <span class="method method-${esc(m)}">${esc(m.padEnd(7))}</span><span class="status-${sc}">${s}</span> <span class="path">${esc(p.padEnd(50))}</span> <span class="latency">${String(lat).padStart(4)}ms</span> <span class="client">${esc(e.client_id||'')}</span>`;
 }
 
-function render() {
-  const area = document.getElementById('logArea');
-  const filter = document.getElementById('filter').value.toLowerCase();
-  const statusF = document.getElementById('statusFilter').value;
+function addEntry(e){
+  entries.push(e);
+  if(entries.length>3000)entries=entries.slice(-2000);
+  rateWindow.push(Date.now());
+  rateWindow=rateWindow.filter(t=>Date.now()-t<5000);
+}
 
-  let filtered = entries;
-  if (filter) filtered = filtered.filter(e => JSON.stringify(e).toLowerCase().includes(filter));
-  if (statusF) filtered = filtered.filter(e => String(e.status || 200).startsWith(statusF));
-
-  if (!filtered.length) {
-    area.innerHTML = '<div class="empty">No matching logs</div>';
-  } else {
-    area.innerHTML = filtered.slice(-500).map(e => '<div class="log-line">' + formatLine(e) + '</div>').join('');
-  }
-
-  if (autoScroll) area.scrollTop = area.scrollHeight;
-
+function render(){
+  const area=document.getElementById('logArea');
+  const f=document.getElementById('filter').value.toLowerCase();
+  const sf=document.getElementById('statusFilter').value;
+  let vis=entries;
+  if(f)vis=vis.filter(e=>JSON.stringify(e).toLowerCase().includes(f));
+  if(sf)vis=vis.filter(e=>String(e.status||200).startsWith(sf));
+  if(!vis.length){area.innerHTML='<div class="empty">No matching logs</div>'}
+  else{area.innerHTML=vis.slice(-500).map(e=>'<div class="log-line">'+fmtLine(e)+'</div>').join('')}
+  if(autoScroll)area.scrollTop=area.scrollHeight;
   // Stats
-  const total = entries.length;
-  const s2 = entries.filter(e => String(e.status || 200).startsWith('2')).length;
-  const s4 = entries.filter(e => String(e.status || 200).startsWith('4')).length;
-  const s5 = entries.filter(e => String(e.status || 200).startsWith('5')).length;
-  document.getElementById('statTotal').textContent = total + ' entries';
-  document.getElementById('stat2xx').textContent = '2xx: ' + s2;
-  document.getElementById('stat4xx').textContent = '4xx: ' + s4;
-  document.getElementById('stat5xx').textContent = '5xx: ' + s5;
+  const n=entries.length;
+  document.getElementById('sTotal').textContent=n+' entries';
+  document.getElementById('sRate').textContent=(rateWindow.length/5).toFixed(1)+'/s';
+  document.getElementById('s2xx').textContent='2xx: '+entries.filter(e=>String(e.status||200)[0]==='2').length;
+  document.getElementById('s4xx').textContent='4xx: '+entries.filter(e=>String(e.status||200)[0]==='4').length;
+  document.getElementById('s5xx').textContent='5xx: '+entries.filter(e=>String(e.status||200)[0]==='5').length;
 }
 
-async function poll() {
-  if (paused) return;
-  try {
-    const r = await fetch(API + '/admin/audit?limit=100');
-    if (!r.ok) throw new Error(r.status);
-    const data = await r.json();
-    const items = Array.isArray(data) ? data : data.entries || data.events || [];
-    if (items.length) {
-      // Dedupe by timestamp+path
-      const seen = new Set(entries.map(e => e.ts + e.path));
-      const fresh = items.filter(e => !seen.has((e.ts || e.timestamp) + (e.path || e.url)));
-      if (fresh.length) {
-        entries.push(...fresh);
-        if (entries.length > 2000) entries = entries.slice(-1000);
-        render();
-      }
-    }
-    const rate = entries.length - lastCount;
-    lastCount = entries.length;
-    document.getElementById('statRate').textContent = rate + ' req/s';
-    document.getElementById('connStatus').innerHTML = '<span style="color:#3fb950">● Live</span>';
-  } catch (e) {
-    document.getElementById('connStatus').innerHTML = '<span style="color:#f85149">● ' + esc(e.message) + '</span>';
-  }
+// WebSocket mode
+function connectWS(){
+  try{
+    ws=new WebSocket(WSURL);
+    ws.onopen=()=>{
+      document.getElementById('modeBadge').textContent='▶ logs [websocket]';
+      document.getElementById('modeBadge').style.color='#3fb950';
+      document.getElementById('sMode').textContent='mode: websocket';
+      document.getElementById('connStatus').innerHTML='<span style="color:#3fb950">● WS Live</span>';
+      if(pollTimer){clearInterval(pollTimer);pollTimer=null}
+    };
+    ws.onmessage=e=>{
+      if(paused)return;
+      try{const d=JSON.parse(e.data);addEntry(d);render()}catch{}
+    };
+    ws.onclose=()=>{ws=null;fallbackPoll()};
+    ws.onerror=()=>{ws.close()};
+  }catch{fallbackPoll()}
 }
 
-document.getElementById('pauseBtn').addEventListener('click', () => {
-  paused = !paused;
-  const btn = document.getElementById('pauseBtn');
-  btn.textContent = paused ? '⏸ Paused' : '▶ Live';
-  btn.classList.toggle('active', !paused);
+// Polling fallback
+function fallbackPoll(){
+  document.getElementById('modeBadge').textContent='▶ logs [polling]';
+  document.getElementById('modeBadge').style.color='#f0883e';
+  document.getElementById('sMode').textContent='mode: polling 2s';
+  if(pollTimer)return;
+  const seen=new Set();
+  pollTimer=setInterval(async()=>{
+    if(paused)return;
+    try{
+      const r=await fetch(API+'/admin/audit?limit=100');
+      if(!r.ok)throw new Error(r.status);
+      const data=await r.json();
+      const items=Array.isArray(data)?data:data.entries||data.events||[];
+      let added=0;
+      items.forEach(e=>{
+        const key=(e.ts||e.timestamp)+e.path+e.status;
+        if(!seen.has(key)){seen.add(key);addEntry(e);added++}
+      });
+      if(added)render();
+      document.getElementById('connStatus').innerHTML='<span style="color:#3fb950">● Poll OK</span>';
+    }catch(e){document.getElementById('connStatus').innerHTML='<span style="color:#f85149">● '+esc(e.message)+'</span>'}
+  },2000);
+}
+
+// Try WS first, fall back to polling
+connectWS();
+setTimeout(()=>{if(!ws||ws.readyState!==1)fallbackPoll()},3000);
+
+document.getElementById('pauseBtn').addEventListener('click',()=>{
+  paused=!paused;
+  const b=document.getElementById('pauseBtn');
+  b.textContent=paused?'⏸ Paused':'▶ Live';b.classList.toggle('active',!paused);
 });
-
-document.getElementById('clearBtn').addEventListener('click', () => {
-  entries = [];
-  render();
-});
-
-document.getElementById('filter').addEventListener('input', render);
-document.getElementById('statusFilter').addEventListener('change', render);
-
-document.getElementById('logArea').addEventListener('scroll', function() {
-  autoScroll = this.scrollTop + this.clientHeight >= this.scrollHeight - 20;
-});
-
-poll();
-setInterval(poll, 2000);
+document.getElementById('clearBtn').addEventListener('click',()=>{entries=[];render()});
+document.getElementById('filter').addEventListener('input',render);
+document.getElementById('statusFilter').addEventListener('change',render);
+document.getElementById('logArea').addEventListener('scroll',function(){autoScroll=this.scrollTop+this.clientHeight>=this.scrollHeight-20});
 </script>
 <script src="/web/feedback.js"></script>
 </body>

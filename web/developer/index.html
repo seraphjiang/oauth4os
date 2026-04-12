@@ -69,12 +69,16 @@ header nav a{color:var(--muted);font-size:13px}
 /* Toast */
 .toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:13px;z-index:200;opacity:0;transition:opacity .2s}
 .toast.show{opacity:1}
+@media(max-width:375px){.container{padding:12px}.kv{grid-template-columns:1fr}table{font-size:10px}h1{font-size:18px}.toolbar,.controls,.filters{flex-direction:column}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 <script>window.onerror=function(m){document.body.innerHTML="<div style=padding:40px;text-align:center><h2>Something went wrong</h2><p>"+m+"</p><button onclick=location.reload()>Reload</button></div>"}</script>
 </head>
 <body>
 <a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#fff;font-size:13px;text-decoration:none">Skip to content</a>
-<style>.skip-link:focus{left:0}</style>
+<style>.skip-link:focus{left:0}@media(max-width:375px){.container{padding:12px}.kv{grid-template-columns:1fr}table{font-size:10px}h1{font-size:18px}.toolbar,.controls,.filters{flex-direction:column}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
 
 <header>
   <div class="logo">🔐 Developer <span>Portal</span></div>
@@ -119,8 +123,8 @@ header nav a{color:var(--muted);font-size:13px}
       <div class="hint">Space-separated. Default: <code>client_credentials</code></div>
     </div>
     <div class="modal-actions">
-      <button class="btn" id="cancelBtn">Cancel</button>
-      <button class="btn btn-primary" id="saveBtn">Create App</button>
+      <button class="btn" id="cancelBtn" aria-label="Cancel">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn" aria-label="Save">Create App</button>
     </div>
   </div>
 </div>
@@ -131,8 +135,8 @@ header nav a{color:var(--muted);font-size:13px}
     <h2 id="confirmTitle">Confirm</h2>
     <p id="confirmMsg"></p>
     <div class="modal-actions">
-      <button class="btn" id="confirmNo">Cancel</button>
-      <button class="btn btn-danger" id="confirmYes">Confirm</button>
+      <button class="btn" id="confirmNo" aria-label="Cancel">Cancel</button>
+      <button class="btn btn-danger" id="confirmYes" aria-label="Confirm">Confirm</button>
     </div>
   </div>
 </div>

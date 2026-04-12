@@ -1604,6 +1604,32 @@ cmd_replay() {
   echo "$resp" | jq . 2>/dev/null || echo "$resp"
 }
 
+cmd_userinfo() {
+  local resp
+  resp=$(authed_curl "${PROXY}/oauth/userinfo")
+  if [ -z "$resp" ]; then echo -e "${RED}Failed to fetch userinfo${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}👤 OIDC UserInfo${NC}\n"
+  echo "$resp" | jq -r 'to_entries[] | "  \(.key): \(.value)"' 2>/dev/null
+}
+
+cmd_health() {
+  local resp
+  resp=$(curl -sf "${PROXY}/health" 2>/dev/null)
+  if [ -z "$resp" ]; then
+    # Fallback to /ready
+    local code=$(curl -s -o /dev/null -w '%{http_code}' "${PROXY}/ready" 2>/dev/null)
+    if [ "$code" = "200" ]; then
+      echo -e "${GREEN}✅ Proxy healthy (ready)${NC}"; return 0
+    else
+      echo -e "${RED}❌ Proxy unhealthy (status: ${code})${NC}"; return 1
+    fi
+  fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🏥 Health Check${NC}\n"
+  echo "$resp" | jq -r 'to_entries[] | "  \(if .value == "ok" or .value == true then "✅" else "❌" end) \(.key): \(.value)"' 2>/dev/null || echo "$resp" | jq . 2>/dev/null
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1658,6 +1684,8 @@ case "${1:-}" in
   metrics)  shift; cmd_metrics "${1:-}" ;;
   inspect)  shift; cmd_inspect "${1:-}" ;;
   replay)   shift; cmd_replay "$@" ;;
+  userinfo) cmd_userinfo ;;
+  health)   cmd_health ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

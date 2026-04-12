@@ -30,10 +30,11 @@ type Event struct {
 
 // Notifier sends events to configured webhook URLs.
 type Notifier struct {
-	urls   []string
-	client *http.Client
-	ch     chan Event
-	done   chan struct{}
+	urls      []string
+	client    *http.Client
+	ch        chan Event
+	done      chan struct{}
+	signKey   []byte // HMAC-SHA256 signing key (optional)
 }
 
 // New creates a notifier that posts events to the given URLs.

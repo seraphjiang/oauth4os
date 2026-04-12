@@ -30,6 +30,8 @@ type Client struct {
 	RedirectURIs []string // allowed redirect URIs (required for PKCE)
 }
 
+const defaultTokenExpirySeconds = 3600 // 1 hour
+
 // Manager handles token lifecycle.
 type Manager struct {
 	tokens      map[string]*Token
@@ -174,7 +176,7 @@ func (m *Manager) handleClientCredentials(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"access_token":  tok.ID,
 		"token_type":    "Bearer",
-		"expires_in":    3600,
+		"expires_in":    defaultTokenExpirySeconds,
 		"refresh_token": refreshTok,
 		"scope":         strings.Join(scopes, " "),
 	})
@@ -230,7 +232,7 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"access_token":  tok.ID,
 		"token_type":    "Bearer",
-		"expires_in":    3600,
+		"expires_in":    defaultTokenExpirySeconds,
 		"refresh_token": newRefresh,
 		"scope":         strings.Join(tok.Scopes, " "),
 	})

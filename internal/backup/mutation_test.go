@@ -8,11 +8,10 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/config"
 )
 
-// Mutation: remove JSON encoding → Export must return valid JSON
 func TestMutation_ExportJSON(t *testing.T) {
 	h := NewHandler(
 		func() *config.Config { return &config.Config{} },
-		func() []map[string]interface{} { return nil },
+		func() []ClientEntry { return nil },
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -26,11 +25,10 @@ func TestMutation_ExportJSON(t *testing.T) {
 	}
 }
 
-// Mutation: remove Content-Type → must return application/json
 func TestMutation_ContentType(t *testing.T) {
 	h := NewHandler(
 		func() *config.Config { return &config.Config{} },
-		func() []map[string]interface{} { return nil },
+		func() []ClientEntry { return nil },
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -40,9 +38,8 @@ func TestMutation_ContentType(t *testing.T) {
 	}
 }
 
-// Mutation: remove import validation → invalid JSON import must fail
 func TestMutation_ImportInvalid(t *testing.T) {
-	h := NewHandler(nil, nil, func(data map[string]interface{}) error { return nil })
+	h := NewHandler(nil, nil, func(c *config.Config) {})
 	r := httptest.NewRequest("POST", "/admin/backup/import", nil)
 	w := httptest.NewRecorder()
 	h.Import(w, r)

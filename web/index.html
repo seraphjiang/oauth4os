@@ -281,12 +281,35 @@ oauth4os-keycloak  | Keycloak started in 4.2s</code></pre>
   <div class="container">
     <h2 class="section-title">Features</h2>
     <div class="feat-grid">
-      <div class="feat-card"><div class="icon">🔑</div><h3>JWT Validation</h3><p>JWKS auto-discovery, RS256/ES256. Validates tokens from any OIDC provider.</p></div>
-      <div class="feat-card"><div class="icon">🎯</div><h3>Scope → Role Mapping</h3><p><code>read:logs-*</code> → OpenSearch <code>logs_reader</code> role. Configurable in YAML.</p></div>
-      <div class="feat-card"><div class="icon">🔄</div><h3>Unified Auth</h3><p>Single entry point for Engine + Dashboards APIs. Zero changes to existing components.</p></div>
-      <div class="feat-card"><div class="icon">📋</div><h3>Token Lifecycle</h3><p>Issue, revoke, list, inspect tokens via REST API. Full audit trail.</p></div>
-      <div class="feat-card"><div class="icon">🌲</div><h3>Cedar Policies</h3><p>Fine-grained access control with Cedar policy language. Evaluate locally, no network calls.</p></div>
-      <div class="feat-card"><div class="icon">⚡</div><h3>CLI Tool</h3><p><code>oauth4os login</code>, <code>create-token</code>, <code>revoke</code>, <code>status</code>. Developer-friendly.</p></div>
+      <div class="feat-card"><div class="icon">🔑</div><h3>JWT Validation</h3><p>JWKS auto-discovery, RS256/ES256, audience validation, clock skew tolerance.</p></div>
+      <div class="feat-card"><div class="icon">🎯</div><h3>Scope → Role Mapping</h3><p><code>read:logs-*</code> → OpenSearch <code>logs_reader</code>. Per-provider multi-tenant mappings.</p></div>
+      <div class="feat-card"><div class="icon">🌲</div><h3>Cedar Policies</h3><p>Fine-grained access control. Index-level deny rules. <a href="playground/">Try the playground →</a></p></div>
+      <div class="feat-card"><div class="icon">⚡</div><h3>Rate Limiting</h3><p>Per-client token bucket. Configurable RPM per scope. 429 + Retry-After.</p></div>
+      <div class="feat-card"><div class="icon">📋</div><h3>Token Lifecycle</h3><p>Issue, refresh, revoke, introspect (RFC 7662). Rotation with reuse detection.</p></div>
+      <div class="feat-card"><div class="icon">🔄</div><h3>PKCE Flow</h3><p>Secure browser auth (RFC 7636). Token exchange (RFC 8693).</p></div>
+      <div class="feat-card"><div class="icon">👥</div><h3>Multi-Tenancy</h3><p>Per-OIDC-provider isolation. Separate scope mappings and Cedar policies.</p></div>
+      <div class="feat-card"><div class="icon">📊</div><h3>OSD Plugin</h3><p>Token management UI in OpenSearch Dashboards. List, create, revoke.</p></div>
+      <div class="feat-card"><div class="icon">🤖</div><h3>MCP Server</h3><p>AI agent integration. 7 tools: search, aggregate, create index, mappings.</p></div>
+      <div class="feat-card"><div class="icon">⌨️</div><h3>CLI + SDKs</h3><p>CLI with auto-refresh. SDKs for Go, Python, Java, Rust, Node.js.</p></div>
+      <div class="feat-card"><div class="icon">📈</div><h3>Observability</h3><p>Prometheus metrics, Grafana dashboard, structured JSON logging, OTel tracing.</p></div>
+      <div class="feat-card"><div class="icon">🛡️</div><h3>Enterprise</h3><p>mTLS, IP allowlist, session management, key rotation, backup/restore, webhooks.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="ecosystem" id="ecosystem">
+  <div class="container">
+    <h2>Ecosystem</h2>
+    <p class="section-sub">Tools and integrations for every workflow.</p>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="icon">🔧</div><h3>GitHub Action</h3><p>Get scoped tokens in CI/CD. Auto-masked in logs.</p></div>
+      <div class="feat-card"><div class="icon">💻</div><h3>VS Code Extension</h3><p>Token management, query OpenSearch, inspect scopes from IDE.</p></div>
+      <div class="feat-card"><div class="icon">🌲</div><h3>Cedar Playground</h3><p><a href="playground/">Interactive policy tester</a> with presets and evaluation trace.</p></div>
+      <div class="feat-card"><div class="icon">📊</div><h3>Analytics Dashboard</h3><p><a href="analytics/">Live token analytics</a> — usage charts, top clients, scope distribution.</p></div>
+      <div class="feat-card"><div class="icon">🏗️</div><h3>Terraform Provider</h3><p>Manage clients, scopes, policies as Terraform resources.</p></div>
+      <div class="feat-card"><div class="icon">📦</div><h3>5 SDKs</h3><p>Go, Python, Java, Rust, Node.js. Token auto-refresh built in.</p></div>
+      <div class="feat-card"><div class="icon">☸️</div><h3>Helm Chart</h3><p>One-command Kubernetes deployment with configurable values.</p></div>
+      <div class="feat-card"><div class="icon">🐳</div><h3>Docker Compose</h3><p>Dev, demo, and monitoring stacks. Prometheus + Grafana included.</p></div>
     </div>
   </div>
 </section>
@@ -296,19 +319,19 @@ oauth4os-keycloak  | Keycloak started in 4.2s</code></pre>
     <h2 class="section-title">Roadmap</h2>
     <div class="phase-row">
       <div class="phase-card">
-        <span class="status building">🔨 Building</span>
-        <h3>Phase 1 — OAuth Proxy MVP</h3>
-        <p>JWT validation, scope mapping, token lifecycle, CLI, Docker deployment.</p>
+        <span class="status" style="background:#3fb95022;color:var(--green)">✅ Shipped</span>
+        <h3>Phase 1-2 — Core</h3>
+        <p>JWT, scope mapping, Cedar, rate limiting, PKCE, introspection, OSD plugin, MCP server, CLI.</p>
       </div>
       <div class="phase-card">
-        <span class="status planned">📋 Planned</span>
-        <h3>Phase 2 — OSD Plugin</h3>
-        <p>Token management UI in OpenSearch Dashboards. Consent screen for OAuth apps.</p>
+        <span class="status" style="background:#3fb95022;color:var(--green)">✅ Shipped</span>
+        <h3>Phase 3-5 — Production</h3>
+        <p>Multi-tenancy, token exchange, key rotation, CI/CD, Helm, CDK, benchmarks, docs.</p>
       </div>
       <div class="phase-card">
-        <span class="status planned">📋 Planned</span>
-        <h3>Phase 3 — Cedar Policies</h3>
-        <p>Fine-grained local policy evaluation. Field-level access control.</p>
+        <span class="status" style="background:#3fb95022;color:var(--green)">✅ Shipped</span>
+        <h3>Phase 6-8 — Enterprise</h3>
+        <p>mTLS, IP filter, sessions, webhooks, SDKs (5 languages), VS Code, GitHub Action, Terraform.</p>
       </div>
     </div>
   </div>

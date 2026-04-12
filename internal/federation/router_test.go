@@ -47,3 +47,42 @@ func TestClusterNames(t *testing.T) {
 		t.Errorf("ClusterNames() = %v, want [a b]", names)
 	}
 }
+
+func TestRouteNilWhenNoMatch(t *testing.T) {
+	r := New([]Cluster{{Name: "prod", URL: "http://prod:9200", Indices: []string{"prod-*"}}}, nil)
+	req, _ := http.NewRequest("GET", "/dev-logs/_search", nil)
+	if handler := r.Route(req); handler != nil {
+		t.Fatal("expected nil handler for non-matching index")
+	}
+}
+
+func TestExtractIndex(t *testing.T) {
+	tests := []struct{ path, want string }{
+		{"/logs-2024/_search", "logs-2024"},
+		{"/my-index/_doc/1", "my-index"},
+		{"/_cluster/health", ""},
+		{"/", ""},
+	}
+	for _, tt := range tests {
+		got := extractIndex(tt.path)
+		if got != tt.want {
+			t.Errorf("extractIndex(%q) = %q, want %q", tt.path, got, tt.want)
+		}
+	}
+}
+
+func TestGlobMatch(t *testing.T) {
+	tests := []struct{ pattern, value string; want bool }{
+		{"logs-*", "logs-2024", true},
+		{"logs-*", "metrics-2024", false},
+		{"*", "anything", true},
+		{"exact", "exact", true},
+		{"exact", "other", false},
+	}
+	for _, tt := range tests {
+		got := globMatch(tt.pattern, tt.value)
+		if got != tt.want {
+			t.Errorf("globMatch(%q, %q) = %v, want %v", tt.pattern, tt.value, got, tt.want)
+		}
+	}
+}

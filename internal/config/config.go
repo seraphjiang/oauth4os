@@ -19,6 +19,15 @@ type Config struct {
 	RateLimits   map[string]int    `yaml:"rate_limits"`
 	IPFilter     IPFilterConfig    `yaml:"ip_filter"`
 	MTLS         MTLSConfig        `yaml:"mtls"`
+	Webhook      WebhookConfig     `yaml:"webhook"`
+}
+
+// WebhookConfig holds external webhook authorizer settings.
+type WebhookConfig struct {
+	URL      string            `yaml:"url"`
+	Timeout  int               `yaml:"timeout_ms"`
+	Headers  map[string]string `yaml:"headers"`
+	FailOpen bool              `yaml:"fail_open"`
 }
 
 // Cluster defines a named OpenSearch cluster for multi-cluster federation.

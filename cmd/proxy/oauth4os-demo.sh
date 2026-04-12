@@ -110,6 +110,13 @@ ensure_deps() {
   done
 }
 
+_open() {
+  if command -v xdg-open >/dev/null 2>&1; then xdg-open "$1" 2>/dev/null &
+  elif command -v open >/dev/null 2>&1; then open "$1" &
+  elif command -v wslview >/dev/null 2>&1; then wslview "$1" &
+  else echo "$1"; fi
+}
+
 # Retry wrapper — retries curl on 5xx or network error with exponential backoff
 curl_retry() {
   local attempt=0 max=3 delay=1
@@ -1325,6 +1332,7 @@ case "${1:-}" in
   ping)     shift; cmd_ping "${1:-5}" ;;
   changelog|version) cmd_changelog ;;
   sessions) cmd_sessions ;;
+  tutorial) echo -e "${CYAN}Opening tutorial...${NC}"; _open "${PROXY}/tutorial/" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

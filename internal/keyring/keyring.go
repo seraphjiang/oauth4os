@@ -68,6 +68,9 @@ func (r *Ring) rotate() error {
 }
 
 func (r *Ring) rotateLoop() {
+	if r.interval <= 0 {
+		return
+	}
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
 	for {

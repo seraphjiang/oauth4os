@@ -51,3 +51,20 @@ func TestMutation_CedarEvent(t *testing.T) {
 		t.Error("LogCedar must produce output")
 	}
 }
+
+// Mutation: remove Write → store must persist entries
+func TestMutation_StoreWriteQuery(t *testing.T) {
+	s, err := NewMemoryStore(100, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.Write(LogEntry{ClientID: "app", Method: "GET", Path: "/test"})
+	entries, err := s.Query(QueryFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) == 0 {
+		t.Error("store must return written entries")
+	}
+}

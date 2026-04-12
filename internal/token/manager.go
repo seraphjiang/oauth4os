@@ -382,6 +382,22 @@ func (m *Manager) revokeFamily(clientID string) {
 	}
 }
 
+// Cleanup removes expired and revoked tokens from memory.
+func (m *Manager) Cleanup() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	removed := 0
+	for id, tok := range m.tokens {
+		if tok.Revoked || now.After(tok.ExpiresAt) {
+			delete(m.tokens, id)
+			delete(m.refresh, tok.RefreshToken)
+			removed++
+		}
+	}
+	return removed
+}
+
 // CreateTokenForClient creates a token for a client (used by PKCE flow).
 func (m *Manager) CreateTokenForClient(clientID string, scopes []string) (*Token, string) {
 	return m.createToken(clientID, scopes)

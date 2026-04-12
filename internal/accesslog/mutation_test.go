@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
 // Mutation: remove status capture → logged status must match actual
@@ -64,5 +66,21 @@ func TestMutation_ClientID(t *testing.T) {
 	json.Unmarshal(buf.Bytes(), &e)
 	if e.ClientID != "my-app" {
 		t.Errorf("client_id should be my-app, got %s", e.ClientID)
+	}
+}
+
+// Mutation: remove duration tracking → log must include duration_ms
+func TestMutation_DurationTracked(t *testing.T) {
+	var buf bytes.Buffer
+	l := New(&buf)
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Millisecond)
+		w.WriteHeader(200)
+	})
+	handler := l.Middleware(inner, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/test", nil))
+	if !strings.Contains(buf.String(), "duration") {
+		t.Error("access log must include duration")
 	}
 }

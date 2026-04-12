@@ -94,3 +94,23 @@ func TestMutation_BodyPreserved(t *testing.T) {
 		t.Errorf("replayed body mismatch: %s", w2.Body.String())
 	}
 }
+
+// Mutation: remove no-key passthrough → requests without key must pass through
+func TestMutation_NoKeyPassthrough(t *testing.T) {
+	s := New(5 * time.Second)
+	defer s.Stop()
+	called := 0
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(200)
+	})
+	handler := s.Middleware(inner)
+	// Two requests without Idempotency-Key should both call handler
+	for i := 0; i < 2; i++ {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("POST", "/", nil))
+	}
+	if called != 2 {
+		t.Errorf("requests without key should always call handler, got %d calls", called)
+	}
+}

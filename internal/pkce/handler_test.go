@@ -6,128 +6,178 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
-func TestPKCEFlow(t *testing.T) {
-	var issuedClient string
-	h := NewHandler(func(clientID string, scopes []string) (string, string) {
-		issuedClient = clientID
-		return "tok_abc", "rtk_abc"
+func makeChallenge(verifier string) string {
+	h := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(h[:])
+}
+
+func testHandler() *Handler {
+	return NewHandler(func(clientID string, scopes []string) (string, string) {
+		return "tok_test", "rtk_test"
 	})
+}
 
-	// Generate PKCE pair
-	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-	hash := sha256.Sum256([]byte(verifier))
-	challenge := base64.RawURLEncoding.EncodeToString(hash[:])
-
-	// Step 1: Authorize
-	authURL := "/oauth/authorize?client_id=myapp&code_challenge=" + challenge +
-		"&code_challenge_method=S256&redirect_uri=http://localhost/callback&scope=read:logs-*"
-	req := httptest.NewRequest(http.MethodGet, authURL, nil)
+func TestAuthorize_Success(t *testing.T) {
+	h := testHandler()
+	challenge := makeChallenge("my-verifier")
+	r := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&scope=read:logs", nil)
 	w := httptest.NewRecorder()
-	h.Authorize(w, req)
-
+	h.Authorize(w, r)
 	if w.Code != http.StatusFound {
-		t.Fatalf("expected 302, got %d", w.Code)
+		t.Fatalf("expected 302, got %d: %s", w.Code, w.Body.String())
 	}
 	loc := w.Header().Get("Location")
-	u, _ := url.Parse(loc)
-	code := u.Query().Get("code")
-	if code == "" {
-		t.Fatal("no code in redirect")
-	}
-
-	// Step 2: Exchange
-	form := url.Values{
-		"code":          {code},
-		"code_verifier": {verifier},
-		"redirect_uri":  {"http://localhost/callback"},
-	}
-	req = httptest.NewRequest(http.MethodPost, "/oauth/authorize/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w = httptest.NewRecorder()
-	h.Exchange(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	if resp["access_token"] != "tok_abc" {
-		t.Fatalf("expected tok_abc, got %v", resp["access_token"])
-	}
-	if issuedClient != "myapp" {
-		t.Fatalf("expected myapp, got %s", issuedClient)
+	if !strings.HasPrefix(loc, "http://localhost/cb?code=") {
+		t.Errorf("unexpected redirect: %s", loc)
 	}
 }
 
-func TestPKCEBadVerifier(t *testing.T) {
-	h := NewHandler(func(clientID string, scopes []string) (string, string) {
-		return "tok", "rtk"
-	})
-
-	hash := sha256.Sum256([]byte("correct-verifier"))
-	challenge := base64.RawURLEncoding.EncodeToString(hash[:])
-
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?client_id=app&code_challenge="+challenge+
-		"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
+func TestAuthorize_MissingParams(t *testing.T) {
+	h := testHandler()
+	r := httptest.NewRequest("GET", "/oauth/authorize?client_id=app", nil)
 	w := httptest.NewRecorder()
-	h.Authorize(w, req)
-	loc := w.Header().Get("Location")
-	u, _ := url.Parse(loc)
-	code := u.Query().Get("code")
-
-	// Exchange with wrong verifier
-	form := url.Values{
-		"code":          {code},
-		"code_verifier": {"wrong-verifier"},
-		"redirect_uri":  {"http://localhost/cb"},
-	}
-	req = httptest.NewRequest(http.MethodPost, "/oauth/authorize/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w = httptest.NewRecorder()
-	h.Exchange(w, req)
-
+	h.Authorize(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }
 
-func TestPKCECodeReuse(t *testing.T) {
-	h := NewHandler(func(clientID string, scopes []string) (string, string) {
-		return "tok", "rtk"
-	})
-
-	verifier := "test-verifier-string"
-	hash := sha256.Sum256([]byte(verifier))
-	challenge := base64.RawURLEncoding.EncodeToString(hash[:])
-
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?client_id=app&code_challenge="+challenge+
-		"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
+func TestAuthorize_UnsupportedMethod(t *testing.T) {
+	h := testHandler()
+	r := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge=x&code_challenge_method=plain&redirect_uri=http://localhost/cb", nil)
 	w := httptest.NewRecorder()
-	h.Authorize(w, req)
-	u, _ := url.Parse(w.Header().Get("Location"))
-	code := u.Query().Get("code")
+	h.Authorize(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for plain method, got %d", w.Code)
+	}
+}
 
-	// First exchange — should succeed
-	form := url.Values{"code": {code}, "code_verifier": {verifier}, "redirect_uri": {"http://localhost/cb"}}
-	req = httptest.NewRequest(http.MethodPost, "/oauth/authorize/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w = httptest.NewRecorder()
-	h.Exchange(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("first exchange: expected 200, got %d", w.Code)
+func TestExchange_Success(t *testing.T) {
+	h := testHandler()
+	verifier := "my-verifier-string-for-pkce-test"
+	challenge := makeChallenge(verifier)
+
+	// Authorize
+	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&scope=read:logs", nil)
+	aw := httptest.NewRecorder()
+	h.Authorize(aw, ar)
+	loc := aw.Header().Get("Location")
+	code := strings.TrimPrefix(loc, "http://localhost/cb?code=")
+
+	// Exchange
+	form := "grant_type=authorization_code&code=" + code + "&code_verifier=" + verifier + "&redirect_uri=http://localhost/cb"
+	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
+	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ew := httptest.NewRecorder()
+	h.Exchange(ew, er)
+	if ew.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", ew.Code, ew.Body.String())
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(ew.Body.Bytes(), &resp)
+	if resp["access_token"] != "tok_test" {
+		t.Errorf("unexpected token: %v", resp["access_token"])
+	}
+}
+
+func TestExchange_BadVerifier(t *testing.T) {
+	h := testHandler()
+	challenge := makeChallenge("correct-verifier")
+
+	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
+	aw := httptest.NewRecorder()
+	h.Authorize(aw, ar)
+	code := strings.TrimPrefix(aw.Header().Get("Location"), "http://localhost/cb?code=")
+
+	form := "code=" + code + "&code_verifier=wrong-verifier&redirect_uri=http://localhost/cb"
+	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
+	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ew := httptest.NewRecorder()
+	h.Exchange(ew, er)
+	if ew.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad verifier, got %d", ew.Code)
+	}
+}
+
+func TestExchange_CodeReuse(t *testing.T) {
+	h := testHandler()
+	verifier := "reuse-test-verifier"
+	challenge := makeChallenge(verifier)
+
+	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
+	aw := httptest.NewRecorder()
+	h.Authorize(aw, ar)
+	code := strings.TrimPrefix(aw.Header().Get("Location"), "http://localhost/cb?code=")
+
+	// First exchange succeeds
+	form := "code=" + code + "&code_verifier=" + verifier + "&redirect_uri=http://localhost/cb"
+	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
+	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ew := httptest.NewRecorder()
+	h.Exchange(ew, er)
+	if ew.Code != 200 {
+		t.Fatalf("first exchange should succeed, got %d", ew.Code)
 	}
 
-	// Second exchange — code already consumed
-	req = httptest.NewRequest(http.MethodPost, "/oauth/authorize/token", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w = httptest.NewRecorder()
-	h.Exchange(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("second exchange: expected 400, got %d", w.Code)
+	// Second exchange fails (one-time use)
+	er2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
+	er2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ew2 := httptest.NewRecorder()
+	h.Exchange(ew2, er2)
+	if ew2.Code != http.StatusBadRequest {
+		t.Fatalf("code reuse should fail, got %d", ew2.Code)
+	}
+}
+
+func TestExchange_RedirectMismatch(t *testing.T) {
+	h := testHandler()
+	verifier := "redirect-test"
+	challenge := makeChallenge(verifier)
+
+	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
+	aw := httptest.NewRecorder()
+	h.Authorize(aw, ar)
+	code := strings.TrimPrefix(aw.Header().Get("Location"), "http://localhost/cb?code=")
+
+	form := "code=" + code + "&code_verifier=" + verifier + "&redirect_uri=http://evil.com/cb"
+	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
+	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ew := httptest.NewRecorder()
+	h.Exchange(ew, er)
+	if ew.Code != http.StatusBadRequest {
+		t.Fatalf("redirect mismatch should fail, got %d", ew.Code)
+	}
+}
+
+func TestExchange_MissingParams(t *testing.T) {
+	h := testHandler()
+	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader("code=&code_verifier="))
+	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ew := httptest.NewRecorder()
+	h.Exchange(ew, er)
+	if ew.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", ew.Code)
+	}
+}
+
+func TestCleanup(t *testing.T) {
+	h := testHandler()
+	h.mu.Lock()
+	h.codes["old"] = &AuthCode{Code: "old", CreatedAt: time.Now().Add(-20 * time.Minute)}
+	h.codes["fresh"] = &AuthCode{Code: "fresh", CreatedAt: time.Now()}
+	h.mu.Unlock()
+	h.Cleanup()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, ok := h.codes["old"]; ok {
+		t.Error("expired code should be cleaned up")
+	}
+	if _, ok := h.codes["fresh"]; !ok {
+		t.Error("fresh code should survive cleanup")
 	}
 }

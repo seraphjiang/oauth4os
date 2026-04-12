@@ -21,6 +21,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/seraphjiang/oauth4os/internal/accesslog"
 	"github.com/seraphjiang/oauth4os/internal/admin"
 	"github.com/seraphjiang/oauth4os/internal/analytics"
 	"github.com/seraphjiang/oauth4os/internal/audit"
@@ -53,6 +54,8 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 	"github.com/seraphjiang/oauth4os/internal/cache"
 	"github.com/seraphjiang/oauth4os/internal/circuit"
+	"github.com/seraphjiang/oauth4os/internal/healthcheck"
+	"github.com/seraphjiang/oauth4os/internal/retry"
 )
 
 const version = "0.2.0"
@@ -219,6 +222,9 @@ func main() {
 		logger.Info("SigV4 signing enabled", "region", cfg.Upstream.SigV4.Region, "service", svc)
 	}
 
+	// Retry with exponential backoff for upstream 5xx
+	upstreamTransport = &retry.Transport{Base: upstreamTransport, MaxRetries: 3, BaseDelay: 100 * time.Millisecond}
+
 	engineURL, _ := url.Parse(cfg.Upstream.Engine)
 	dashboardsURL, _ := url.Parse(cfg.Upstream.Dashboards)
 
@@ -236,6 +242,10 @@ func main() {
 
 	// Circuit breaker — opens after 5 consecutive 5xx, 30s cooldown
 	breaker := circuit.New(5, 30*time.Second)
+
+	// Background upstream health check (every 30s)
+	upstreamChecker := healthcheck.New(cfg.Upstream.Engine, 30*time.Second, transport)
+	defer upstreamChecker.Stop()
 
 	// Multi-cluster federation router
 	var fedRouter *federation.Router
@@ -441,6 +451,26 @@ func main() {
 					}
 				}
 			}
+		}
+
+		// Background health checker status
+		hs := upstreamChecker.Status()
+		if hs.Healthy {
+			result["upstream_bg"] = check{"ok", fmt.Sprintf("latency=%dms", hs.Latency.Milliseconds())}
+		} else {
+			result["upstream_bg"] = check{"degraded", hs.Error}
+			overall = "degraded"
+		}
+
+		// Circuit breaker state
+		switch breaker.State() {
+		case circuit.Open:
+			result["circuit_breaker"] = check{"open", fmt.Sprintf("retry_after=%ds", breaker.RetryAfter())}
+			overall = "degraded"
+		case circuit.HalfOpen:
+			result["circuit_breaker"] = check{"half_open", "probing"}
+		default:
+			result["circuit_breaker"] = check{"closed", ""}
 		}
 
 		result["overall"] = check{overall, ""}
@@ -979,9 +1009,18 @@ func main() {
 		Headers: cfg.CORS.Headers,
 	})(traced)
 
+	// Structured access logs
+	alog := accesslog.New(os.Stdout)
+	logged := alog.Middleware(corsHandler, func(r *http.Request) string {
+		if v := r.Header.Get("X-Client-ID"); v != "" {
+			return v
+		}
+		return ""
+	})
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      corsHandler,
+		Handler:      logged,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

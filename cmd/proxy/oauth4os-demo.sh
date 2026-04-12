@@ -3,14 +3,28 @@
 # Install: curl -sL https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh | bash
 set -euo pipefail
 
-PROXY="${OAUTH4OS_PROXY:-https://f5cmk2hxwx.us-west-2.awsapprunner.com}"
+CONFIG_FILE="${HOME}/.oauth4os/config"
 TOKEN_FILE="${HOME}/.oauth4os/token"
+ALIAS_FILE="${HOME}/.oauth4os/aliases"
+
+# Load config defaults, then override from config file
+_default_proxy="https://f5cmk2hxwx.us-west-2.awsapprunner.com"
+_default_index="logs-*"
+_default_format="text"
+if [ -f "$CONFIG_FILE" ]; then
+  _cfg_proxy=$(grep '^proxy=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
+  _cfg_index=$(grep '^index=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
+  _cfg_format=$(grep '^format=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
+fi
+PROXY="${OAUTH4OS_PROXY:-${_cfg_proxy:-$_default_proxy}}"
+DEFAULT_INDEX="${OAUTH4OS_INDEX:-${_cfg_index:-$_default_index}}"
+DEFAULT_FORMAT="${OAUTH4OS_FORMAT:-${_cfg_format:-$_default_format}}"
 CLIENT_ID="demo-cli"
 REDIRECT_PORT=8199
 REDIRECT_URI="http://localhost:${REDIRECT_PORT}/callback"
 
 # Colors
-RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 
 usage() {
   cat <<EOF
@@ -35,6 +49,9 @@ ${BOLD}COMMANDS:${NC}
   history              Show last 50 queries
   bookmark <action>    save|run|delete|list query bookmarks
   dashboard            Live terminal dashboard (htop for logs)
+  config <action>      show|set|get|reset proxy settings
+  alias <action>       add|rm|run|list command aliases
+  completion <shell>   Generate bash/zsh completions
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
@@ -251,7 +268,7 @@ cmd_search() {
   local body="{\"query\":${dsl},\"size\":20,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
   local resp
   resp=$(curl -sf -H "$(auth_header)" \
-    "${PROXY}/logs-*/_search" \
+    "${PROXY}/${DEFAULT_INDEX}/_search" \
     -H "Content-Type: application/json" \
     -d "$body" 2>/dev/null)
   if [ $? -ne 0 ] || [ -z "$resp" ]; then
@@ -323,7 +340,7 @@ cmd_tail() {
     local query="{\"query\":$filter,\"size\":20,\"sort\":[{\"@timestamp\":\"desc\"}]}"
     local resp
     resp=$(curl -sf -H "$(auth_header)" -H "Content-Type: application/json" \
-      "${PROXY}/logs-*/_search" -d "$query" 2>/dev/null) || { sleep 2; continue; }
+      "${PROXY}/${DEFAULT_INDEX}/_search" -d "$query" 2>/dev/null) || { sleep 2; continue; }
     local lines
     lines=$(echo "$resp" | jq -r '.hits.hits[]._source | "\(.["@timestamp"] // .timestamp // "—") [\(.level // "INFO")] \(.service // "?"): \(.message // .msg // "")"' 2>/dev/null | tac)
     if [ -n "$lines" ]; then
@@ -369,7 +386,7 @@ cmd_stats() {
   }'
   local resp
   resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
-    "${PROXY}/logs-*/_search" -d "$body" 2>/dev/null)
+    "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
   if [ $? -ne 0 ] || [ -z "$resp" ]; then
     echo -e "${RED}Query failed${NC}"; return 1
   fi
@@ -428,7 +445,7 @@ cmd_export() {
 
   local resp
   resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
-    "${PROXY}/logs-*/_search" -d "$body" 2>/dev/null)
+    "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
   [ $? -ne 0 ] && { echo -e "${RED}Query failed${NC}"; return 1; }
 
   local count
@@ -576,7 +593,7 @@ cmd_dashboard() {
     }'
     local resp
     resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
-      "${PROXY}/logs-*/_search" -d "$body" 2>/dev/null)
+      "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
     [ $? -ne 0 ] && { sleep 3; continue; }
 
     local total errs
@@ -650,6 +667,122 @@ cmd_dashboard() {
   done
 }
 
+cmd_config() {
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  local action="${1:-show}" key="${2:-}" val="${3:-}"
+  case "$action" in
+    set)
+      [ -z "$key" ] || [ -z "$val" ] && { echo -e "${YELLOW}Usage: oauth4os-demo config set <key> <value>${NC}"; echo "  Keys: proxy, index, format"; return 1; }
+      case "$key" in proxy|index|format) ;; *) echo -e "${RED}Unknown key: $key (valid: proxy, index, format)${NC}"; return 1 ;; esac
+      # Update or append
+      if [ -f "$CONFIG_FILE" ] && grep -q "^${key}=" "$CONFIG_FILE"; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$CONFIG_FILE"
+      else
+        echo "${key}=${val}" >> "$CONFIG_FILE"
+      fi
+      echo -e "${GREEN}✓ ${key}=${val}${NC}"
+      ;;
+    get)
+      [ -z "$key" ] && { echo -e "${YELLOW}Usage: oauth4os-demo config get <key>${NC}"; return 1; }
+      [ -f "$CONFIG_FILE" ] && grep "^${key}=" "$CONFIG_FILE" | cut -d= -f2- || echo "(not set)"
+      ;;
+    show|"")
+      echo -e "${BOLD}Config:${NC} ${CONFIG_FILE}"
+      echo -e "  proxy:  ${CYAN}${PROXY}${NC}"
+      echo -e "  index:  ${CYAN}${DEFAULT_INDEX}${NC}"
+      echo -e "  format: ${CYAN}${DEFAULT_FORMAT}${NC}"
+      echo -e "\n${BOLD}Files:${NC}"
+      echo -e "  token:     ${TOKEN_FILE}"
+      echo -e "  history:   ${HISTORY_FILE:-~/.oauth4os-history}"
+      echo -e "  bookmarks: ${BOOKMARKS_FILE:-~/.oauth4os-bookmarks}"
+      echo -e "  aliases:   ${ALIAS_FILE}"
+      ;;
+    reset)
+      rm -f "$CONFIG_FILE"
+      echo -e "${GREEN}✓ Config reset to defaults${NC}"
+      ;;
+    *) echo -e "${YELLOW}Usage: oauth4os-demo config <show|set|get|reset> [key] [value]${NC}" ;;
+  esac
+}
+
+cmd_alias() {
+  mkdir -p "$(dirname "$ALIAS_FILE")"
+  local action="${1:-list}" name="${2:-}" cmd="${3:-}"
+  case "$action" in
+    add|save)
+      [ -z "$name" ] || [ -z "$cmd" ] && { echo -e "${YELLOW}Usage: oauth4os-demo alias add <name> <command>${NC}"; return 1; }
+      [ -f "$ALIAS_FILE" ] && grep -v "^${name}	" "$ALIAS_FILE" > "${ALIAS_FILE}.tmp" 2>/dev/null && mv "${ALIAS_FILE}.tmp" "$ALIAS_FILE"
+      echo -e "${name}\t${cmd}" >> "$ALIAS_FILE"
+      echo -e "${GREEN}✓ Alias '${name}' → ${cmd}${NC}"
+      ;;
+    rm|delete)
+      [ -z "$name" ] && { echo -e "${YELLOW}Usage: oauth4os-demo alias rm <name>${NC}"; return 1; }
+      [ -f "$ALIAS_FILE" ] && grep -v "^${name}	" "$ALIAS_FILE" > "${ALIAS_FILE}.tmp" && mv "${ALIAS_FILE}.tmp" "$ALIAS_FILE"
+      echo -e "${GREEN}✓ Removed alias '${name}'${NC}"
+      ;;
+    run)
+      [ -z "$name" ] && { echo -e "${YELLOW}Usage: oauth4os-demo alias run <name>${NC}"; return 1; }
+      [ ! -f "$ALIAS_FILE" ] && { echo -e "${RED}No aliases${NC}"; return 1; }
+      local acmd
+      acmd=$(grep "^${name}	" "$ALIAS_FILE" | cut -f2-)
+      [ -z "$acmd" ] && { echo -e "${RED}Alias '${name}' not found${NC}"; return 1; }
+      echo -e "${CYAN}Running alias '${name}':${NC} $acmd"
+      eval "cmd_search \"$acmd\""
+      ;;
+    list|"")
+      if [ ! -f "$ALIAS_FILE" ] || [ ! -s "$ALIAS_FILE" ]; then
+        echo -e "${YELLOW}No aliases. Create one: oauth4os-demo alias add errors 'search level:ERROR'${NC}"; return
+      fi
+      echo -e "${BOLD}Aliases:${NC}\n"
+      while IFS=$'\t' read -r n c; do
+        echo -e "  ${CYAN}${n}${NC}  →  $c"
+      done < "$ALIAS_FILE"
+      ;;
+    *) echo -e "${YELLOW}Usage: oauth4os-demo alias <add|rm|run|list> [name] [command]${NC}" ;;
+  esac
+}
+
+cmd_completion() {
+  local shell="${1:-bash}"
+  case "$shell" in
+    bash)
+      cat <<'COMP'
+_oauth4os_demo() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local cmds="login logout search sql tail services indices stats export dashboard bookmark history config alias completion status token whoami help"
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=($(compgen -W "$cmds" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = "config" ] && [ "$COMP_CWORD" -eq 2 ]; then
+    COMPREPLY=($(compgen -W "show set get reset" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = "config" ] && [ "${COMP_WORDS[2]}" = "set" ] && [ "$COMP_CWORD" -eq 3 ]; then
+    COMPREPLY=($(compgen -W "proxy index format" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = "alias" ] && [ "$COMP_CWORD" -eq 2 ]; then
+    COMPREPLY=($(compgen -W "add rm run list" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = "bookmark" ] && [ "$COMP_CWORD" -eq 2 ]; then
+    COMPREPLY=($(compgen -W "save run delete list" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = "export" ]; then
+    COMPREPLY=($(compgen -W "-f --format -o --output csv json" -- "$cur"))
+  fi
+}
+complete -F _oauth4os_demo oauth4os-demo
+COMP
+      echo -e "\n# Add to ~/.bashrc: eval \"\$(oauth4os-demo completion bash)\"" >&2
+      ;;
+    zsh)
+      cat <<'COMP'
+#compdef oauth4os-demo
+_oauth4os_demo() {
+  local -a commands=(login logout search sql tail services indices stats export dashboard bookmark history config alias completion status token whoami help)
+  _arguments '1:command:compadd -a commands'
+}
+compdef _oauth4os_demo oauth4os-demo
+COMP
+      echo -e "\n# Add to ~/.zshrc: eval \"\$(oauth4os-demo completion zsh)\"" >&2
+      ;;
+    *) echo -e "${YELLOW}Usage: oauth4os-demo completion <bash|zsh>${NC}" ;;
+  esac
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -668,6 +801,9 @@ case "${1:-}" in
   history)  cmd_history ;;
   bookmark) shift; cmd_bookmark "$@" ;;
   dashboard|dash) cmd_dashboard ;;
+  config)   shift; cmd_config "$@" ;;
+  alias)    shift; cmd_alias "$@" ;;
+  completion) shift; cmd_completion "${1:-bash}" ;;
   help|-h|--help) usage ;;
   "") usage ;;
   *) echo -e "${RED}Unknown command: $1${NC}"; usage ;;

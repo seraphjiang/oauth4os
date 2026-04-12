@@ -135,6 +135,12 @@ func (m *Manager) handleClientCredentials(w http.ResponseWriter, r *http.Request
 	clientSecret := r.FormValue("client_secret")
 	scopeStr := r.FormValue("scope")
 
+	// Support client_secret_basic (HTTP Basic Auth) per RFC 6749 §2.3.1
+	if basicID, basicSecret, ok := r.BasicAuth(); ok && clientID == "" {
+		clientID = basicID
+		clientSecret = basicSecret
+	}
+
 	// Authenticate client
 	if err := m.authenticateClient(clientID, clientSecret); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_client", "authentication failed")
@@ -172,6 +178,12 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	refreshToken := r.FormValue("refresh_token")
 	clientID := r.FormValue("client_id")
 	clientSecret := r.FormValue("client_secret")
+
+	// Support client_secret_basic
+	if basicID, basicSecret, ok := r.BasicAuth(); ok && clientID == "" {
+		clientID = basicID
+		clientSecret = basicSecret
+	}
 
 	if err := m.authenticateClient(clientID, clientSecret); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_client", "authentication failed")
@@ -298,6 +310,50 @@ func (m *Manager) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	}
 	m.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// RevokeRFC7009 handles POST /oauth/revoke per RFC 7009.
+// Accepts token via form body, authenticates client, revokes access or refresh token.
+// Always returns 200 per spec (even if token doesn't exist — prevents token scanning).
+func (m *Manager) RevokeRFC7009(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	tokenValue := r.FormValue("token")
+	tokenType := r.FormValue("token_type_hint") // "access_token" or "refresh_token"
+	clientID, clientSecret, hasBasic := r.BasicAuth()
+	if !hasBasic {
+		clientID = r.FormValue("client_id")
+		clientSecret = r.FormValue("client_secret")
+	}
+
+	if clientID != "" {
+		if err := m.authenticateClient(clientID, clientSecret); err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid_client", "authentication failed")
+			return
+		}
+	}
+
+	if tokenValue == "" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	m.mu.Lock()
+	// Try as access token
+	if tok, ok := m.tokens[tokenValue]; ok {
+		tok.Revoked = true
+	}
+	// Try as refresh token
+	if tokenType == "refresh_token" || tokenType == "" {
+		for _, tok := range m.tokens {
+			if tok.RefreshToken == tokenValue {
+				tok.Revoked = true
+			}
+		}
+	}
+	m.mu.Unlock()
+
+	// RFC 7009 §2.1: always 200, even if token invalid
+	w.WriteHeader(http.StatusOK)
 }
 
 // ListTokens handles GET /oauth/tokens.

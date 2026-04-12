@@ -1,23 +1,33 @@
+# Docker Compose: oauth4os + Prometheus + Grafana monitoring stack
+# Usage: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.51.0
     volumes:
-      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
     ports:
       - "9090:9090"
-    command: --config.file=/etc/prometheus/prometheus.yml
+    depends_on:
+      oauth-proxy:
+        condition: service_started
 
   grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
+    image: grafana/grafana:10.4.0
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-    volumes:
-      - ./deploy/grafana/provisioning:/etc/grafana/provisioning
-      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
     depends_on:
       - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:

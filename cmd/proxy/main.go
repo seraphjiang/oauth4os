@@ -52,6 +52,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/apikey"
 	"github.com/seraphjiang/oauth4os/internal/device"
 	"github.com/seraphjiang/oauth4os/internal/i18n"
+	"github.com/seraphjiang/oauth4os/internal/par"
 	"github.com/seraphjiang/oauth4os/internal/tokenbind"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
@@ -178,10 +179,8 @@ func main() {
 
 	// Tracing — OTLP if endpoint set, stdout in dev, noop if off
 	var tracer tracing.TracerIface
-	if ep := os.Getenv("OAUTH4OS_OTLP_ENDPOINT"); ep != "" {
-		tracer = otlp.New(ep)
-		logger.Info("OTLP tracing enabled", "endpoint", ep)
-	} else if os.Getenv("OAUTH4OS_TRACING") == "off" {
+	otlpExporter := otlp.New(1000)
+	if os.Getenv("OAUTH4OS_TRACING") == "off" {
 		tracer = tracing.NoopTracer{}
 	} else {
 		tracer = tracing.NewStdoutTracer(os.Stderr)
@@ -742,6 +741,10 @@ func main() {
 	demoApp.Register(mux)
 	deviceHandler.Register(mux)
 	mux.HandleFunc("GET /i18n/consent.json", i18n.Handler)
+
+	// Pushed Authorization Requests (RFC 9126)
+	parHandler := par.NewHandler(tokenMgr.AuthenticateClient)
+	parHandler.Register(mux)
 
 	// Token inspector page
 	tokenInspector := tokenui.New(issuerURL)

@@ -49,6 +49,7 @@ ${BOLD}COMMANDS:${NC}
   history              Show last 50 queries
   bookmark <action>    save|run|delete|list query bookmarks
   dashboard            Live terminal dashboard (htop for logs)
+  watch <query>        Alert on new KQL matches (poll every 5s)
   config <action>      show|set|get|reset proxy settings
   alias <action>       add|rm|run|list command aliases
   completion <shell>   Generate bash/zsh completions

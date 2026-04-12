@@ -116,7 +116,7 @@ if [ -n "$TOKEN" ]; then
     mkdir -p "$TMPDIR/.oauth4os"
     echo "$TOKEN" > "$TMPDIR/.oauth4os/token"
 
-    OUT=$(HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" search '*' 2>&1 || true)
+    OUT=$(timeout 10 env HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" search '*' 2>&1 || true)
     if echo "$OUT" | grep -qi "hits\|results\|Query"; then
         pass "search returns results"
     elif echo "$OUT" | grep -qi "failed\|error\|not logged"; then
@@ -126,7 +126,7 @@ if [ -n "$TOKEN" ]; then
     fi
 
     # Search with KQL filter
-    OUT=$(HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" search 'level:ERROR' 2>&1 || true)
+    OUT=$(timeout 10 env HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" search 'level:ERROR' 2>&1 || true)
     if echo "$OUT" | grep -qi "hits\|results\|Query\|ERROR"; then
         pass "KQL search (level:ERROR) works"
     else
@@ -135,7 +135,7 @@ if [ -n "$TOKEN" ]; then
 else
     fail "got test token" "token endpoint returned: ${TOKEN_RESP:0:80}"
     # Still test search without token
-    OUT=$(HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" search '*' 2>&1 || true)
+    OUT=$(timeout 10 env HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" search '*' 2>&1 || true)
     if echo "$OUT" | grep -qi "not logged in\|login"; then
         pass "search without token prompts login"
     else
@@ -148,7 +148,7 @@ fi
 echo ""
 echo "6. unknown command"
 
-OUT=$(OAUTH4OS_PROXY="$PROXY" "$CLI" nonexistent 2>&1 || true)
+OUT=$(timeout 10 env OAUTH4OS_PROXY="$PROXY" "$CLI" nonexistent 2>&1 || true)
 if echo "$OUT" | grep -qi "unknown\|usage\|error"; then
     pass "unknown command shows error"
 else
@@ -161,7 +161,7 @@ echo ""
 echo "7. services"
 
 if [ -n "${TOKEN:-}" ]; then
-    OUT=$(HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" services 2>&1 || true)
+    OUT=$(timeout 10 env HOME="$TMPDIR" OAUTH4OS_PROXY="$PROXY" "$CLI" services 2>&1 || true)
     if [ $? -le 1 ]; then
         pass "services command runs"
     else

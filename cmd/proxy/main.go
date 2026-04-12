@@ -626,6 +626,15 @@ func main() {
 	}
 	defer keys.Stop()
 
+	// Periodic token cleanup (every 10 minutes)
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			tokenMgr.Cleanup()
+		}
+	}()
+
 	// Enable JWT access tokens if configured
 	if cfg.JWTAccessToken {
 		issuer := cfg.Issuer
@@ -862,6 +871,7 @@ func main() {
 	mux.HandleFunc("GET /admin/tokens", serveWebFile("admin/tokens.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /logs/", serveWebFile("logs/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/feedback", serveWebFile("admin/feedback.html", "text/html; charset=utf-8"))
 

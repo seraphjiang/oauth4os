@@ -30,6 +30,7 @@ ${BOLD}COMMANDS:${NC}
   whoami             Show token info
   status             Check proxy health
   stats              Error counts, latency, top errors by service
+  export <q> -f csv|json -o <file>  Export results to file
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
@@ -451,6 +452,7 @@ case "${1:-}" in
   whoami)   cmd_whoami ;;
   status)   cmd_status ;;
   stats)    cmd_stats ;;
+  export)   shift; cmd_export "$@" ;;
   help|-h|--help) usage ;;
   "") usage ;;
   *) echo -e "${RED}Unknown command: $1${NC}"; usage ;;

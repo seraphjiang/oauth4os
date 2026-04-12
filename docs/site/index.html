@@ -37,7 +37,8 @@
       <img src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go" alt="Go 1.22">
       <img src="https://github.com/seraphjiang/oauth4os/actions/workflows/ci.yml/badge.svg" alt="CI">
       <img src="https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange?logo=opensearch" alt="OpenSearch">
-      <img src="https://img.shields.io/badge/tests-514%20passed-brightgreen" alt="405 tests">
+      <img src="https://img.shields.io/badge/tests-514%20passed-brightgreen" alt="514 tests">
+      <a href="https://hub.docker.com/r/jianghuan/oauth4os"><img src="https://img.shields.io/badge/Docker-jianghuan%2Foauth4os-2496ED?logo=docker" alt="Docker Hub"></a>
     </div>
     <h1>OAuth 2.0 Proxy for <span>OpenSearch</span></h1>
     <p class="hero-sub">Secure machine-to-machine access with scoped tokens, OIDC federation, Cedar policies, and zero breaking changes to your existing cluster.</p>
@@ -124,7 +125,7 @@
     <div class="steps">
       <div class="step">
         <h3>1. Start</h3>
-        <pre><code>docker compose up</code></pre>
+        <pre><code>docker run -p 8443:8443 jianghuan/oauth4os:latest</code></pre>
       </div>
       <div class="step">
         <h3>2. Get a scoped token</h3>

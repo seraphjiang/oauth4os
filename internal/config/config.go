@@ -155,5 +155,25 @@ func (c *Config) Validate() error {
 	if c.TLS.Enabled && (c.TLS.CertFile == "" || c.TLS.KeyFile == "") {
 		return fmt.Errorf("tls: cert_file and key_file required when tls.enabled=true")
 	}
+	// AOSS / SigV4 validation
+	if c.Upstream.SigV4 != nil {
+		if c.Upstream.SigV4.Region == "" {
+			return fmt.Errorf("upstream.sigv4.region is required when sigv4 is configured")
+		}
+		svc := c.Upstream.SigV4.Service
+		if svc != "" && svc != "aoss" && svc != "es" {
+			return fmt.Errorf("upstream.sigv4.service must be \"aoss\" or \"es\", got %q", svc)
+		}
+		if svc == "" {
+			c.Upstream.SigV4.Service = "es" // default
+		}
+		// Validate AOSS endpoint format
+		if svc == "aoss" && c.Upstream.Engine != "" {
+			u, _ := url.Parse(c.Upstream.Engine)
+			if u != nil && u.Scheme != "https" {
+				return fmt.Errorf("upstream.engine: AOSS requires https, got %q", u.Scheme)
+			}
+		}
+	}
 	return nil
 }

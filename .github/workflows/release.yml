@@ -47,7 +47,7 @@ jobs:
             -o dist/oauth4os-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/proxy
           go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
             -o dist/oauth4os-cli-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/cli
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/

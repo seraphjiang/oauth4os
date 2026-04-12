@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="Register an OAuth client for oauth4os">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Register Client</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;display:flex;align-items:center;justify-content:center;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:440px;width:90%}
+h1{font-size:18px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;margin-top:12px}
+input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px}
+input:focus{outline:none;border-color:var(--accent)}
+.hint{font-size:11px;color:var(--muted);margin-top:2px}
+.btn{width:100%;padding:10px;border-radius:8px;font-size:14px;font-weight:600;border:none;cursor:pointer;margin-top:16px;background:var(--accent);color:#fff}
+.btn:hover{opacity:.9}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.result{margin-top:16px;display:none}
+.result.show{display:block}
+.secret-box{background:var(--bg);border:2px solid var(--green);border-radius:8px;padding:16px;margin-top:8px}
+.secret-box h3{font-size:13px;color:var(--green);margin-bottom:8px}
+.field{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.field code{flex:1;font-family:'SF Mono',Consolas,monospace;font-size:12px;background:var(--surface);padding:6px 10px;border-radius:4px;border:1px solid var(--border);word-break:break-all}
+.copy{padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);cursor:pointer;font-size:11px;white-space:nowrap}
+.copy:hover{border-color:var(--accent)}
+.warn{font-size:11px;color:var(--orange);margin-top:8px;padding:8px;background:#f0883e10;border-radius:6px}
+.error{color:var(--red);font-size:12px;margin-top:8px;display:none}
+.links{text-align:center;margin-top:16px;font-size:12px;color:var(--muted)}
+.links a{margin:0 6px}
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+<div class="card">
+  <h1>🔐 Register OAuth Client</h1>
+  <p class="sub">Create credentials to authenticate with oauth4os</p>
+
+  <form id="regForm" autocomplete="off">
+    <label for="name">Client Name</label>
+    <input id="name" placeholder="my-app" required autofocus>
+    <div class="hint">A friendly name for your application</div>
+
+    <label for="scopes">Scopes</label>
+    <input id="scopes" placeholder="read:logs-* write:logs-*" value="read:logs-*">
+    <div class="hint">Space-separated. Controls what indices the client can access</div>
+
+    <button type="submit" class="btn" id="submitBtn">Register Client</button>
+  </form>
+
+  <div class="error" id="error"></div>
+
+  <div class="result" id="result">
+    <div class="secret-box">
+      <h3>✅ Client Registered</h3>
+      <label>Client ID</label>
+      <div class="field"><code id="outId"></code><button type="button" class="copy" onclick="cp('outId')" aria-label="Copy client ID">📋 Copy</button></div>
+      <label>Client Secret</label>
+      <div class="field"><code id="outSecret"></code><button type="button" class="copy" onclick="cp('outSecret')" aria-label="Copy client secret">📋 Copy</button></div>
+      <div class="warn">⚠️ Save your client_secret now — it won't be shown again.</div>
+    </div>
+    <label style="margin-top:12px">Quick test:</label>
+    <div class="field"><code id="outCurl" style="font-size:11px"></code><button type="button" class="copy" onclick="cp('outCurl')" aria-label="Copy curl command">📋 Copy</button></div>
+  </div>
+
+  <div class="links">
+    <a href="../">← oauth4os</a>
+    <a href="../developer/">Developer Portal</a>
+    <a href="../setup/">Setup Guide</a>
+  </div>
+</div>
+<script>
+const API = window.location.origin;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+function cp(id){
+  const text=document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    event.target.textContent='✅';setTimeout(()=>event.target.textContent='📋 Copy',1500);
+  });
+}
+
+document.getElementById('regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn=document.getElementById('submitBtn');
+  const err=document.getElementById('error');
+  const res=document.getElementById('result');
+  err.style.display='none';
+  res.classList.remove('show');
+  btn.disabled=true;
+  btn.textContent='Registering...';
+
+  const name=document.getElementById('name').value.trim();
+  const scopes=document.getElementById('scopes').value.trim();
+  if(!name){btn.disabled=false;btn.textContent='Register Client';return}
+
+  const body={client_name:name};
+  if(scopes)body.scope=scopes;
+
+  try{
+    const r=await fetch(API+'/oauth/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    const data=await r.json().catch(()=>({}));
+    if(r.ok||r.status===201){
+      document.getElementById('outId').textContent=data.client_id||'';
+      document.getElementById('outSecret').textContent=data.client_secret||'';
+      document.getElementById('outCurl').textContent=`curl -X POST ${API}/oauth/token -d 'grant_type=client_credentials&client_id=${data.client_id}&client_secret=${data.client_secret}&scope=${scopes||"read:logs-*"}'`;
+      res.classList.add('show');
+      btn.textContent='✅ Registered';
+    }else{
+      err.textContent='Error: '+(data.error||data.message||r.statusText);
+      err.style.display='block';
+      btn.textContent='Register Client';
+    }
+  }catch(ex){
+    err.textContent='Error: '+ex.message;
+    err.style.display='block';
+    btn.textContent='Register Client';
+  }
+  btn.disabled=false;
+});
+
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

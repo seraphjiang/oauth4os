@@ -10,8 +10,16 @@ type Config struct {
 	Upstream     Upstream          `yaml:"upstream"`
 	Providers    []Provider        `yaml:"providers"`
 	ScopeMapping map[string]Role   `yaml:"scope_mapping"`
+	Tenants      map[string]Tenant `yaml:"tenants"`
 	Listen       string            `yaml:"listen"`
 	TLS          TLSConfig         `yaml:"tls"`
+	RateLimits   map[string]int    `yaml:"rate_limits"`
+}
+
+// Tenant holds per-provider scope mapping and Cedar policies.
+type Tenant struct {
+	ScopeMapping  map[string]Role `yaml:"scope_mapping"`
+	CedarPolicies []string        `yaml:"cedar_policies"`
 }
 
 type TLSConfig struct {

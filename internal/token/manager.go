@@ -167,6 +167,11 @@ func (m *Manager) createToken(clientID string, scopes []string) (*Token, string)
 	return tok, refreshTok
 }
 
+// CreateTokenForClient creates a token for a client (used by PKCE flow).
+func (m *Manager) CreateTokenForClient(clientID string, scopes []string) (*Token, string) {
+	return m.createToken(clientID, scopes)
+}
+
 func (m *Manager) authenticateClient(clientID, secret string) error {
 	m.mu.RLock()
 	client, ok := m.clients[clientID]
@@ -245,6 +250,17 @@ var (
 	errInvalidClient = &oauthError{Code: "invalid_client"}
 	errInvalidScope  = &oauthError{Code: "invalid_scope"}
 )
+
+// Lookup returns token metadata for introspection.
+func (m *Manager) Lookup(id string) (clientID string, scopes []string, createdAt, expiresAt time.Time, revoked bool, ok bool) {
+	m.mu.RLock()
+	tok, exists := m.tokens[id]
+	m.mu.RUnlock()
+	if !exists {
+		return "", nil, time.Time{}, time.Time{}, false, false
+	}
+	return tok.ClientID, tok.Scopes, tok.CreatedAt, tok.ExpiresAt, tok.Revoked, true
+}
 
 type oauthError struct{ Code string }
 

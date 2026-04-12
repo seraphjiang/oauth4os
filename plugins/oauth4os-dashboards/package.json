@@ -1,0 +1,13 @@
+{
+  "name": "oauth4os-dashboards",
+  "version": "0.1.0",
+  "description": "OAuth 2.0 token management for OpenSearch Dashboards",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "node scripts/build_opensearch_dashboards_plugin.js",
+    "plugin-helpers": "node ../../scripts/plugin_helpers",
+    "osd": "node ../../scripts/opensearch_dashboards"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

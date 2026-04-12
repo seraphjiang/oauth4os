@@ -1,0 +1,9 @@
+{
+  "id": "oauth4os",
+  "version": "0.1.0",
+  "opensearchDashboardsVersion": "2.x",
+  "server": true,
+  "ui": true,
+  "requiredPlugins": [],
+  "optionalPlugins": []
+}

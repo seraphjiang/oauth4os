@@ -19,7 +19,9 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/audit"
 	"github.com/seraphjiang/oauth4os/internal/cedar"
 	"github.com/seraphjiang/oauth4os/internal/config"
+	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
+	"github.com/seraphjiang/oauth4os/internal/pkce"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 	"github.com/seraphjiang/oauth4os/internal/token"
 )
@@ -48,7 +50,7 @@ func main() {
 	}
 
 	validator := jwt.NewValidator(cfg.Providers)
-	mapper := scope.NewMapper(cfg.ScopeMapping)
+	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)
 	tokenMgr := token.NewManager()
 	auditor := audit.NewAuditor(os.Stdout)
 
@@ -95,6 +97,19 @@ func main() {
 	mux.HandleFunc("DELETE /oauth/token/{id}", tokenMgr.RevokeToken)
 	mux.HandleFunc("GET /oauth/tokens", tokenMgr.ListTokens)
 	mux.HandleFunc("GET /oauth/token/{id}", tokenMgr.GetToken)
+
+	// RFC 7662 Token Introspection
+	introAdapter := &introspect.ManagerAdapter{GetToken: tokenMgr.Lookup}
+	introHandler := introspect.NewHandler(introAdapter)
+	mux.Handle("POST /oauth/introspect", introHandler)
+
+	// PKCE authorization code flow for browser clients
+	pkceHandler := pkce.NewHandler(func(clientID string, scopes []string) (string, string) {
+		tok, refresh := tokenMgr.CreateTokenForClient(clientID, scopes)
+		return tok.ID, refresh
+	})
+	mux.HandleFunc("GET /oauth/authorize", pkceHandler.Authorize)
+	mux.HandleFunc("POST /oauth/authorize/token", pkceHandler.Exchange)
 
 	// Health
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +169,7 @@ func main() {
 		}
 		authSuccess.Add(1)
 
-		roles := mapper.Map(claims.Scopes)
+		roles := mapper.MapForIssuer(claims.Issuer, claims.Scopes)
 		if len(roles) == 0 {
 			requestsFailed.Add(1)
 			http.Error(w, `{"error":"insufficient_scope"}`, http.StatusForbidden)

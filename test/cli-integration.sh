@@ -92,7 +92,7 @@ fi
 echo ""
 echo "4. status"
 
-OUT=$(OAUTH4OS_PROXY="$PROXY" "$CLI" status 2>&1 || true)
+OUT=$(timeout 10 env OAUTH4OS_PROXY="$PROXY" "$CLI" status 2>&1 || true)
 if echo "$OUT" | grep -qi "healthy\|ok\|✅"; then
     pass "status reports healthy"
 else

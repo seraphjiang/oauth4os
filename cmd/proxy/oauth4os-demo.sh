@@ -29,6 +29,7 @@ ${BOLD}COMMANDS:${NC}
   token              Show current access token
   whoami             Show token info
   status             Check proxy health
+  stats              Error counts, latency, top errors by service
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})

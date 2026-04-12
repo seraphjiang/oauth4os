@@ -83,6 +83,10 @@ func main() {
 	validator := jwt.NewValidator(cfg.Providers)
 	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)
 	tokenMgr := token.NewManager()
+
+	// Structured logger — replaces log.Printf
+	logger := logging.New(os.Stdout, "info")
+
 	auditor := audit.NewJSONAuditor(os.Stdout)
 	auditStore, _ := audit.NewMemoryStore(10000, "")
 	auditor.WithStore(auditStore)
@@ -91,8 +95,12 @@ func main() {
 
 	analyticsTracker := analytics.New()
 
-	// Structured logger — replaces log.Printf
-	logger := logging.New(os.Stdout, "info")
+	// Load persisted clients
+	clientStore, err := token.NewClientStore("data/clients.json", tokenMgr)
+	if err != nil {
+		logger.Info("client store not loaded", "error", err)
+		clientStore = nil
+	}
 
 	// IP filter — per-client allowlist/denylist
 	var ipRules *ipfilter.Rules
@@ -277,16 +285,32 @@ func main() {
 		return tok.ID, refresh
 	}, tokenMgr.ValidateRedirectURI)
 	mux.HandleFunc("GET /oauth/authorize", pkceHandler.Authorize)
+	mux.HandleFunc("POST /oauth/consent", pkceHandler.Consent)
 	mux.HandleFunc("POST /oauth/authorize/token", pkceHandler.Exchange)
 
 	// Dynamic Client Registration (RFC 7591)
-	regHandler := registration.NewHandler(tokenMgr.RegisterClient, nil)
+	// Wrap RegisterClient to persist after mutation
+	registerAndSave := func(id, secret string, scopes, redirectURIs []string) {
+		tokenMgr.RegisterClient(id, secret, scopes, redirectURIs)
+		if clientStore != nil {
+			clientStore.Save(tokenMgr)
+		}
+	}
+	regHandler := registration.NewHandler(registerAndSave, nil)
+	saveClients := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			next(w, r)
+			if clientStore != nil {
+				clientStore.Save(tokenMgr)
+			}
+		}
+	}
 	mux.HandleFunc("POST /oauth/register", regHandler.Register)
 	mux.HandleFunc("GET /oauth/register", regHandler.List)
 	mux.HandleFunc("GET /oauth/register/{client_id}", regHandler.Get)
-	mux.HandleFunc("PUT /oauth/register/{client_id}", regHandler.Update)
-	mux.HandleFunc("DELETE /oauth/register/{client_id}", regHandler.Delete)
-	mux.HandleFunc("POST /oauth/register/{client_id}/rotate", regHandler.RotateSecret)
+	mux.HandleFunc("PUT /oauth/register/{client_id}", saveClients(regHandler.Update))
+	mux.HandleFunc("DELETE /oauth/register/{client_id}", saveClients(regHandler.Delete))
+	mux.HandleFunc("POST /oauth/register/{client_id}/rotate", saveClients(regHandler.RotateSecret))
 
 	// Admin API — runtime config management
 	adminState := admin.NewState(cfg, mapper, policyEngine)
@@ -705,3 +729,156 @@ func extractIndex(path string) string {
 	}
 	return path
 }
+
+const swaggerPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>oauth4os — API Docs</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"/>
+<style>
+body{margin:0;background:#1a1a2e}
+.swagger-ui .topbar{display:none}
+.swagger-ui{filter:invert(88%) hue-rotate(180deg)}
+.swagger-ui .model-box{background:rgba(0,0,0,.1)}
+</style>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+SwaggerUIBundle({
+  url:"/developer/openapi.yaml",
+  dom_id:"#swagger-ui",
+  deepLinking:true,
+  tryItOutEnabled:true,
+  defaultModelsExpandDepth:-1,
+  docExpansion:"list",
+  filter:true,
+  requestSnippetsEnabled:true
+});
+</script>
+</body>
+</html>`
+
+const developerAnalyticsHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Developer Analytics — oauth4os</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;padding:24px}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:#8b949e;margin-bottom:24px;font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;text-align:center}
+.stat .val{font-size:28px;font-weight:700;color:#58a6ff}
+.stat .lbl{font-size:12px;color:#8b949e;margin-top:4px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:768px){.grid{grid-template-columns:1fr}}
+.card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}
+.card h3{font-size:14px;color:#8b949e;margin-bottom:12px}
+canvas{max-height:220px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:#8b949e;padding:8px 6px;border-bottom:1px solid #30363d}
+td{padding:8px 6px;border-bottom:1px solid #21262d}
+.bar{height:6px;background:#238636;border-radius:3px;display:inline-block;vertical-align:middle}
+.err{color:#f85149}.ok{color:#3fb950}
+.refresh{color:#8b949e;font-size:12px;float:right}
+</style>
+</head>
+<body>
+<h1>🔐 Developer Analytics <span class="refresh" id="timer">Refreshing in 5s</span></h1>
+<p class="sub">Per-client request metrics, scope usage, and index access patterns.</p>
+
+<div class="stats" id="summary"></div>
+
+<div class="grid">
+  <div class="card"><h3>Requests by Client</h3><canvas id="clientChart"></canvas></div>
+  <div class="card"><h3>Scope Distribution</h3><canvas id="scopeChart"></canvas></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h3>Top Indices</h3><canvas id="indexChart"></canvas></div>
+  <div class="card">
+    <h3>Client Details</h3>
+    <table><thead><tr><th>Client</th><th>Requests</th><th>Last Active</th><th></th></tr></thead>
+    <tbody id="clientTable"></tbody></table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h3>Scope × Client Matrix</h3>
+  <table><thead><tr><th>Scope</th><th>Requests</th><th></th></tr></thead>
+  <tbody id="scopeTable"></tbody></table>
+</div>
+
+<script>
+const colors=['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#39d2c0','#ff7b72','#79c0ff'];
+let clientChart,scopeChart,indexChart;
+
+function initChart(id,type,label){
+  return new Chart(document.getElementById(id),{type,data:{labels:[],datasets:[{label,data:[],backgroundColor:colors,borderWidth:0}]},
+    options:{responsive:true,plugins:{legend:{display:type==='doughnut',labels:{color:'#8b949e'}}},scales:type==='bar'?{x:{ticks:{color:'#8b949e'}},y:{ticks:{color:'#8b949e'},beginAtZero:true}}:undefined}});
+}
+
+function updateChart(chart,labels,data){
+  chart.data.labels=labels;chart.data.datasets[0].data=data;chart.update('none');
+}
+
+function ago(ts){
+  if(!ts)return'—';
+  const s=Math.floor((Date.now()-new Date(ts))/1000);
+  if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';
+  return Math.floor(s/3600)+'h ago';
+}
+
+async function refresh(){
+  try{
+    const [aResp,tResp]=await Promise.all([fetch('/admin/analytics'),fetch('/oauth/tokens')]);
+    const a=await aResp.json(), tokens=await tResp.json();
+    const totalReqs=a.top_clients?.reduce((s,c)=>s+c.requests,0)||0;
+    const totalClients=a.top_clients?.length||0;
+    const totalScopes=a.scope_distribution?.length||0;
+    const totalIndices=a.top_indices?.length||0;
+    const activeTokens=Array.isArray(tokens)?tokens.length:0;
+
+    document.getElementById('summary').innerHTML=
+      [['Total Requests',totalReqs],['Active Clients',totalClients],['Scopes Used',totalScopes],
+       ['Indices Accessed',totalIndices],['Active Tokens',activeTokens]]
+      .map(([l,v])=>'<div class="stat"><div class="val">'+v+'</div><div class="lbl">'+l+'</div></div>').join('');
+
+    const cl=a.top_clients||[];
+    updateChart(clientChart,cl.map(c=>c.client_id),cl.map(c=>c.requests));
+
+    const sc=a.scope_distribution||[];
+    updateChart(scopeChart,sc.map(s=>s.name),sc.map(s=>s.count));
+
+    const ix=a.top_indices||[];
+    updateChart(indexChart,ix.map(i=>i.name),ix.map(i=>i.count));
+
+    const maxReq=Math.max(...cl.map(c=>c.requests),1);
+    document.getElementById('clientTable').innerHTML=cl.map(c=>
+      '<tr><td>'+c.client_id+'</td><td>'+c.requests+'</td><td>'+ago(c.last_seen)+
+      '</td><td><span class="bar" style="width:'+Math.round(c.requests/maxReq*80)+'px"></span></td></tr>').join('');
+
+    const maxSc=Math.max(...sc.map(s=>s.count),1);
+    document.getElementById('scopeTable').innerHTML=sc.map(s=>
+      '<tr><td>'+s.name+'</td><td>'+s.count+'</td><td><span class="bar" style="width:'+
+      Math.round(s.count/maxSc*120)+'px"></span></td></tr>').join('');
+  }catch(e){document.getElementById('summary').innerHTML='<div class="stat"><div class="val err">Error</div><div class="lbl">'+e.message+'</div></div>';}
+}
+
+clientChart=initChart('clientChart','bar','Requests');
+scopeChart=initChart('scopeChart','doughnut','Scopes');
+indexChart=initChart('indexChart','bar','Requests');
+refresh();
+setInterval(refresh,5000);
+let cd=5;setInterval(()=>{cd--;if(cd<=0)cd=5;document.getElementById('timer').textContent='Refreshing in '+cd+'s';},1000);
+</script>
+</body>
+</html>`

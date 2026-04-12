@@ -144,15 +144,18 @@ func (v *StaticSubjectValidator) ValidateSubject(token string) (*SubjectClaims, 
 type StaticTokenIssuer struct {
 	TokenID   string
 	ExpiresIn int
-	Called    int
+	mu          sync.Mutex
+	Called      int
 	LastSubject string
 	LastScopes  []string
 }
 
 func (i *StaticTokenIssuer) IssueExchangeToken(subject, issuer string, scopes []string) (string, int) {
+	i.mu.Lock()
 	i.Called++
 	i.LastSubject = subject
 	i.LastScopes = scopes
+	i.mu.Unlock()
 	return i.TokenID, i.ExpiresIn
 }
 

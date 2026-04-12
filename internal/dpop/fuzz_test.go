@@ -29,12 +29,12 @@ func FuzzValidate(f *testing.F) {
 
 // FuzzJWKThumbprint ensures thumbprint never panics.
 func FuzzJWKThumbprint(f *testing.F) {
-	f.Add(json.RawMessage(`{"kty":"EC","crv":"P-256","x":"abc","y":"def"}`))
-	f.Add(json.RawMessage(`{}`))
-	f.Add(json.RawMessage(`null`))
-	f.Add(json.RawMessage(`"not an object"`))
-	f.Add(json.RawMessage(``))
-	f.Fuzz(func(t *testing.T, jwk json.RawMessage) {
-		JWKThumbprint(jwk) // must not panic
+	f.Add([]byte(`{"kty":"EC","crv":"P-256","x":"abc","y":"def"}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`null`))
+	f.Add([]byte(`"not an object"`))
+	f.Add([]byte(`[]`))
+	f.Fuzz(func(t *testing.T, jwk []byte) {
+		JWKThumbprint(json.RawMessage(jwk)) // must not panic
 	})
 }

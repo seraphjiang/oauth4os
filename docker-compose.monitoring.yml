@@ -1,24 +1,51 @@
-# docker-compose.monitoring.yml — oauth4os + Prometheus + Grafana
-# Usage: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up
+version: "3.8"
+
 services:
+  proxy:
+    build: .
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./config.yaml:/etc/oauth4os/config.yaml:ro
+    depends_on:
+      - opensearch
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
+
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.48.0
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"
     depends_on:
-      - oauth-proxy
+      - proxy
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.0
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deploy/grafana/dashboard.json:/var/lib/grafana/dashboards/oauth4os.json:ro
     ports:
       - "3000:3000"
     depends_on:

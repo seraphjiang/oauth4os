@@ -29,6 +29,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/discovery"
 	"github.com/seraphjiang/oauth4os/internal/exchange"
+	"github.com/seraphjiang/oauth4os/internal/events"
 	"github.com/seraphjiang/oauth4os/internal/federation"
 	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/ipfilter"
@@ -129,6 +130,13 @@ func main() {
 	})
 
 	analyticsTracker := analytics.New()
+
+	// Webhook event notifier (configured via OAUTH4OS_WEBHOOK_URLS env, comma-separated)
+	var webhookURLs []string
+	if urls := os.Getenv("OAUTH4OS_WEBHOOK_URLS"); urls != "" {
+		webhookURLs = strings.Split(urls, ",")
+	}
+	notifier := events.New(webhookURLs)
 
 	// Response cache for GET requests (5s TTL, 1000 entries max)
 	respCache := cache.New(5*time.Second, 1000)
@@ -328,9 +336,16 @@ func main() {
 			return
 		}
 		tokenMgr.IssueToken(w, r)
+		notifier.Emit(events.Event{Type: events.TokenIssued, ClientID: r.FormValue("client_id"), Scopes: strings.Split(r.FormValue("scope"), " ")})
 	})
-	mux.HandleFunc("DELETE /oauth/token/{id}", tokenMgr.RevokeToken)
-	mux.HandleFunc("POST /oauth/revoke", tokenMgr.RevokeRFC7009)
+	mux.HandleFunc("DELETE /oauth/token/{id}", func(w http.ResponseWriter, r *http.Request) {
+		tokenMgr.RevokeToken(w, r)
+		notifier.Emit(events.Event{Type: events.TokenRevoked, ClientID: r.PathValue("id")})
+	})
+	mux.HandleFunc("POST /oauth/revoke", func(w http.ResponseWriter, r *http.Request) {
+		tokenMgr.RevokeRFC7009(w, r)
+		notifier.Emit(events.Event{Type: events.TokenRevoked})
+	})
 	mux.HandleFunc("GET /oauth/tokens", tokenMgr.ListTokens)
 	mux.HandleFunc("GET /oauth/token/{id}", tokenMgr.GetToken)
 

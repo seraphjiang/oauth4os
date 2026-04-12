@@ -99,6 +99,9 @@ var demoAppHTML string
 //go:embed swagger.html
 var swaggerPage string
 
+//go:embed tutorial.html
+var tutorialPage string
+
 //go:embed analytics.html
 var developerAnalyticsHTML string
 
@@ -809,6 +812,13 @@ func main() {
 	}
 	mux.HandleFunc("GET /playground", playgroundHandler)
 	mux.HandleFunc("GET /playground/", playgroundHandler)
+
+	tutorialHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, tutorialPage)
+	}
+	mux.HandleFunc("GET /tutorial", tutorialHandler)
+	mux.HandleFunc("GET /tutorial/", tutorialHandler)
 
 	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sessionMgr.Remove(r.PathValue("id"))

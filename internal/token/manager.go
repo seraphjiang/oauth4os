@@ -251,11 +251,27 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_grant", "refresh token does not belong to client")
 		return
 	}
+	// Check refresh token TTL
+	if !oldToken.RefreshExpiresAt.IsZero() && time.Now().After(oldToken.RefreshExpiresAt) {
+		delete(m.refresh, refreshToken)
+		m.mu.Unlock()
+		writeError(w, http.StatusBadRequest, "invalid_grant", "refresh token expired")
+		return
+	}
+	// Check absolute family lifetime
+	if !oldToken.FamilyCreatedAt.IsZero() && time.Now().After(oldToken.FamilyCreatedAt.Add(m.refreshMaxLife)) {
+		m.revokeFamily(clientID)
+		delete(m.refresh, refreshToken)
+		m.mu.Unlock()
+		writeError(w, http.StatusBadRequest, "invalid_grant", "refresh token family expired — re-authenticate")
+		return
+	}
 	// Revoke old token + refresh token (rotation)
 	oldToken.Revoked = true
 	delete(m.refresh, refreshToken)
 	m.usedRefresh[refreshToken] = clientID // track for reuse detection
 	scopes := oldToken.Scopes
+	familyCreated := oldToken.FamilyCreatedAt
 	m.mu.Unlock()
 
 	// RFC 6749 §6: client may request narrower scope on refresh
@@ -274,7 +290,7 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		scopes = requested
 	}
 
-	tok, newRefresh := m.createToken(clientID, scopes)
+	tok, newRefresh := m.createTokenWithFamily(clientID, scopes, familyCreated)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -287,17 +303,26 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Manager) createToken(clientID string, scopes []string) (*Token, string) {
+	return m.createTokenWithFamily(clientID, scopes, time.Time{})
+}
+
+func (m *Manager) createTokenWithFamily(clientID string, scopes []string, familyCreated time.Time) (*Token, string) {
 	id := generateID("tok_")
 	refreshTok := generateID("rtk_")
 
 	now := time.Now()
+	if familyCreated.IsZero() {
+		familyCreated = now
+	}
 	tok := &Token{
-		ID:           id,
-		ClientID:     clientID,
-		Scopes:       scopes,
-		CreatedAt:    now,
-		ExpiresAt:    now.Add(1 * time.Hour),
-		RefreshToken: refreshTok,
+		ID:               id,
+		ClientID:         clientID,
+		Scopes:           scopes,
+		CreatedAt:        now,
+		ExpiresAt:        now.Add(1 * time.Hour),
+		RefreshToken:     refreshTok,
+		RefreshExpiresAt: now.Add(m.refreshTTL),
+		FamilyCreatedAt:  familyCreated,
 	}
 
 	// If JWT mode enabled, replace opaque ID with signed JWT

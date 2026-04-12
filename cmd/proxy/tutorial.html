@@ -1,0 +1,262 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>oauth4os Tutorial</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;line-height:1.6}
+.container{max-width:860px;margin:0 auto;padding:20px}
+h1{font-size:28px;margin-bottom:8px}
+.subtitle{color:#8b949e;margin-bottom:32px}
+.step{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;margin-bottom:20px;transition:border-color .2s}
+.step.active{border-color:#58a6ff}
+.step.done{border-color:#3fb950}
+.step-header{display:flex;align-items:center;gap:12px;margin-bottom:12px;cursor:pointer}
+.step-num{width:32px;height:32px;border-radius:50%;background:#21262d;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.step.done .step-num{background:#238636;color:#fff}
+.step.active .step-num{background:#1f6feb;color:#fff}
+.step-title{font-size:18px;font-weight:600}
+.step-desc{color:#8b949e;font-size:14px;margin-bottom:16px}
+.step-body{display:none}
+.step.active .step-body{display:block}
+.curl-box{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px 16px;font-family:'SF Mono',monospace;font-size:13px;overflow-x:auto;margin:8px 0;position:relative;white-space:pre-wrap;word-break:break-all}
+.curl-label{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.response-box{background:#0d1117;border:1px solid #1f6feb;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:13px;margin:8px 0;white-space:pre-wrap;max-height:200px;overflow-y:auto;display:none}
+.response-box.visible{display:block}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:#238636;color:#fff}
+.btn-primary:hover{background:#2ea043}
+.btn-secondary{background:#21262d;color:#c9d1d9;border:1px solid #30363d}
+.btn-secondary:hover{background:#30363d}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.actions{display:flex;gap:10px;margin-top:12px}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:13px;color:#8b949e;margin-bottom:4px}
+.form-group input,.form-group select{width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:14px}
+.success{color:#3fb950}.error{color:#f85149}
+.tag{display:inline-block;background:#1f6feb22;color:#58a6ff;padding:2px 8px;border-radius:4px;font-size:12px;margin:2px}
+.progress{display:flex;gap:4px;margin-bottom:24px}
+.progress-dot{width:100%;height:4px;border-radius:2px;background:#21262d}
+.progress-dot.done{background:#3fb950}
+.progress-dot.active{background:#1f6feb}
+a{color:#58a6ff;text-decoration:none}
+.copy-btn{position:absolute;top:8px;right:8px;background:#21262d;border:1px solid #30363d;color:#8b949e;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer}
+.copy-btn:hover{color:#e6edf3}
+</style>
+</head><body>
+<div class="container">
+<h1>🔐 oauth4os Interactive Tutorial</h1>
+<p class="subtitle">Learn OAuth 2.0 by doing — 5 steps, real API calls, curl equivalents</p>
+<div class="progress" id="progress"></div>
+
+<div class="step active" id="step-1" data-step="1">
+<div class="step-header" onclick="activateStep(1)">
+<div class="step-num">1</div>
+<div class="step-title">Register a Client</div>
+</div>
+<div class="step-body">
+<p class="step-desc">Every OAuth application starts by registering a client. You'll get a <code>client_id</code> and <code>client_secret</code>.</p>
+<div class="form-group"><label>Application Name</label><input id="reg-name" value="my-tutorial-app" placeholder="my-app"></div>
+<div class="form-group"><label>Scopes</label><input id="reg-scopes" value="read:logs-*" placeholder="read:logs-* write:logs-*"></div>
+<div class="curl-label">curl equivalent</div>
+<div class="curl-box" id="curl-1">curl -X POST /oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-tutorial-app","scopes":["read:logs-*"]}'<button class="copy-btn" onclick="copyEl('curl-1')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-1" onclick="runStep1()">Register Client</button>
+</div>
+<div class="response-box" id="resp-1"></div>
+</div></div>
+
+<div class="step" id="step-2" data-step="2">
+<div class="step-header" onclick="activateStep(2)">
+<div class="step-num">2</div>
+<div class="step-title">Get an Access Token</div>
+</div>
+<div class="step-body">
+<p class="step-desc">Exchange your client credentials for an access token. This is the <code>client_credentials</code> grant type.</p>
+<div class="curl-label">curl equivalent</div>
+<div class="curl-box" id="curl-2">curl -X POST /oauth/token \
+  -d "grant_type=client_credentials&amp;client_id=<span id="curl-2-id">YOUR_CLIENT_ID</span>&amp;client_secret=<span id="curl-2-secret">YOUR_SECRET</span>"<button class="copy-btn" onclick="copyEl('curl-2')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-2" onclick="runStep2()" disabled>Get Token</button>
+</div>
+<div class="response-box" id="resp-2"></div>
+</div></div>
+
+<div class="step" id="step-3" data-step="3">
+<div class="step-header" onclick="activateStep(3)">
+<div class="step-num">3</div>
+<div class="step-title">Make an Authenticated Request</div>
+</div>
+<div class="step-body">
+<p class="step-desc">Use your token to search logs. The proxy validates the JWT, checks scopes, and forwards to OpenSearch.</p>
+<div class="curl-label">curl equivalent</div>
+<div class="curl-box" id="curl-3">curl -H "Authorization: Bearer <span id="curl-3-tok">YOUR_TOKEN</span>" \
+  /logs-demo/_search?q=*&amp;size=3<button class="copy-btn" onclick="copyEl('curl-3')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-3" onclick="runStep3()" disabled>Search Logs</button>
+</div>
+<div class="response-box" id="resp-3"></div>
+</div></div>
+
+<div class="step" id="step-4" data-step="4">
+<div class="step-header" onclick="activateStep(4)">
+<div class="step-num">4</div>
+<div class="step-title">Revoke the Token</div>
+</div>
+<div class="step-body">
+<p class="step-desc">Revoke the token immediately. After this, the same token will return <code>401 Unauthorized</code>.</p>
+<div class="curl-label">curl equivalent</div>
+<div class="curl-box" id="curl-4">curl -X POST /oauth/revoke \
+  -d "token=<span id="curl-4-tok">YOUR_TOKEN</span>"<button class="copy-btn" onclick="copyEl('curl-4')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-4" onclick="runStep4()" disabled>Revoke Token</button>
+<button class="btn btn-secondary" id="btn-4b" onclick="runStep4verify()" disabled>Verify (should fail)</button>
+</div>
+<div class="response-box" id="resp-4"></div>
+</div></div>
+
+<div class="step" id="step-5" data-step="5">
+<div class="step-header" onclick="activateStep(5)">
+<div class="step-num">5</div>
+<div class="step-title">Try the PKCE Flow</div>
+</div>
+<div class="step-body">
+<p class="step-desc">PKCE (Proof Key for Code Exchange) is the recommended flow for public clients (SPAs, CLIs). It prevents authorization code interception.</p>
+<div class="curl-label">How PKCE works</div>
+<div class="curl-box" id="curl-5">1. Generate code_verifier (random 43-char string)
+2. Compute code_challenge = BASE64URL(SHA256(verifier))
+3. Redirect to /oauth/authorize?code_challenge=...
+4. User approves → redirect back with ?code=AUTH_CODE
+5. Exchange: POST /oauth/token with code + code_verifier
+6. Server verifies SHA256(verifier) == challenge<button class="copy-btn" onclick="copyEl('curl-5')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-5" onclick="runStep5()">Start PKCE Flow</button>
+</div>
+<div class="response-box" id="resp-5"></div>
+</div></div>
+
+</div>
+<script>
+const BASE=location.origin;
+let state={clientId:'',clientSecret:'',token:'',step:1};
+
+function activateStep(n){
+  document.querySelectorAll('.step').forEach(s=>{s.classList.remove('active');if(parseInt(s.dataset.step)<n)s.classList.add('done')});
+  document.getElementById('step-'+n).classList.add('active');
+  updateProgress();
+}
+function completeStep(n){
+  document.getElementById('step-'+n).classList.add('done');
+  document.getElementById('step-'+n).classList.remove('active');
+  if(n<5){activateStep(n+1);document.getElementById('btn-'+(n+1)).disabled=false;}
+  updateProgress();
+}
+function showResp(n,data,ok){
+  const el=document.getElementById('resp-'+n);
+  el.textContent=typeof data==='string'?data:JSON.stringify(data,null,2);
+  el.className='response-box visible'+(ok?'':' error');
+}
+function updateProgress(){
+  const p=document.getElementById('progress');
+  p.innerHTML='';
+  for(let i=1;i<=5;i++){
+    const d=document.createElement('div');d.className='progress-dot';
+    if(document.getElementById('step-'+i).classList.contains('done'))d.className+=' done';
+    if(document.getElementById('step-'+i).classList.contains('active'))d.className+=' active';
+    p.appendChild(d);
+  }
+}
+function copyEl(id){
+  const t=document.getElementById(id).innerText.replace('Copy','').trim();
+  navigator.clipboard.writeText(t);
+}
+
+async function runStep1(){
+  const name=document.getElementById('reg-name').value;
+  const scopes=document.getElementById('reg-scopes').value.split(/\s+/);
+  document.getElementById('btn-1').disabled=true;
+  document.getElementById('btn-1').textContent='Registering...';
+  try{
+    const r=await fetch(BASE+'/oauth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,scopes})});
+    const d=await r.json();
+    state.clientId=d.client_id||d.id||'';
+    state.clientSecret=d.client_secret||d.secret||'';
+    document.getElementById('curl-2-id').textContent=state.clientId;
+    document.getElementById('curl-2-secret').textContent=state.clientSecret;
+    showResp(1,d,r.ok);
+    if(r.ok)completeStep(1);
+  }catch(e){showResp(1,'Error: '+e.message,false);}
+  document.getElementById('btn-1').disabled=false;
+  document.getElementById('btn-1').textContent='Register Client';
+}
+
+async function runStep2(){
+  document.getElementById('btn-2').disabled=true;
+  document.getElementById('btn-2').textContent='Requesting...';
+  try{
+    const r=await fetch(BASE+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'grant_type=client_credentials&client_id='+state.clientId+'&client_secret='+state.clientSecret});
+    const d=await r.json();
+    state.token=d.access_token||'';
+    document.getElementById('curl-3-tok').textContent=state.token.substring(0,20)+'...';
+    document.getElementById('curl-4-tok').textContent=state.token.substring(0,20)+'...';
+    showResp(2,d,r.ok);
+    if(r.ok)completeStep(2);
+  }catch(e){showResp(2,'Error: '+e.message,false);}
+  document.getElementById('btn-2').disabled=false;
+  document.getElementById('btn-2').textContent='Get Token';
+}
+
+async function runStep3(){
+  document.getElementById('btn-3').disabled=true;
+  try{
+    const r=await fetch(BASE+'/logs-demo/_search?q=*&size=3',{headers:{'Authorization':'Bearer '+state.token}});
+    const d=await r.json();
+    const summary={hits:d.hits?.total?.value||0,results:(d.hits?.hits||[]).map(h=>({_index:h._index,service:h._source?.service,level:h._source?.level}))};
+    showResp(3,summary,r.ok);
+    if(r.ok)completeStep(3);
+  }catch(e){showResp(3,'Error: '+e.message,false);}
+  document.getElementById('btn-3').disabled=false;
+}
+
+async function runStep4(){
+  document.getElementById('btn-4').disabled=true;
+  try{
+    const r=await fetch(BASE+'/oauth/revoke',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'token='+state.token});
+    const d=await r.json().catch(()=>({status:r.status}));
+    showResp(4,{...d,message:'Token revoked! Click "Verify" to confirm it no longer works.'},r.ok);
+    document.getElementById('btn-4b').disabled=false;
+  }catch(e){showResp(4,'Error: '+e.message,false);}
+}
+
+async function runStep4verify(){
+  try{
+    const r=await fetch(BASE+'/logs-demo/_search?q=*&size=1',{headers:{'Authorization':'Bearer '+state.token}});
+    if(r.status===401){
+      showResp(4,{status:401,message:'✅ Correctly rejected! The revoked token returns 401.'},true);
+      completeStep(4);
+    }else{
+      showResp(4,{status:r.status,message:'Unexpected — token still works'},false);
+    }
+  }catch(e){showResp(4,'Error: '+e.message,false);}
+}
+
+async function runStep5(){
+  // Generate PKCE values client-side
+  const arr=new Uint8Array(32);crypto.getRandomValues(arr);
+  const verifier=btoa(String.fromCharCode(...arr)).replace(/[+/=]/g,'').substring(0,43);
+  const enc=new TextEncoder();
+  const hash=await crypto.subtle.digest('SHA-256',enc.encode(verifier));
+  const challenge=btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const authUrl=BASE+'/oauth/authorize?response_type=code&client_id='+state.clientId+'&redirect_uri='+encodeURIComponent(location.origin+'/tutorial/')+'&code_challenge='+challenge+'&code_challenge_method=S256&scope=read:logs-*&state=tutorial';
+  showResp(5,{code_verifier:verifier,code_challenge:challenge,authorize_url:authUrl,note:'In a real app, you would redirect to the authorize URL. The user approves, gets redirected back with ?code=AUTH_CODE, then you exchange code+verifier for a token.'},true);
+  completeStep(5);
+}
+
+updateProgress();
+// Check for PKCE callback code in URL
+const params=new URLSearchParams(location.search);
+if(params.get('code')){showResp(5,{auth_code:params.get('code'),message:'Got authorization code! Exchange this + code_verifier for a token.'},true);}
+</script>
+</body></html>

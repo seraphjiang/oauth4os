@@ -1,12 +1,17 @@
 # Developer Quickstart — oauth4os in 5 Minutes
 
-## What You'll Build
+## Fastest Start: Docker Hub
 
-A complete OAuth 2.0 setup for OpenSearch:
-- OpenSearch engine (search/index)
-- OpenSearch Dashboards (UI)
-- Keycloak (OIDC provider — issues tokens)
-- oauth4os proxy (validates tokens, maps scopes, forwards requests)
+```bash
+docker run -p 8443:8443 jianghuan/oauth4os:latest
+# Open http://localhost:8443
+```
+
+That's it — the proxy is running with a built-in demo client. Skip to [Step 2](#step-2-get-a-token) to start using it.
+
+## Full Stack: Proxy + OpenSearch + Keycloak
+
+For a complete setup with OpenSearch and an OIDC provider:
 
 ```
 Developer → oauth4os (:8443) → OpenSearch (:9200)
@@ -27,7 +32,7 @@ Wait ~60 seconds for OpenSearch + Keycloak to initialize.
 ```bash
 # Verify everything is running
 curl -s http://localhost:8443/health | jq
-# → {"status":"ok","version":"0.2.0"}
+# → {"status":"ok","version":"0.5.0"}
 ```
 
 ## Step 2: Get a Scoped Token

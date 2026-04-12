@@ -170,8 +170,10 @@ forbid(*, DELETE, *)
 | Control | Implementation |
 |---|---|
 | Client authentication | Constant-time secret comparison (`crypto/subtle`) |
+| Client persistence | Atomic writes + `.bak` backup + corruption recovery |
 | Token expiry | Required `exp` claim, validated on every request |
-| Scope enforcement | Scope-to-role mapping, Cedar policy evaluation |
+| Sliding window refresh | Active tokens extend expiry; refresh rotates + family revocation |
+| Scope enforcement | 3-layer: issuance validation → role mapping → Cedar policy |
 | PKCE verification | S256 only, constant-time compare, one-time codes, 10-min expiry |
 | Refresh token rotation | Old token revoked on refresh (prevents replay) |
 | JWKS key rotation | Auto-retry on cache miss |
@@ -180,13 +182,87 @@ forbid(*, DELETE, *)
 | Error information leakage | Generic error messages, no internal details exposed |
 | Request tracing | X-Request-ID on every proxied request |
 | Audit logging | All authenticated requests logged with client, scopes, method, path |
+| IP filtering | Per-client allowlist/denylist with CIDR matching |
+| mTLS | Optional mutual TLS for client certificate authentication |
+| Rate limiting | Token bucket per client with configurable burst |
+
+## Client Persistence Security
+
+Registered clients are persisted to `data/clients.json` with the following safeguards:
+
+### Atomic Writes
+Client data is never written directly to the target file. Instead:
+1. Data is serialized to a temporary file (`clients.json.tmp.<nanos>`)
+2. The temp file is atomically renamed to `clients.json` via `os.Rename`
+
+This prevents partial writes from corrupting the store if the process crashes mid-save.
+
+### Automatic Backup
+Before every save, the existing `clients.json` is renamed to `clients.json.bak`. If the primary file becomes corrupt, the store automatically falls back to the backup on next startup.
+
+### Corruption Recovery
+On startup, `NewClientStore` attempts to load `clients.json`. If JSON parsing fails:
+1. Loads `clients.json.bak` instead
+2. If both are corrupt, starts with an empty client set (no crash)
+
+### File Permissions
+Client data is written with `0644` permissions. The `data/` directory is created with `0755`. Client secrets are stored in plaintext — production deployments should encrypt at rest or use a secrets manager.
+
+### Concurrency
+A `sync.Mutex` serializes all writes. The in-memory `Manager` uses `sync.RWMutex` for concurrent read access. Multiple proxy instances sharing the same file are not supported — use a database backend for HA deployments.
+
+## Sliding Window Token Refresh
+
+Tokens support sliding window expiry extension on active use:
+
+- When a client uses a valid access token, the proxy can extend its expiry
+- Refresh tokens rotate on every use — the old refresh token is immediately revoked
+- **Reuse detection**: if a revoked refresh token is presented, the entire token family is revoked (prevents stolen token replay)
+- Token families track all tokens issued from the same initial grant, enabling cascade revocation
+
+### Token Lifecycle
+
+```
+Issue → [active use extends expiry] → Refresh → [old token revoked] → New token
+                                                                        ↓
+                                                              [old refresh reused?]
+                                                                        ↓
+                                                              Revoke entire family
+```
+
+## Scope Enforcement
+
+Scope enforcement operates at three layers:
+
+### Layer 1: Token Issuance
+- Clients are registered with allowed scopes (e.g., `["read:logs"]`)
+- Token requests can only include scopes the client is authorized for
+- Requesting unauthorized scopes returns `400 invalid_scope`
+
+### Layer 2: Scope-to-Role Mapping
+- Scopes are mapped to OpenSearch roles via `scope_mapping` config
+- Example: `read:logs` → `logs_reader` role, `write:logs` → `logs_writer` role
+- Multi-tenant mapping: different tenants can have different scope→role mappings
+
+### Layer 3: Cedar Policy Evaluation
+- Cedar policies enforce fine-grained access based on principal, action, and resource
+- `forbid` policies override `permit` (deny-wins model)
+- Conditions can inspect scopes: `when { principal.scope contains "read:logs" }`
+- Resource patterns support glob matching: `logs-*` matches `logs-2025-04`
+
+### Scope Enforcement Demo
+The demo app at `/demo/app` demonstrates scope enforcement:
+- Login grants `read:logs` scope → search queries succeed (200)
+- Write operations (PUT, POST, DELETE) are blocked by Cedar policy → returns 403
+- The CLI (`oauth4os-demo`) shows the same behavior
 
 ## Known Limitations
 
-1. **In-memory token store** — tokens lost on restart. Production deployments should use Redis or DynamoDB.
-2. **In-memory token store** — tokens lost on restart. Production deployments should use Redis or DynamoDB.
-3. **Single signing algorithm** — only RSA (RS256) supported. ES256/EdDSA not yet implemented.
-4. **No token size limit** — extremely large JWTs are not rejected before parsing.
-5. **PKCE codes in memory** — authorization codes not persisted; lost on restart.
-6. **No rate limiting on auth endpoints** — `/oauth/token` and `/oauth/introspect` should have rate limits (see ai-lead's rate limiter).
-7. **Cedar policies static** — loaded at startup, no hot-reload without restart.
+1. **In-memory token store** — tokens (not clients) are lost on restart. Client registrations persist to `data/clients.json`. Production deployments should use Redis or DynamoDB for tokens.
+2. **Single signing algorithm** — only RSA (RS256) supported. ES256/EdDSA not yet implemented.
+3. **No token size limit** — extremely large JWTs are not rejected before parsing.
+4. **PKCE codes in memory** — authorization codes not persisted; lost on restart.
+5. **No rate limiting on auth endpoints** — `/oauth/token` and `/oauth/introspect` should have rate limits.
+6. **Cedar policies static** — loaded at startup, no hot-reload without restart.
+7. **Client secrets in plaintext** — `data/clients.json` stores secrets unencrypted. Use disk encryption or a secrets manager in production.
+8. **Single-instance file persistence** — `data/clients.json` does not support concurrent access from multiple proxy instances.

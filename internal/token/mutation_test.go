@@ -165,3 +165,55 @@ func TestMutation_RevokeStatusCode(t *testing.T) {
 		t.Errorf("MUTATION SURVIVED: RevokeToken returns %d instead of 204", rw.Code)
 	}
 }
+
+// Mutation: remove redirect URI validation → must reject unknown URIs
+func TestMutation_ValidateRedirectURI(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, []string{"http://localhost/cb"})
+	if m.ValidateRedirectURI("app", "http://evil.com/cb") {
+		t.Error("must reject unknown redirect URI")
+	}
+	if !m.ValidateRedirectURI("app", "http://localhost/cb") {
+		t.Error("must accept registered redirect URI")
+	}
+}
+
+// Mutation: remove TouchToken update → must extend token lifetime
+func TestMutation_TouchToken(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	tok, raw := m.CreateTokenForClient("app", []string{"read"})
+	if !m.TouchToken(tok.ID, 10*time.Minute) {
+		t.Error("TouchToken must return true for valid token")
+	}
+	if m.TouchToken("nonexistent", 10*time.Minute) {
+		t.Error("TouchToken must return false for unknown token")
+	}
+	_ = raw
+}
+
+// Mutation: remove Lookup → must return token metadata
+func TestMutation_Lookup(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	tok, _ := m.CreateTokenForClient("app", []string{"read"})
+	clientID, scopes, _, _, _, ok := m.Lookup(tok.ID)
+	if !ok {
+		t.Fatal("Lookup must find existing token")
+	}
+	if clientID != "app" {
+		t.Errorf("expected client_id 'app', got %q", clientID)
+	}
+	if len(scopes) == 0 {
+		t.Error("Lookup must return scopes")
+	}
+}
+
+// Mutation: remove auth check → wrong secret must fail
+func TestMutation_AuthWrongSecret(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "correct-secret", nil, nil)
+	if err := m.AuthenticateClient("app", "wrong-secret"); err == nil {
+		t.Error("must reject wrong secret")
+	}
+}

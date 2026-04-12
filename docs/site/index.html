@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — OAuth 2.0 Proxy for OpenSearch</title>
+<meta name="description" content="Secure machine-to-machine access for OpenSearch with scoped tokens, OIDC federation, Cedar policies, and zero breaking changes.">
+<meta property="og:title" content="oauth4os — OAuth 2.0 Proxy for OpenSearch">
+<meta property="og:description" content="Scoped tokens, OIDC federation, Cedar policies. Zero breaking changes.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://seraphjiang.github.io/oauth4os/">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">🔐 oauth<span>4os</span></div>
+    <nav>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#features">Features</a>
+      <a href="#docs">Docs</a>
+      <a href="https://github.com/seraphjiang/oauth4os" aria-label="GitHub">GitHub</a>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌓</button>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="badges">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0">
+      <img src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go" alt="Go 1.22">
+      <img src="https://github.com/seraphjiang/oauth4os/actions/workflows/ci.yml/badge.svg" alt="CI">
+      <img src="https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange?logo=opensearch" alt="OpenSearch">
+      <img src="https://img.shields.io/badge/tests-220%20passed-brightgreen" alt="220 tests">
+    </div>
+    <h1>OAuth 2.0 Proxy for <span>OpenSearch</span></h1>
+    <p class="hero-sub">Secure machine-to-machine access with scoped tokens, OIDC federation, Cedar policies, and zero breaking changes to your existing cluster.</p>
+    <div class="cta-row">
+      <a href="#quickstart" class="btn btn-primary">Get Started</a>
+      <a href="https://github.com/seraphjiang/oauth4os" class="btn btn-gh">⭐ Star on GitHub</a>
+      <a href="https://github.com/opensearch-project/.github/issues/491" class="btn btn-secondary">Read the RFC</a>
+    </div>
+    <p class="hero-stats">77 commits · 7,500+ lines Go · 220 tests · 12 internal packages</p>
+  </div>
+</section>
+
+<section class="gap">
+  <div class="container">
+    <h2>The Gap oauth4os Fills</h2>
+    <p class="section-sub">OpenSearch has strong auth — but lacks the developer experience layer for machine-to-machine access.</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Grafana</th><th>Datadog</th><th>Elastic</th><th>OpenSearch</th><th>+ oauth4os</th></tr></thead>
+      <tbody>
+        <tr><td>OIDC / SSO</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>API Keys</td><td>✅</td><td>✅</td><td>✅</td><td>🔄 3.7</td><td>✅</td></tr>
+        <tr><td>OAuth Scoped Tokens</td><td>✅</td><td>✅</td><td>✅</td><td class="gap-cell">❌</td><td class="fill-cell">✅</td></tr>
+        <tr><td>Token Governance UI</td><td>✅</td><td>✅</td><td>✅</td><td class="gap-cell">❌</td><td class="fill-cell">✅</td></tr>
+        <tr><td>Rate Limiting</td><td>✅</td><td>✅</td><td>✅</td><td class="gap-cell">❌</td><td class="fill-cell">✅</td></tr>
+        <tr><td>Token Introspection</td><td>❌</td><td>❌</td><td>✅</td><td class="gap-cell">❌</td><td class="fill-cell">✅</td></tr>
+        <tr><td>Cedar Policies</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td class="fill-cell">✅</td></tr>
+        <tr><td>PKCE (Browser)</td><td>✅</td><td>❌</td><td>✅</td><td class="gap-cell">❌</td><td class="fill-cell">✅</td></tr>
+        <tr><td>Multi-Tenancy</td><td>✅</td><td>✅</td><td>✅</td><td>⚠️</td><td class="fill-cell">✅</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section class="arch" id="architecture">
+  <div class="container">
+    <h2>Architecture</h2>
+    <p class="section-sub">oauth4os sits between clients and OpenSearch — validating tokens, mapping scopes, enforcing policies.</p>
+    <svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg" class="arch-svg">
+      <rect x="20" y="40" width="160" height="160" rx="12" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="100" y="75" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Clients</text>
+      <text x="100" y="100" text-anchor="middle" fill="var(--muted)" font-size="11">🤖 AI Agent</text>
+      <text x="100" y="120" text-anchor="middle" fill="var(--muted)" font-size="11">🔧 CI/CD</text>
+      <text x="100" y="140" text-anchor="middle" fill="var(--muted)" font-size="11">💬 Slack Bot</text>
+      <text x="100" y="160" text-anchor="middle" fill="var(--muted)" font-size="11">⌨️ CLI</text>
+      <text x="100" y="180" text-anchor="middle" fill="var(--muted)" font-size="11">🌐 MCP Server</text>
+      <line x1="180" y1="120" x2="280" y2="120" stroke="var(--accent)" stroke-width="2" marker-end="url(#a1)"/>
+      <text x="230" y="112" text-anchor="middle" fill="var(--accent)" font-size="10">Bearer token</text>
+      <rect x="280" y="30" width="200" height="180" rx="12" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="380" y="60" text-anchor="middle" fill="var(--accent)" font-size="14" font-weight="700">oauth4os</text>
+      <text x="380" y="82" text-anchor="middle" fill="var(--muted)" font-size="10">Go · :8443</text>
+      <line x1="300" y1="92" x2="460" y2="92" stroke="var(--border)" stroke-width="1"/>
+      <text x="380" y="112" text-anchor="middle" fill="var(--text)" font-size="11">🔑 JWT · 🎯 Scopes · 🌲 Cedar</text>
+      <text x="380" y="132" text-anchor="middle" fill="var(--text)" font-size="11">⚡ Rate Limit · 📋 Audit</text>
+      <text x="380" y="152" text-anchor="middle" fill="var(--text)" font-size="11">📊 Metrics · 🔍 Introspect</text>
+      <text x="380" y="172" text-anchor="middle" fill="var(--text)" font-size="11">🔄 PKCE · 👥 Multi-Tenant</text>
+      <line x1="480" y1="100" x2="580" y2="100" stroke="var(--green)" stroke-width="2" marker-end="url(#a2)"/>
+      <text x="530" y="92" text-anchor="middle" fill="var(--green)" font-size="10">Mapped role</text>
+      <line x1="480" y1="140" x2="580" y2="140" stroke="var(--green)" stroke-width="2" marker-end="url(#a2)"/>
+      <rect x="580" y="40" width="190" height="160" rx="12" fill="var(--surface)" stroke="var(--orange)" stroke-width="1.5"/>
+      <text x="675" y="75" text-anchor="middle" fill="var(--orange)" font-size="13" font-weight="600">OpenSearch</text>
+      <text x="675" y="105" text-anchor="middle" fill="var(--text)" font-size="11">🔍 Engine :9200</text>
+      <text x="675" y="130" text-anchor="middle" fill="var(--text)" font-size="11">📊 Dashboards :5601</text>
+      <text x="675" y="160" text-anchor="middle" fill="var(--muted)" font-size="10">Security plugin</text>
+      <text x="675" y="178" text-anchor="middle" fill="var(--muted)" font-size="10">unchanged</text>
+      <line x1="380" y1="210" x2="380" y2="270" stroke="var(--purple)" stroke-width="2" marker-end="url(#a3)"/>
+      <text x="380" y="255" text-anchor="middle" fill="var(--purple)" font-size="10">JWKS</text>
+      <rect x="290" y="270" width="180" height="55" rx="10" fill="var(--surface)" stroke="var(--purple)" stroke-width="1.5"/>
+      <text x="380" y="295" text-anchor="middle" fill="var(--purple)" font-size="12" font-weight="600">OIDC Provider</text>
+      <text x="380" y="313" text-anchor="middle" fill="var(--muted)" font-size="10">Keycloak · Auth0 · Okta · Dex</text>
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--green)"/></marker>
+        <marker id="a3" viewBox="0 0 10 10" refX="5" refY="9" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--purple)"/></marker>
+      </defs>
+    </svg>
+  </div>
+</section>
+
+<section class="quickstart" id="quickstart">
+  <div class="container">
+    <h2>Quickstart — 30 Seconds</h2>
+    <div class="steps">
+      <div class="step">
+        <h3>1. Start</h3>
+        <pre><code>docker compose up</code></pre>
+      </div>
+      <div class="step">
+        <h3>2. Get a scoped token</h3>
+        <pre><code>curl -X POST http://localhost:8443/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=my-agent" \
+  -d "client_secret=secret" \
+  -d "scope=read:logs-*"</code></pre>
+      </div>
+      <div class="step">
+        <h3>3. Query OpenSearch</h3>
+        <pre><code>curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8443/logs-*/_search \
+  -d '{"query":{"match":{"level":"error"}}}'</code></pre>
+      </div>
+      <div class="step">
+        <h3>4. Or use the CLI</h3>
+        <pre><code>oauth4os login --provider keycloak
+oauth4os create-token --scope "read:logs-*"
+oauth4os status</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <h2>Features</h2>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="icon">🔑</div><h3>JWT Validation</h3><p>JWKS auto-discovery, RS256/ES256, audience validation, clock skew tolerance.</p></div>
+      <div class="feat-card"><div class="icon">🎯</div><h3>Scope → Role Mapping</h3><p><code>read:logs-*</code> → OpenSearch <code>logs_reader</code>. Per-provider mappings for multi-tenancy.</p></div>
+      <div class="feat-card"><div class="icon">🌲</div><h3>Cedar Policies</h3><p>Fine-grained access control. Index-level deny rules. Per-tenant policy sets.</p></div>
+      <div class="feat-card"><div class="icon">⚡</div><h3>Rate Limiting</h3><p>Per-client token bucket. Configurable RPM per scope. 429 + Retry-After.</p></div>
+      <div class="feat-card"><div class="icon">📋</div><h3>Token Lifecycle</h3><p>Issue, refresh, revoke, introspect (RFC 7662). Refresh token rotation with reuse detection.</p></div>
+      <div class="feat-card"><div class="icon">🔄</div><h3>PKCE Flow</h3><p>Secure browser auth (RFC 7636). Authorization code + code_verifier exchange.</p></div>
+      <div class="feat-card"><div class="icon">👥</div><h3>Multi-Tenancy</h3><p>Per-OIDC-provider isolation. Separate scope mappings and Cedar policies per tenant.</p></div>
+      <div class="feat-card"><div class="icon">📊</div><h3>OSD Plugin</h3><p>Token management UI in OpenSearch Dashboards. List, create, revoke with EUI components.</p></div>
+      <div class="feat-card"><div class="icon">🤖</div><h3>MCP Server</h3><p>Reference AI agent integration. 7 tools: search, aggregate, create index, mappings.</p></div>
+      <div class="feat-card"><div class="icon">⌨️</div><h3>CLI Tool</h3><p>login, create-token, revoke, status. Config file, token caching, auto-refresh.</p></div>
+      <div class="feat-card"><div class="icon">📈</div><h3>Prometheus Metrics</h3><p>/metrics endpoint. Pre-built alerting rules. Grafana dashboard included.</p></div>
+      <div class="feat-card"><div class="icon">🔍</div><h3>Structured Logging</h3><p>JSON audit logs. X-Request-ID tracing. Every proxied request logged.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="docs" id="docs">
+  <div class="container">
+    <h2>Documentation</h2>
+    <div class="doc-grid">
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/quickstart.md" class="doc-card">
+        <h3>🚀 Quickstart</h3><p>5-minute setup with Docker Compose</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/user-manual.md" class="doc-card">
+        <h3>📖 User Manual</h3><p>Complete reference for all features</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/architecture.md" class="doc-card">
+        <h3>🏗️ Architecture</h3><p>Data flow, components, security model</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/security.md" class="doc-card">
+        <h3>🔒 Security</h3><p>Threat model, auth flows, JWT validation</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/comparison.md" class="doc-card">
+        <h3>⚖️ Comparison</h3><p>oauth4os vs Security Plugin vs SAML vs API Keys</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/migration.md" class="doc-card">
+        <h3>🔄 Migration</h3><p>Add oauth4os alongside existing auth</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/benchmarks.md" class="doc-card">
+        <h3>📊 Benchmarks</h3><p>Performance numbers, scaling guidance</p>
+      </a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/testing.md" class="doc-card">
+        <h3>🧪 Testing</h3><p>Unit, integration, e2e, chaos tests</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="community">
+  <div class="container">
+    <h2>Built for the OpenSearch Community</h2>
+    <p class="section-sub">oauth4os is a response to <a href="https://github.com/opensearch-project/.github/issues/491">RFC #491</a> — bringing OAuth 2.0 developer experience to OpenSearch.</p>
+    <div class="cta-row">
+      <a href="https://github.com/seraphjiang/oauth4os" class="btn btn-primary">⭐ Star on GitHub</a>
+      <a href="https://github.com/seraphjiang/oauth4os/issues" class="btn btn-secondary">Report an Issue</a>
+      <a href="https://github.com/seraphjiang/oauth4os/blob/main/CONTRIBUTING.md" class="btn btn-secondary">Contribute</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>oauth4os — Apache 2.0 · <a href="https://github.com/opensearch-project/.github/issues/491">RFC #491</a> · <a href="https://github.com/seraphjiang/oauth4os">GitHub</a></p>
+  </div>
+</footer>
+
+<script>
+const toggle = document.getElementById('themeToggle');
+toggle.addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+</script>
+</body>
+</html>

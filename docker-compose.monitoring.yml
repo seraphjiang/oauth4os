@@ -7,45 +7,51 @@ services:
       - "8443:8443"
     volumes:
       - ./config.yaml:/etc/oauth4os/config.yaml:ro
+    environment:
+      - OAUTH4OS_CONFIG=/etc/oauth4os/config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8443/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     depends_on:
-      - opensearch
+      opensearch:
+        condition: service_healthy
 
   opensearch:
-    image: opensearchproject/opensearch:2.11.0
+    image: opensearchproject/opensearch:2.17.0
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "9200:9200"
-
-  dashboards:
-    image: opensearchproject/opensearch-dashboards:2.11.0
-    environment:
-      - OPENSEARCH_HOSTS=http://opensearch:9200
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    ports:
-      - "5601:5601"
-    depends_on:
-      - opensearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   prometheus:
     image: prom/prometheus:v2.48.0
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports:
       - "9090:9090"
     depends_on:
-      - proxy
+      proxy:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:10.2.0
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deploy/grafana/dashboard.json:/var/lib/grafana/dashboards/oauth4os.json:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     depends_on:

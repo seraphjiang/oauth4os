@@ -149,6 +149,7 @@ func main() {
 		issuerURL,
 	)
 	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<16) // 64KB max
 		r.ParseForm()
 		if r.FormValue("grant_type") == exchange.GrantType {
 			exchangeHandler.ServeHTTP(w, r)

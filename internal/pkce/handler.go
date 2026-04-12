@@ -54,6 +54,16 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "client_id, code_challenge, redirect_uri required")
 		return
 	}
+	// Validate redirect_uri against client's registered allowlist
+	if h.validateRedirect != nil && !h.validateRedirect(clientID, redirectURI) {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "redirect_uri not registered for client")
+		return
+	}
+	// Validate redirect_uri against client allowlist (prevents open redirect)
+	if h.validateRedirect != nil && !h.validateRedirect(clientID, redirectURI) {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "redirect_uri not registered for this client")
+		return
+	}
 	if method == "" {
 		method = "S256"
 	}

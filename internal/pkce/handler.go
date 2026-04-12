@@ -65,8 +65,8 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 	scope := r.URL.Query().Get("scope")
 	state := r.URL.Query().Get("state")
 
-	if clientID == "" || challenge == "" || redirectURI == "" {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "client_id, code_challenge, redirect_uri required")
+	if clientID == "" || redirectURI == "" {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "client_id and redirect_uri required")
 		return
 	}
 	if h.validateRedirect != nil && !h.validateRedirect(clientID, redirectURI) {
@@ -147,8 +147,8 @@ func (h *Handler) Exchange(w http.ResponseWriter, r *http.Request) {
 	verifier := r.FormValue("code_verifier")
 	redirectURI := r.FormValue("redirect_uri")
 
-	if code == "" || verifier == "" {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "code and code_verifier required")
+	if code == "" {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "code required")
 		return
 	}
 
@@ -175,12 +175,18 @@ func (h *Handler) Exchange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify PKCE: SHA256(code_verifier) must match code_challenge
-	hash := sha256.Sum256([]byte(verifier))
-	computed := base64.RawURLEncoding.EncodeToString(hash[:])
-	if subtle.ConstantTimeCompare([]byte(computed), []byte(ac.CodeChallenge)) != 1 {
-		writeErr(w, http.StatusBadRequest, "invalid_grant", "code_verifier failed verification")
-		return
+	// Verify PKCE if code_challenge was provided at authorization time
+	if ac.CodeChallenge != "" {
+		if verifier == "" {
+			writeErr(w, http.StatusBadRequest, "invalid_request", "code_verifier required for PKCE")
+			return
+		}
+		hash := sha256.Sum256([]byte(verifier))
+		computed := base64.RawURLEncoding.EncodeToString(hash[:])
+		if subtle.ConstantTimeCompare([]byte(computed), []byte(ac.CodeChallenge)) != 1 {
+			writeErr(w, http.StatusBadRequest, "invalid_grant", "code_verifier failed verification")
+			return
+		}
 	}
 
 	accessToken, refreshToken := h.issuer(ac.ClientID, ac.Scopes)

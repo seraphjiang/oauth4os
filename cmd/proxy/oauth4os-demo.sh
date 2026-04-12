@@ -57,6 +57,7 @@ ${BOLD}COMMANDS:${NC}
   bookmark <action>    save|run|delete|list query bookmarks
   dashboard            Live terminal dashboard (htop for logs)
   watch <query>        Alert on new KQL matches (poll every 5s)
+  diff <r1> <r2>      Compare time ranges (today, yesterday, 1h, 24h, 7d)
   config <action>      show|set|get|reset proxy settings
   alias <action>       add|rm|run|list command aliases
   completion <shell>   Generate bash/zsh completions
@@ -830,6 +831,77 @@ cmd_watch() {
   done
 }
 
+cmd_diff() {
+  local range1="${1:-today}" range2="${2:-yesterday}"
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+
+  # Convert named ranges to ISO timestamps
+  _range_to_ts() {
+    case "$1" in
+      today)     echo "$(date -u +%Y-%m-%dT00:00:00Z)|$(date -u +%Y-%m-%dT23:59:59Z)" ;;
+      yesterday) echo "$(date -u -d '1 day ago' +%Y-%m-%dT00:00:00Z 2>/dev/null || date -u -v-1d +%Y-%m-%dT00:00:00Z)|$(date -u -d '1 day ago' +%Y-%m-%dT23:59:59Z 2>/dev/null || date -u -v-1d +%Y-%m-%dT23:59:59Z)" ;;
+      1h)        echo "$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)|$(date -u +%Y-%m-%dT%H:%M:%SZ)" ;;
+      24h)       echo "$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)|$(date -u +%Y-%m-%dT%H:%M:%SZ)" ;;
+      7d)        echo "$(date -u -d '7 days ago' +%Y-%m-%dT00:00:00Z 2>/dev/null || date -u -v-7d +%Y-%m-%dT00:00:00Z)|$(date -u +%Y-%m-%dT23:59:59Z)" ;;
+      *)         echo "$1" ;;  # pass through ISO range like "2026-04-10T00:00:00Z|2026-04-10T23:59:59Z"
+    esac
+  }
+
+  local ts1 ts2
+  ts1=$(_range_to_ts "$range1")
+  ts2=$(_range_to_ts "$range2")
+  local from1="${ts1%%|*}" to1="${ts1##*|}"
+  local from2="${ts2%%|*}" to2="${ts2##*|}"
+
+  _agg_query() {
+    local from="$1" to="$2"
+    local body="{\"size\":0,\"query\":{\"range\":{\"@timestamp\":{\"gte\":\"$from\",\"lte\":\"$to\"}}},\"aggs\":{\"total\":{\"value_count\":{\"field\":\"_index\"}},\"errors\":{\"filter\":{\"terms\":{\"level.keyword\":[\"ERROR\",\"FATAL\"]}}},\"by_service\":{\"terms\":{\"field\":\"service.keyword\",\"size\":20}},\"by_level\":{\"terms\":{\"field\":\"level.keyword\",\"size\":10}}}}"
+    curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+      "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null
+  }
+
+  echo -e "${BOLD}📊 Diff: ${CYAN}${range1}${NC} vs ${CYAN}${range2}${NC}\n"
+
+  local r1 r2
+  r1=$(_agg_query "$from1" "$to1")
+  r2=$(_agg_query "$from2" "$to2")
+
+  if [ -z "$r1" ] || [ -z "$r2" ]; then
+    echo -e "${RED}Query failed${NC}" >&2; return 1
+  fi
+
+  local t1 t2 e1 e2
+  t1=$(echo "$r1" | jq '.hits.total.value // 0')
+  t2=$(echo "$r2" | jq '.hits.total.value // 0')
+  e1=$(echo "$r1" | jq '.aggregations.errors.doc_count // 0')
+  e2=$(echo "$r2" | jq '.aggregations.errors.doc_count // 0')
+
+  _delta() {
+    local a=$1 b=$2
+    local d=$(( a - b ))
+    if [ $d -gt 0 ]; then echo -e "${RED}+${d}${NC}"
+    elif [ $d -lt 0 ]; then echo -e "${GREEN}${d}${NC}"
+    else echo "0"; fi
+  }
+
+  printf "  ${BOLD}%-15s %10s %10s %10s${NC}\n" "METRIC" "$range1" "$range2" "DELTA"
+  printf "  %-15s %10s %10s %10b\n" "Total docs" "$t1" "$t2" "$(_delta $t1 $t2)"
+  printf "  %-15s %10s %10s %10b\n" "Errors" "$e1" "$e2" "$(_delta $e1 $e2)"
+
+  echo -e "\n  ${BOLD}Errors by Service:${NC}"
+  printf "  ${BOLD}%-20s %8s %8s %8s${NC}\n" "SERVICE" "$range1" "$range2" "DELTA"
+  # Merge service data from both ranges
+  local svcs
+  svcs=$(echo "$r1" "$r2" | jq -rs '[.[].aggregations.by_service.buckets[].key] | unique | .[]')
+  for svc in $svcs; do
+    local c1 c2
+    c1=$(echo "$r1" | jq -r --arg s "$svc" '[.aggregations.by_service.buckets[] | select(.key==$s) | .doc_count] | .[0] // 0')
+    c2=$(echo "$r2" | jq -r --arg s "$svc" '[.aggregations.by_service.buckets[] | select(.key==$s) | .doc_count] | .[0] // 0')
+    printf "  %-20s %8s %8s %8b\n" "$svc" "$c1" "$c2" "$(_delta $c1 $c2)"
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -849,6 +921,7 @@ case "${1:-}" in
   bookmark) shift; cmd_bookmark "$@" ;;
   dashboard|dash) cmd_dashboard ;;
   watch)    shift; cmd_watch "$*" ;;
+  diff)     shift; cmd_diff "${1:-today}" "${2:-yesterday}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;
   completion) shift; cmd_completion "${1:-bash}" ;;

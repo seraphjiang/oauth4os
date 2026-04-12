@@ -20,14 +20,18 @@ type Store struct {
 	mu      sync.RWMutex
 	entries map[string]*entry
 	ttl     time.Duration
+	stopCh  chan struct{}
 }
 
 // New creates a store with the given TTL for idempotency keys.
 func New(ttl time.Duration) *Store {
-	s := &Store{entries: make(map[string]*entry), ttl: ttl}
+	s := &Store{entries: make(map[string]*entry), ttl: ttl, stopCh: make(chan struct{})}
 	go s.reap()
 	return s
 }
+
+// Stop halts the background reaper goroutine.
+func (s *Store) Stop() { close(s.stopCh) }
 
 // Middleware returns HTTP middleware that deduplicates requests with Idempotency-Key header.
 // Only applies to POST/PUT/PATCH methods.
@@ -76,15 +80,20 @@ func (s *Store) Middleware(next http.Handler) http.Handler {
 func (s *Store) reap() {
 	ticker := time.NewTicker(s.ttl)
 	defer ticker.Stop()
-	for range ticker.C {
-		now := time.Now()
-		s.mu.Lock()
-		for k, v := range s.entries {
-			if now.After(v.expires) {
-				delete(s.entries, k)
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			s.mu.Lock()
+			for k, v := range s.entries {
+				if now.After(v.expires) {
+					delete(s.entries, k)
+				}
 			}
+			s.mu.Unlock()
+		case <-s.stopCh:
+			return
 		}
-		s.mu.Unlock()
 	}
 }
 

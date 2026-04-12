@@ -360,10 +360,10 @@ func (m *Manager) RevokeRFC7009(w http.ResponseWriter, r *http.Request) {
 // ListTokens handles GET /oauth/tokens.
 func (m *Manager) ListTokens(w http.ResponseWriter, r *http.Request) {
 	m.mu.RLock()
-	var list []*Token
+	var list []Token
 	for _, t := range m.tokens {
 		if !t.Revoked {
-			list = append(list, t)
+			list = append(list, *t) // copy to avoid race
 		}
 	}
 	m.mu.RUnlock()
@@ -376,13 +376,17 @@ func (m *Manager) GetToken(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	m.mu.RLock()
 	tok, ok := m.tokens[id]
+	var copy Token
+	if ok {
+		copy = *tok
+	}
 	m.mu.RUnlock()
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found", "token not found")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tok)
+	json.NewEncoder(w).Encode(copy)
 }
 
 var (

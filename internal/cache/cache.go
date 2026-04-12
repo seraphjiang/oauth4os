@@ -20,6 +20,7 @@ type Cache struct {
 	entries map[string]*Entry
 	ttl     time.Duration
 	maxSize int
+	stopCh  chan struct{}
 }
 
 // New creates a cache with the given TTL and max entries.
@@ -28,10 +29,14 @@ func New(ttl time.Duration, maxSize int) *Cache {
 		entries: make(map[string]*Entry),
 		ttl:     ttl,
 		maxSize: maxSize,
+		stopCh:  make(chan struct{}),
 	}
 	go c.reap()
 	return c
 }
+
+// Stop halts the background reaper goroutine.
+func (c *Cache) Stop() { close(c.stopCh) }
 
 // Get returns a cached entry if valid, or nil.
 func (c *Cache) Get(key string) *Entry {
@@ -72,14 +77,19 @@ func (c *Cache) Set(key string, statusCode int, header map[string]string, body [
 func (c *Cache) reap() {
 	ticker := time.NewTicker(c.ttl)
 	defer ticker.Stop()
-	for range ticker.C {
-		now := time.Now()
-		c.mu.Lock()
-		for k, v := range c.entries {
-			if now.After(v.ExpiresAt) {
-				delete(c.entries, k)
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			c.mu.Lock()
+			for k, v := range c.entries {
+				if now.After(v.ExpiresAt) {
+					delete(c.entries, k)
+				}
 			}
+			c.mu.Unlock()
+		case <-c.stopCh:
+			return
 		}
-		c.mu.Unlock()
 	}
 }

@@ -93,6 +93,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var scopes []string
 	if req.Scope != "" {
 		for _, s := range splitScope(req.Scope) {
+			if len(h.allowedScopes) > 0 && !h.allowedScopes[s] {
+				writeErr(w, 400, "invalid_client_metadata", "scope not allowed: "+s)
+				return
+			}
 			scopes = append(scopes, s)
 		}
 	}
@@ -102,7 +106,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 
 	// Register with token manager so client can authenticate
-	h.register(clientID, clientSecret, scopes)
+	h.register(clientID, clientSecret, scopes, req.RedirectURIs)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

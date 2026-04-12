@@ -10,9 +10,9 @@ import (
 
 func TestRegisterClient(t *testing.T) {
 	var registered []string
-	h := NewHandler(func(id, secret string, scopes []string) {
+	h := NewHandler(func(id, secret string, scopes, redirectURIs []string) {
 		registered = append(registered, id)
-	})
+	}, nil)
 
 	body, _ := json.Marshal(Request{ClientName: "my-agent", Scope: "read:logs-*"})
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(body))
@@ -36,7 +36,7 @@ func TestRegisterClient(t *testing.T) {
 }
 
 func TestRegisterMissingName(t *testing.T) {
-	h := NewHandler(func(id, secret string, scopes []string) {})
+	h := NewHandler(func(id, secret string, scopes, redirectURIs []string) {}, nil)
 	body, _ := json.Marshal(Request{})
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -46,10 +46,20 @@ func TestRegisterMissingName(t *testing.T) {
 	}
 }
 
-func TestGetClientHidesSecret(t *testing.T) {
-	h := NewHandler(func(id, secret string, scopes []string) {})
+func TestRegisterScopeBlocked(t *testing.T) {
+	h := NewHandler(func(id, secret string, scopes, redirectURIs []string) {}, []string{"read:logs-*"})
+	body, _ := json.Marshal(Request{ClientName: "evil", Scope: "admin"})
+	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	h.Register(w, req)
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for disallowed scope, got %d", w.Code)
+	}
+}
 
-	// Register first
+func TestGetClientHidesSecret(t *testing.T) {
+	h := NewHandler(func(id, secret string, scopes, redirectURIs []string) {}, nil)
+
 	body, _ := json.Marshal(Request{ClientName: "test"})
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -58,7 +68,6 @@ func TestGetClientHidesSecret(t *testing.T) {
 	var resp Response
 	json.NewDecoder(w.Body).Decode(&resp)
 
-	// GET should not return secret
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /oauth/register/{client_id}", h.Get)
 	req = httptest.NewRequest("GET", "/oauth/register/"+resp.ClientID, nil)

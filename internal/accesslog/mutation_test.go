@@ -80,7 +80,7 @@ func TestMutation_DurationTracked(t *testing.T) {
 	handler := l.Middleware(inner, nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, httptest.NewRequest("GET", "/test", nil))
-	if !strings.Contains(buf.String(), "duration") {
+	if !strings.Contains(buf.String(), "latency_ms") {
 		t.Error("access log must include duration")
 	}
 }

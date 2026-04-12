@@ -356,6 +356,10 @@ listen: :8443
 | [docs/canary-deployment.md](docs/canary-deployment.md) | Canary deployment guide |
 | [docs/opentelemetry.md](docs/opentelemetry.md) | OTLP tracing integration |
 | [docs/runbook.md](docs/runbook.md) | Operator runbook — incidents, scaling |
+| [docs/quickstart.md](docs/quickstart.md) | 5-minute setup guide |
+| [docs/testing.md](docs/testing.md) | Test strategy and coverage |
+| [docs/benchmarks.md](docs/benchmarks.md) | Performance benchmarks |
+| [docs/comparison.md](docs/comparison.md) | oauth4os vs alternatives |
 | [docs/oauth-flows.md](docs/oauth-flows.md) | All 8 OAuth flows with diagrams |
 
 ## Contributing

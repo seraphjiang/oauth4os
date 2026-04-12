@@ -12,16 +12,17 @@ oauth4os has 220 test artifacts across 5 levels: unit, integration, E2E, fuzz, a
 
 | Metric | Value |
 |---|---|
-| Test functions | 188 |
+| Test functions | 231 |
 | Fuzz functions | 10 |
 | Benchmarks | 10 |
+| Property-based tests | 10 |
 | Bash E2E tests | 12 |
-| **Total test artifacts** | **220** |
-| Source packages | 15 |
-| Packages with tests | 15/15 (100%) |
-| Test files | 33 |
-| Test lines | 4,186 |
-| Source lines | 3,457 |
+| **Total test artifacts** | **273** |
+| Source packages | 17 |
+| Packages with tests | 17/17 (100%) |
+| Test files | 42 |
+| Test lines | 5,426 |
+| Source lines | 4,174 |
 
 ---
 
@@ -179,13 +180,15 @@ All security-critical paths have dedicated tests:
 
 | Metric | Value | Assessment |
 |---|---|---|
-| Test:source line ratio | 1.21:1 | Excellent |
-| Package coverage | 15/15 (100%) | Complete |
+| Test:source line ratio | 1.30:1 | Excellent |
+| Package coverage | 17/17 (100%) | Complete |
+| Property-based tests | 10 invariants | Strong |
 | Security test coverage | 6 E2E + 4 error path | Strong |
 | Concurrency tests | 4 race tests | Good |
 | Fuzz targets | 10 | Good |
-| CI automation | 5 jobs | Complete |
+| CI automation | 6 workflows | Complete |
 | E2E with real services | 24 Go + 12 bash | Strong |
+| API conformance | 17 endpoint checks | Strong |
 
 ---
 

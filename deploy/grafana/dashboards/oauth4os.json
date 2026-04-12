@@ -55,6 +55,54 @@
         "type": "timeseries",
         "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
         "targets": [{"expr": "rate(oauth4os_upstream_errors[5m])", "legendFormat": "errors/s"}]
+      },
+      {
+        "title": "Cache Hit Rate %",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "targets": [{"expr": "rate(oauth4os_cache_hits[5m]) / (rate(oauth4os_cache_hits[5m]) + rate(oauth4os_cache_misses[5m])) * 100", "legendFormat": "hit %"}],
+        "fieldConfig": {"defaults": {"unit": "percent"}}
+      },
+      {
+        "title": "Cache Hits vs Misses / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "targets": [
+          {"expr": "rate(oauth4os_cache_hits[5m])", "legendFormat": "hits/s"},
+          {"expr": "rate(oauth4os_cache_misses[5m])", "legendFormat": "misses/s"}
+        ]
+      },
+      {
+        "title": "Circuit Breaker Opens / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 32},
+        "targets": [{"expr": "rate(oauth4os_circuit_opens[5m])", "legendFormat": "opens/s"}]
+      },
+      {
+        "title": "Load Shedding — Inflight",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 32},
+        "targets": [{"expr": "oauth4os_loadshed_inflight"}]
+      },
+      {
+        "title": "Load Shed Rejections / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 32},
+        "targets": [{"expr": "rate(oauth4os_loadshed_total[5m])", "legendFormat": "shed/s"}]
+      },
+      {
+        "title": "Upstream Latency (ms)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+        "targets": [{"expr": "oauth4os_upstream_latency_ms", "legendFormat": "latency ms"}],
+        "fieldConfig": {"defaults": {"unit": "ms"}}
+      },
+      {
+        "title": "Upstream Healthy",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+        "targets": [{"expr": "oauth4os_upstream_healthy"}],
+        "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}
       }
     ],
     "time": {"from": "now-1h", "to": "now"},

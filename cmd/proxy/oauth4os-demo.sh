@@ -1124,6 +1124,29 @@ cmd_latency() {
   fi
 }
 
+cmd_ping() {
+  local count="${1:-5}" i=0 total=0 min=999999 max=0
+  echo -e "${BOLD}🏓 Pinging ${CYAN}${PROXY}${NC}\n"
+  while [ $i -lt $count ]; do
+    local start=$(date +%s%N)
+    local code=$(curl -sf -o /dev/null -w '%{http_code}' --max-time 5 "${PROXY}/health" 2>/dev/null) || code="000"
+    local end=$(date +%s%N)
+    local ms=$(( (end - start) / 1000000 ))
+    total=$(( total + ms ))
+    [ $ms -lt $min ] && min=$ms
+    [ $ms -gt $max ] && max=$ms
+    if [ "$code" = "200" ]; then
+      printf "  ${GREEN}✓${NC} %3dms  HTTP %s\n" "$ms" "$code"
+    else
+      printf "  ${RED}✗${NC} %3dms  HTTP %s\n" "$ms" "$code"
+    fi
+    i=$(( i + 1 ))
+    [ $i -lt $count ] && sleep 0.5
+  done
+  local avg=$(( total / count ))
+  echo -e "\n  ${BOLD}min/avg/max = ${min}/${avg}/${max} ms${NC}"
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -1150,6 +1173,7 @@ case "${1:-}" in
   audit)    shift; cmd_audit "${1:-20}" ;;
   alerts)   cmd_alerts ;;
   latency)  cmd_latency ;;
+  ping)     shift; cmd_ping "${1:-5}" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

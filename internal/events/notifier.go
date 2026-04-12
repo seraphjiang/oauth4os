@@ -4,30 +4,28 @@ package events
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 )
 
-// Type is a token event type.
-type Type string
+// EventType identifies the token event.
+type EventType string
 
 const (
-	TokenIssued  Type = "token.issued"
-	TokenRevoked Type = "token.revoked"
-	TokenExpired Type = "token.expired"
-	LoginSuccess Type = "login.success"
-	LoginFailed  Type = "login.failed"
+	TokenIssued  EventType = "token.issued"
+	TokenRevoked EventType = "token.revoked"
+	TokenRefresh EventType = "token.refreshed"
+	ClientReg    EventType = "client.registered"
+	ClientDel    EventType = "client.deleted"
 )
 
-// Event is a token lifecycle event.
+// Event is the webhook payload.
 type Event struct {
-	Type      Type   `json:"type"`
-	ClientID  string `json:"client_id"`
-	TokenID   string `json:"token_id,omitempty"`
-	Scopes    []string `json:"scopes,omitempty"`
-	IP        string `json:"ip,omitempty"`
-	Timestamp string `json:"timestamp"`
+	Type      EventType `json:"type"`
+	ClientID  string    `json:"client_id"`
+	Scopes    []string  `json:"scopes,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+	RequestID string    `json:"request_id,omitempty"`
 }
 
 // Notifier sends events to configured webhook URLs.
@@ -37,8 +35,9 @@ type Notifier struct {
 	ch     chan Event
 }
 
-// NewNotifier creates an event notifier. URLs are called async.
-func NewNotifier(urls []string) *Notifier {
+// New creates a notifier that posts events to the given URLs.
+// Events are sent asynchronously via a buffered channel.
+func New(urls []string) *Notifier {
 	n := &Notifier{
 		urls:   urls,
 		client: &http.Client{Timeout: 5 * time.Second},
@@ -48,16 +47,15 @@ func NewNotifier(urls []string) *Notifier {
 	return n
 }
 
-// Emit sends an event to all configured webhooks.
+// Emit queues an event for delivery. Non-blocking; drops if buffer full.
 func (n *Notifier) Emit(e Event) {
 	if len(n.urls) == 0 {
 		return
 	}
-	e.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	e.Timestamp = time.Now()
 	select {
 	case n.ch <- e:
-	default:
-		// drop if buffer full
+	default: // drop if full
 	}
 }
 
@@ -65,12 +63,15 @@ func (n *Notifier) drain() {
 	for e := range n.ch {
 		body, _ := json.Marshal(e)
 		for _, u := range n.urls {
-			resp, err := n.client.Post(u, "application/json", bytes.NewReader(body))
+			req, err := http.NewRequest("POST", u, bytes.NewReader(body))
 			if err != nil {
-				log.Printf("[events] webhook %s failed: %v", u, err)
 				continue
 			}
-			resp.Body.Close()
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := n.client.Do(req)
+			if err == nil {
+				resp.Body.Close()
+			}
 		}
 	}
 }

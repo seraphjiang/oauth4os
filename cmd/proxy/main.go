@@ -111,6 +111,7 @@ func main() {
 	auditor.WithStore(auditStore)
 
 	sessionMgr := session.New(map[string]int{"*": 100})
+	apiKeyStore := apikey.NewStore()
 
 	analyticsTracker := analytics.New()
 
@@ -612,6 +613,32 @@ func main() {
 	// Backup endpoints
 	//backupHandler.Register(mux) // handled by admin API
 
+	// API key management
+	mux.HandleFunc("POST /admin/apikeys", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ClientID string   `json:"client_id"`
+			Scopes   []string `json:"scopes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClientID == "" {
+			http.Error(w, `{"error":"client_id required"}`, http.StatusBadRequest)
+			return
+		}
+		raw, k := apiKeyStore.Generate(req.ClientID, req.Scopes)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"api_key": raw, "id": k.ID, "prefix": k.Prefix})
+	})
+	mux.HandleFunc("GET /admin/apikeys/{client_id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(apiKeyStore.List(r.PathValue("client_id")))
+	})
+	mux.HandleFunc("DELETE /admin/apikeys/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if apiKeyStore.Revoke(r.PathValue("id")) {
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+		}
+	})
+
 	// Demo web app (log viewer with PKCE login)
 	demoApp := demo.NewHandler(issuerURL, "demo-app")
 	demoApp.Register(mux)
@@ -685,6 +712,24 @@ func main() {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			// API key auth (X-API-Key header)
+			if ak := apikey.ExtractKey(r); ak != "" {
+				claims, ok := apiKeyStore.Validate(ak)
+				if ok {
+					authSuccess.Add(1)
+					r.Header.Set("X-Proxy-User", claims.ClientID)
+					r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))
+					roles := mapper.Map(claims.Scopes)
+					r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
+					auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
+					analyticsTracker.Record(claims.ClientID, claims.Scopes, "")
+					engineProxy.ServeHTTP(w, r)
+					return
+				}
+				authFailed.Add(1)
+				http.Error(w, `{"error":"invalid_api_key"}`, http.StatusUnauthorized)
+				return
+			}
 			// mTLS client cert auth (alternative to Bearer token)
 			if mtlsMap != nil && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 				entry, err := mtlsMap.Identify(r.TLS.PeerCertificates[0])

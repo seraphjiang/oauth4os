@@ -1,6 +1,11 @@
 upstream:
   engine: http://opensearch:9200
   dashboards: http://opensearch-dashboards:5601
+  # For AOSS (OpenSearch Serverless) — uncomment and set your collection endpoint:
+  # engine: https://xxxxxxxxxx.us-west-2.aoss.amazonaws.com
+  # sigv4:
+  #   region: us-west-2
+  #   service: aoss  # "aoss" for Serverless, "es" for managed OpenSearch
 
 providers:
   - name: keycloak

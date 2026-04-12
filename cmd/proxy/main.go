@@ -39,6 +39,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/registration"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 	"github.com/seraphjiang/oauth4os/internal/session"
+	"github.com/seraphjiang/oauth4os/internal/sigv4"
 	"github.com/seraphjiang/oauth4os/internal/token"
 	"github.com/seraphjiang/oauth4os/internal/tracing"
 	"github.com/seraphjiang/oauth4os/internal/backup"
@@ -156,11 +157,22 @@ func main() {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
+	// SigV4 signing for AOSS / managed OpenSearch with IAM
+	var upstreamTransport http.RoundTripper = transport
+	if cfg.Upstream.SigV4 != nil {
+		svc := cfg.Upstream.SigV4.Service
+		if svc == "" {
+			svc = "aoss"
+		}
+		upstreamTransport = sigv4.New(transport, cfg.Upstream.SigV4.Region, svc)
+		logger.Info("SigV4 signing enabled", "region", cfg.Upstream.SigV4.Region, "service", svc)
+	}
+
 	engineURL, _ := url.Parse(cfg.Upstream.Engine)
 	dashboardsURL, _ := url.Parse(cfg.Upstream.Dashboards)
 
 	engineProxy := httputil.NewSingleHostReverseProxy(engineURL)
-	engineProxy.Transport = transport
+	engineProxy.Transport = upstreamTransport
 	engineProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		upstreamErrors.Add(1)
 		logger.Error("upstream error", "error", err) // log internally, don't expose
@@ -168,7 +180,7 @@ func main() {
 	}
 
 	dashboardsProxy := httputil.NewSingleHostReverseProxy(dashboardsURL)
-	dashboardsProxy.Transport = transport
+	dashboardsProxy.Transport = upstreamTransport
 	dashboardsProxy.ErrorHandler = engineProxy.ErrorHandler
 
 	// Multi-cluster federation router

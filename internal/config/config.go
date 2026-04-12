@@ -78,6 +78,13 @@ type TLSConfig struct {
 type Upstream struct {
 	Engine     string `yaml:"engine"`
 	Dashboards string `yaml:"dashboards"`
+	SigV4      *SigV4Config `yaml:"sigv4,omitempty"` // for AOSS
+}
+
+// SigV4Config enables AWS SigV4 request signing for AOSS/managed OpenSearch.
+type SigV4Config struct {
+	Region  string `yaml:"region"`
+	Service string `yaml:"service"` // "aoss" for Serverless, "es" for managed
 }
 
 type Provider struct {

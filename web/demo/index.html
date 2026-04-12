@@ -117,6 +117,14 @@ select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;backgro
   .login-card{padding:24px 16px}
   .login-card h1{font-size:20px}
 }
+@media print{
+  .sidebar,.mobile-nav,.theme-btn,#autoRefresh,#exportBtn,#scopeDemoBtn,#tokenCountdown{display:none!important}
+  .app{display:block}
+  .main{padding:0}
+  body{background:#fff;color:#000}
+  .stat,.log-table,.stats{border-color:#ccc}
+  .stat .value{color:#000}
+}
 </style>
 </head>
 <body>

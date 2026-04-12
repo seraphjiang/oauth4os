@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 — oauth4os</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{text-align:center;max-width:400px;padding:40px}
+.code{font-size:72px;font-weight:800;color:var(--accent);line-height:1}
+h1{font-size:20px;margin:12px 0 8px}
+p{color:var(--muted);font-size:14px;margin-bottom:24px}
+a{color:var(--accent);text-decoration:none;padding:10px 24px;border:1px solid var(--accent);border-radius:8px;font-size:14px;font-weight:600;display:inline-block}
+a:hover{background:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="code">404</div>
+  <h1>Page not found</h1>
+  <p>The page you're looking for doesn't exist or has been moved.</p>
+  <a href="/">← Back to oauth4os</a>
+</div>
+<script>
+const s=localStorage.getItem('oauth4os_theme');
+if(s)document.documentElement.dataset.theme=s;
+</script>
+</body>
+</html>

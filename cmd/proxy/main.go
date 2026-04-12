@@ -22,6 +22,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
+	"github.com/seraphjiang/oauth4os/internal/ratelimit"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 	"github.com/seraphjiang/oauth4os/internal/token"
 )
@@ -54,7 +55,7 @@ func main() {
 	tokenMgr := token.NewManager()
 	auditor := audit.NewAuditor(os.Stdout)
 
-	// Cedar policy engine
+	// Cedar policy engine (multi-tenant)
 	defaultPolicies := []cedar.Policy{
 		{ID: "default-permit", Effect: cedar.Permit,
 			Principal: cedar.Match{Any: true}, Action: cedar.Match{Any: true},
@@ -63,7 +64,21 @@ func main() {
 			Principal: cedar.Match{Any: true}, Action: cedar.Match{Any: true},
 			Resource: cedar.Match{Equals: ".opendistro_security"}},
 	}
-	policyEngine := cedar.NewEngine(defaultPolicies)
+	policyEngine := cedar.NewTenantEngine(defaultPolicies)
+	for issuer, t := range cfg.Tenants {
+		var policies []cedar.Policy
+		for i, pText := range t.CedarPolicies {
+			p, err := cedar.ParsePolicy(fmt.Sprintf("%s-policy-%d", issuer, i), pText)
+			if err != nil {
+				log.Printf("Warning: invalid Cedar policy for tenant %s: %v", issuer, err)
+				continue
+			}
+			policies = append(policies, p)
+		}
+		if len(policies) > 0 {
+			policyEngine.AddTenant(issuer, policies)
+		}
+	}
 
 	// Connection-pooled transport for upstream
 	transport := &http.Transport{
@@ -176,9 +191,9 @@ func main() {
 			return
 		}
 
-		// Cedar policy evaluation
+		// Cedar policy evaluation (tenant-scoped)
 		index := extractIndex(r.URL.Path)
-		decision := policyEngine.Evaluate(cedar.Request{
+		decision := policyEngine.Evaluate(claims.Issuer, cedar.Request{
 			Principal: map[string]string{"sub": claims.ClientID, "scope": strings.Join(claims.Scopes, ",")},
 			Action:    r.Method,
 			Resource:  map[string]string{"index": index, "path": r.URL.Path},

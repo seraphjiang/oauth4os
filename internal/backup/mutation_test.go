@@ -47,3 +47,24 @@ func TestMutation_ImportInvalid(t *testing.T) {
 		t.Error("empty body import should not return 200")
 	}
 }
+
+// Mutation: remove Import success → valid import must return 200
+func TestMutation_ImportValid(t *testing.T) {
+	applied := false
+	h := NewHandler(
+		func() interface{} { return map[string]string{"key": "val"} },
+		func() interface{} { return []string{} },
+		func(data []byte) error { applied = true; return nil },
+	)
+	body := `{"config":{"key":"val"},"clients":[]}`
+	r := httptest.NewRequest("POST", "/admin/backup/import", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.Import(w, r)
+	if w.Code != 200 {
+		t.Errorf("valid import should return 200, got %d", w.Code)
+	}
+	if !applied {
+		t.Error("Import must call applyCfg")
+	}
+}

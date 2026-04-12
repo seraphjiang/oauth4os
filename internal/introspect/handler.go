@@ -27,13 +27,22 @@ type Response struct {
 }
 
 // Handler handles POST /oauth/introspect.
+// ClientAuthenticator validates client credentials.
+type ClientAuthenticator func(clientID, clientSecret string) error
+
 type Handler struct {
-	lookup TokenLookup
+	lookup     TokenLookup
+	clientAuth ClientAuthenticator // nil = no auth required (backward compatible)
 }
 
 // NewHandler creates an introspection handler.
 func NewHandler(lookup TokenLookup) *Handler {
 	return &Handler{lookup: lookup}
+}
+
+// SetClientAuth enables client authentication on the introspection endpoint (RFC 7662 §2.1).
+func (h *Handler) SetClientAuth(auth ClientAuthenticator) {
+	h.clientAuth = auth
 }
 
 // ServeHTTP implements RFC 7662.

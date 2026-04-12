@@ -136,6 +136,22 @@ a{color:#58a6ff;text-decoration:none}
 <div class="response-box" id="resp-5"></div>
 </div></div>
 
+<div class="step" id="step-6" data-step="6">
+<div class="step-header" onclick="activateStep(6)">
+<div class="step-num">6</div>
+<div class="step-title">Refresh the Token</div>
+</div>
+<div class="step-body">
+<p class="step-desc">Use a refresh token to get a new access token without re-authenticating. The old refresh token is rotated.</p>
+<div class="curl-label">curl equivalent</div>
+<div class="curl-box" id="curl-6">curl -X POST /oauth/token \
+  -d "grant_type=refresh_token&amp;refresh_token=<span id="curl-6-rt">YOUR_REFRESH_TOKEN</span>&amp;client_id=<span id="curl-6-cid">YOUR_CLIENT_ID</span>"<button class="copy-btn" onclick="copyEl('curl-6')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-6" onclick="runStep6()" disabled>Refresh Token</button>
+</div>
+<div class="response-box" id="resp-6"></div>
+</div></div>
+
 </div>
 <script>
 const BASE=location.origin;

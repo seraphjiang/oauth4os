@@ -10,31 +10,31 @@
 
 | Metric | Count |
 |---|---|
-| Internal packages | 47 |
-| Packages with tests | 47 (100%) |
-| Packages with mutations | 47 (100%) |
-| Test functions | 846 |
-| Mutation tests | 213 (all killed) |
+| Internal packages | 51 |
+| Packages with tests | 51 (100%) |
+| Packages with mutations | 51 (100%) |
+| Test functions | 932 |
+| Mutation tests | 259 (all killed) |
 | Fuzz targets | 42 |
-| Benchmarks | 68 |
-| Property tests | 30 |
+| Benchmarks | 74 |
+| Property tests | 27 |
 | E2E Go tests | 38 |
 | Bash test scripts | 18 |
-| Test files | 210 |
-| Source lines | 9,477 |
-| Test lines | 18,773 |
-| Test:source ratio | 1.98:1 |
-| Commits | 638 |
+| Test files | 220+ |
+| Source lines | 10,245 |
+| Test lines | 20,421 |
+| Test:source ratio | 1.99:1 |
+| Commits | 775+ |
 
 ## Version Growth
 
-| Metric | v0.1.0 | v0.5.0 | v1.0.0+ |
-|---|---|---|---|
-| Packages | 23 | 40 | 47 |
-| Tests | 292 | 395 | 846 |
-| Mutations | 14 | 29 | 213 |
-| Fuzz | 10 | 17 | 42 |
-| Benchmarks | 10 | 23 | 68 |
+| Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 |
+|---|---|---|---|---|
+| Packages | 23 | 40 | 47 | 51 |
+| Tests | 292 | 395 | 846 | 932 |
+| Mutations | 14 | 29 | 213 | 259 |
+| Fuzz | 10 | 17 | 42 | 42 |
+| Benchmarks | 10 | 23 | 68 | 74 |
 
 ## Performance
 

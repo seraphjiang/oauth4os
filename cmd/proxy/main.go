@@ -280,11 +280,15 @@ func main() {
 
 		auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
 
+		// Span: upstream forwarding
+		ctx, upSpan := tracer.StartSpan(r.Context(), string(tracing.SpanUpstream), map[string]string{"target": r.URL.Path})
+		r = r.WithContext(ctx)
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			dashboardsProxy.ServeHTTP(w, r)
 		} else {
 			engineProxy.ServeHTTP(w, r)
 		}
+		tracer.EndSpan(upSpan, "ok")
 	})
 
 	addr := cfg.Listen

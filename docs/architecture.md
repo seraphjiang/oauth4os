@@ -1,370 +1,486 @@
-# Architecture
+# Architecture — oauth4os
 
-oauth4os is a reverse proxy that adds OAuth 2.0 token management, JWT validation, scope-to-role mapping, and Cedar policy evaluation in front of OpenSearch. It requires zero changes to OpenSearch itself.
+oauth4os is a reverse proxy that adds OAuth 2.0 token management to OpenSearch with zero changes to OpenSearch itself. This document covers the internal architecture, request lifecycle, and key subsystems.
 
 ## System Overview
 
-```mermaid
-graph TB
-    subgraph Clients
-        AI[AI Agent / MCP Server]
-        CLI[CLI Tool]
-        CI[CI/CD Pipeline]
-        OSD[OSD Plugin UI]
-        Browser[Browser / SPA]
-    end
-
-    subgraph "oauth4os Proxy (:8443)"
-        RL[Rate Limiter]
-        AUTH[JWT Validator]
-        SCOPE[Scope Mapper]
-        CEDAR[Cedar Policy Engine]
-        AUDIT[Audit Logger]
-        RP[Reverse Proxy]
-
-        TOKEN[Token Manager]
-        INTRO[Introspection Endpoint]
-        PKCE[PKCE Auth Flow]
-    end
-
-    subgraph "OIDC Providers"
-        KC[Keycloak]
-        DEX[Dex]
-        OKTA[Auth0 / Okta]
-    end
-
-    subgraph "OpenSearch Cluster"
-        ENGINE[Engine :9200]
-        DASH[Dashboards :5601]
-    end
-
-    AI & CLI & CI -->|Bearer token| RL
-    Browser -->|PKCE flow| PKCE
-    OSD -->|Token CRUD| TOKEN
-    RL --> AUTH
-    AUTH -->|JWKS| KC & DEX & OKTA
-    AUTH --> SCOPE
-    SCOPE --> CEDAR
-    CEDAR --> AUDIT
-    AUDIT --> RP
-    RP -->|X-Proxy-User + X-Proxy-Roles| ENGINE
-    RP -->|/api/* routes| DASH
-    TOKEN --> INTRO
+```
+                          ┌─────────────────────────────────────────────┐
+                          │              oauth4os proxy (:8443)         │
+                          │                                             │
+ ┌──────────┐   HTTPS     │  ┌─────────┐  ┌─────────┐  ┌───────────┐  │
+ │ AI Agent │────────────▶│  │ Tracing │─▶│  Rate   │─▶│    JWT    │  │
+ │ CLI      │             │  │         │  │ Limiter │  │ Validator │  │
+ │ CI/CD    │             │  └─────────┘  └─────────┘  └─────┬─────┘  │
+ │ Browser  │             │                                   │        │
+ │ MCP      │             │  ┌─────────┐  ┌─────────┐  ┌─────▼─────┐  │
+ └──────────┘             │  │  Audit  │◀─│  Cedar  │◀─│  Scope    │  │
+                          │  │   Log   │  │ Engine  │  │  Mapper   │  │
+                          │  └────┬────┘  └─────────┘  └───────────┘  │
+                          │       │                                    │
+                          │  ┌────▼──────────────────────────────┐     │
+                          │  │        Reverse Proxy               │     │
+                          │  │  ┌──────────┐  ┌───────────────┐  │     │
+                          │  │  │ Direct   │  │ SigV4 Signer  │  │     │
+                          │  │  │ Forward  │  │ (for AOSS)    │  │     │
+                          │  │  └────┬─────┘  └──────┬────────┘  │     │
+                          │  └───────┼───────────────┼───────────┘     │
+                          └──────────┼───────────────┼─────────────────┘
+                                     │               │
+                          ┌──────────▼───┐  ┌────────▼──────────┐
+                          │  OpenSearch  │  │  OpenSearch        │
+                          │  Engine      │  │  Serverless (AOSS) │
+                          │  :9200       │  │  (AWS SigV4)       │
+                          └──────────────┘  └───────────────────┘
 ```
 
-## Request Flow
+## Internal Packages
 
-Every proxied request passes through 5 stages in order:
+| Package | Responsibility |
+|---------|---------------|
+| `jwt` | JWT validation, JWKS cache with auto-refresh |
+| `scope` | Map OAuth scopes to OpenSearch backend roles |
+| `cedar` | Cedar policy evaluation, multi-tenant |
+| `token` | Token lifecycle — issue, refresh, revoke, reuse detection |
+| `pkce` | PKCE authorization code flow + consent screen |
+| `introspect` | RFC 7662 token introspection |
+| `exchange` | RFC 8693 token exchange |
+| `registration` | RFC 7591 dynamic client registration |
+| `ratelimit` | Per-client token bucket rate limiter |
+| `tracing` | OpenTelemetry-style distributed tracing |
+| `audit` | Structured JSON audit logging |
+| `admin` | REST API for live config changes |
+| `analytics` | Per-client, per-scope request metrics |
+| `keyring` | RSA key rotation + JWKS endpoint |
+| `discovery` | OIDC Discovery (/.well-known/openid-configuration) |
+| `config` | YAML config loader |
+| `federation` | Multi-cluster routing by index pattern |
+| `sigv4` | AWS SigV4 request signing for AOSS |
+| `ipfilter` | Per-client IP allowlist/denylist |
+| `mtls` | Mutual TLS client certificate auth |
+| `session` | Session tracking, revocation, force logout |
+| `logging` | Structured leveled logging |
+| `backup` | Config backup/restore bundles |
+| `webhook` | External webhook notifications |
+| `demo` | Demo web app backend |
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant RL as Rate Limiter
-    participant JWT as JWT Validator
-    participant SM as Scope Mapper
-    participant CE as Cedar Engine
-    participant OS as OpenSearch
+---
 
-    C->>RL: GET /logs-*/_search (Bearer token)
-    RL->>RL: Token bucket check (client_id + scope)
-    alt Over limit
-        RL-->>C: 429 + Retry-After
-    end
-    RL->>JWT: Validate token
-    JWT->>JWT: JWKS fetch + signature verify + claims check
-    alt Invalid token
-        JWT-->>C: 401 Invalid token
-    end
-    JWT->>SM: Map scopes to backend roles
-    alt No matching roles
-        SM-->>C: 403 Insufficient scope
-    end
-    SM->>CE: Evaluate Cedar policy
-    alt Policy denied
-        CE-->>C: 403 Forbidden (policy: forbid-security-index)
-    end
-    CE->>OS: Forward with X-Proxy-User + X-Proxy-Roles
-    OS-->>C: 200 Search results
+## Request Lifecycle
+
+Every proxied request passes through a fixed middleware chain. Each stage is a separate span in the trace.
+
+```
+ Client Request
+       │
+       ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │ 1. TRACING                                              │
+ │    Assign X-Request-ID, start root span                 │
+ │    Record: method, path, client IP                      │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 2. IP FILTER                                            │
+ │    Check client IP against allowlist/denylist            │
+ │    → 403 if denied                                      │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 3. mTLS (optional)                                      │
+ │    Extract client identity from TLS certificate          │
+ │    CN → DNS SANs → Email SANs                           │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 4. RATE LIMITER                                         │
+ │    Token bucket per client_id                           │
+ │    Scope-aware RPM limits                               │
+ │    → 429 + Retry-After header if exceeded               │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 5. JWT VALIDATION                                       │
+ │    Extract Bearer token from Authorization header       │
+ │    Validate signature (RS256/ES256) via cached JWKS     │
+ │    Check exp, iss, aud claims                           │
+ │    Extract client_id and scopes                         │
+ │    → 401 if invalid/expired                             │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 6. SCOPE MAPPING                                        │
+ │    Map OAuth scopes → OpenSearch backend_roles           │
+ │    Tenant-aware: per-issuer mappings with global fallback│
+ │    Set X-Proxy-User and X-Proxy-Roles headers           │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 7. CEDAR POLICY EVALUATION                              │
+ │    Evaluate permit/forbid rules against:                │
+ │      principal = client_id                              │
+ │      action    = HTTP method                            │
+ │      resource  = index name from URL path               │
+ │    Deny-overrides: any forbid → 403                     │
+ │    → 403 if denied                                      │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 8. AUDIT LOG                                            │
+ │    Record: timestamp, client_id, method, path,          │
+ │    scopes, roles, source IP, decision                   │
+ └──────────────────────┬──────────────────────────────────┘
+                        │
+ ┌──────────────────────▼──────────────────────────────────┐
+ │ 9. REVERSE PROXY                                        │
+ │    Route to upstream (federation or single cluster)     │
+ │    If AOSS: sign with SigV4                             │
+ │    Forward response to client                           │
+ │    Record: status code, duration                        │
+ └─────────────────────────────────────────────────────────┘
 ```
 
-## Components
+**Latency budget**: The middleware chain adds ~1-3ms per request (JWT cache hit). JWKS refresh happens asynchronously in the background.
 
-### Reverse Proxy (`cmd/proxy/main.go`)
+---
 
-The main binary. Loads config, initializes all components, and runs the HTTP server with graceful shutdown.
+## PKCE Authorization Flow
 
-- Connection-pooled `http.Transport` (100 idle conns, 50 per host)
-- Routes `/api/*` to Dashboards, everything else to Engine
-- Prometheus metrics at `/metrics`
-- Health check at `/health`
-- Read/write/idle timeouts configured
-- Graceful shutdown on SIGINT/SIGTERM (30s drain)
+Browser clients use PKCE (RFC 7636) with a consent screen.
 
-### JWT Validator (`internal/jwt/`)
+```
+ Browser                    oauth4os                    OIDC Provider
+    │                          │                             │
+    │  1. Generate verifier    │                             │
+    │     + S256 challenge     │                             │
+    │                          │                             │
+    │  2. GET /oauth/authorize │                             │
+    │     ?client_id=app       │                             │
+    │     &code_challenge=xxx  │                             │
+    │     &redirect_uri=...    │                             │
+    │     &scope=read:logs-*   │                             │
+    │ ────────────────────────▶│                             │
+    │                          │                             │
+    │  3. Consent screen       │                             │
+    │◀─────────────────────────│                             │
+    │                          │                             │
+    │  ┌─────────────────────────────────────────┐           │
+    │  │  🔐 oauth4os                            │           │
+    │  │                                         │           │
+    │  │  "app" requests access:                 │           │
+    │  │                                         │           │
+    │  │  👁  read:logs-*                        │           │
+    │  │     Read data from indices (logs-*)     │           │
+    │  │                                         │           │
+    │  │  [Deny]              [Approve]          │           │
+    │  └─────────────────────────────────────────┘           │
+    │                          │                             │
+    │  4. POST /oauth/consent  │                             │
+    │     action=approve       │                             │
+    │ ────────────────────────▶│                             │
+    │                          │  Store auth code            │
+    │  5. 302 redirect_uri     │  (10 min TTL, one-time)    │
+    │     ?code=abc123         │                             │
+    │◀─────────────────────────│                             │
+    │                          │                             │
+    │  6. POST /oauth/token    │                             │
+    │     grant_type=          │                             │
+    │       authorization_code │                             │
+    │     code=abc123          │                             │
+    │     code_verifier=xxx    │                             │
+    │ ────────────────────────▶│                             │
+    │                          │  Verify:                    │
+    │                          │  SHA256(verifier)==challenge │
+    │                          │  Code not expired/reused    │
+    │                          │                             │
+    │  7. {access_token, ...}  │                             │
+    │◀─────────────────────────│                             │
+    │                          │                             │
+    │  8. GET /logs-*/_search  │                             │
+    │     Authorization:       │                             │
+    │       Bearer <token>     │                             │
+    │ ────────────────────────▶│  ──── proxy to OpenSearch   │
+```
 
-Validates Bearer tokens against OIDC provider JWKS endpoints.
+**Security properties**:
+- Code verifier never leaves the browser (not sent to authorize endpoint)
+- Auth codes are single-use and expire after 10 minutes
+- Consent is per-request — no persistent grants
+- `redirect_uri` validated against client's registered allowlist
 
-- JWKS auto-discovery from provider issuer URL
-- RS256 and ES256 signature verification
-- Claims validation: `exp`, `iss`, `aud`
-- JWKS key cache with background refresh
-- Multi-provider support (Keycloak, Dex, Auth0, Okta)
+---
 
-### Scope Mapper (`internal/scope/`)
+## SigV4 Signing Flow
 
-Maps OAuth scopes to OpenSearch security roles.
+When the upstream is OpenSearch Serverless (AOSS), the proxy signs requests with AWS SigV4.
 
-- Global scope mapping (all providers)
-- Per-tenant mapping with global fallback
-- Scope format: `read:logs-*`, `write:dashboards`, `admin`
-- Maps to `backend_user` + `backend_roles` for OpenSearch Security Plugin
+```
+ Client                     oauth4os                        AOSS
+    │                          │                              │
+    │  GET /logs-demo/_search  │                              │
+    │  Authorization:          │                              │
+    │    Bearer <oauth-token>  │                              │
+    │ ────────────────────────▶│                              │
+    │                          │                              │
+    │                          │  1. Validate JWT (normal)    │
+    │                          │  2. Map scopes → roles       │
+    │                          │  3. Cedar evaluation         │
+    │                          │                              │
+    │                          │  4. Strip Authorization hdr  │
+    │                          │  5. Get AWS credentials      │
+    │                          │     (env / instance role)    │
+    │                          │  6. Compute SigV4 signature: │
+    │                          │     - Canonical request      │
+    │                          │     - String to sign         │
+    │                          │     - HMAC-SHA256 chain      │
+    │                          │  7. Set headers:             │
+    │                          │     Authorization: AWS4-...  │
+    │                          │     X-Amz-Date: ...          │
+    │                          │     X-Amz-Security-Token:... │
+    │                          │     Host: <aoss-endpoint>    │
+    │                          │                              │
+    │                          │  GET /logs-demo/_search      │
+    │                          │  (SigV4 signed)              │
+    │                          │ ────────────────────────────▶│
+    │                          │                              │
+    │                          │  200 {hits: [...]}           │
+    │                          │◀─────────────────────────────│
+    │                          │                              │
+    │  200 {hits: [...]}       │                              │
+    │◀─────────────────────────│                              │
+```
 
-### Cedar Policy Engine (`internal/cedar/`)
+**Key details**:
+- Credentials refresh automatically (IAM role or environment variables)
+- The `Host` header is set to the AOSS endpoint (required by SigV4)
+- Original `Authorization` header (Bearer token) is stripped before signing
+- Request body is included in the signature hash
+- Clock skew tolerance: ±5 minutes (AWS requirement)
 
-Fine-grained authorization using Cedar-style policies.
+---
 
-- Permit/Forbid effect with principal/action/resource matching
-- Multi-tenant: per-issuer policies with global fallback
-- Default policies: permit all, forbid `.opendistro_security` index
-- Evaluation returns decision + reason + matching policy ID
+## Cedar Policy Evaluation
 
-### Token Manager (`internal/token/`)
+Cedar policies provide fine-grained authorization beyond scope-to-role mapping.
 
-Issues, revokes, lists, and inspects proxy-managed tokens.
+### Evaluation Model
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/oauth/token` | POST | Issue token (client_credentials grant) |
-| `/oauth/token/{id}` | DELETE | Revoke token |
-| `/oauth/token/{id}` | GET | Inspect token |
-| `/oauth/tokens` | GET | List active tokens |
-| `/oauth/introspect` | POST | RFC 7662 introspection |
+```
+                    ┌──────────────────────────┐
+                    │     Cedar Request         │
+                    │                           │
+                    │  principal: "client-abc"  │
+                    │  action:    "POST"        │
+                    │  resource:  "logs-demo"   │
+                    │  context:                 │
+                    │    scopes: [read:logs-*]  │
+                    │    ip: 10.0.1.50          │
+                    │    tenant: "keycloak"     │
+                    └────────────┬──────────────┘
+                                 │
+              ┌──────────────────▼──────────────────┐
+              │         Policy Evaluation            │
+              │                                      │
+              │  1. Load tenant policies (by issuer) │
+              │  2. Load global policies             │
+              │  3. Evaluate all matching policies   │
+              │                                      │
+              │  ┌────────────────────────────────┐  │
+              │  │ permit(                        │  │
+              │  │   principal,                   │  │
+              │  │   action in ["GET","POST"],    │  │
+              │  │   resource                     │  │
+              │  │ ) when {                       │  │
+              │  │   context.scopes.contains(     │  │
+              │  │     "read:" + resource)        │  │
+              │  │ };                             │  │
+              │  └────────────────────────────────┘  │
+              │                                      │
+              │  ┌────────────────────────────────┐  │
+              │  │ forbid(                        │  │
+              │  │   principal,                   │  │
+              │  │   action,                      │  │
+              │  │   resource == ".opendistro_*"  │  │
+              │  │ );                             │  │
+              │  └────────────────────────────────┘  │
+              │                                      │
+              └──────────────────┬───────────────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │  Decision Algorithm:     │
+                    │                          │
+                    │  Any FORBID → DENY       │
+                    │  No PERMIT  → DENY       │
+                    │  Otherwise  → ALLOW      │
+                    │                          │
+                    │  (deny-overrides model)  │
+                    └──────────────────────────┘
+```
 
-### Token Introspection (`internal/introspect/`)
+**Multi-tenant**: Each OIDC issuer can have its own policy set. Global policies apply to all tenants. A Keycloak realm and a Dex instance can have completely different authorization rules.
 
-RFC 7662 compliant. Returns `active: true/false` with scope, client_id, exp, iat. Used by resource servers to validate tokens without direct DB access.
+**Admin API**: Policies are managed via REST:
+- `GET /admin/policies` — list all policies
+- `POST /admin/policies` — add a policy
+- `DELETE /admin/policies/{id}` — remove a policy
 
-### PKCE Flow (`internal/pkce/`)
+---
 
-RFC 7636 Proof Key for Code Exchange for browser/SPA clients.
+## Token Lifecycle
 
-- Authorization code flow with S256 code challenge
-- Short-lived auth codes (5 min)
-- Exchanges code + verifier for access token
-- Prevents authorization code interception attacks
+```
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                        Token States                              │
+ │                                                                  │
+ │  ┌────────┐   issue    ┌────────┐   expire    ┌─────────┐      │
+ │  │        │───────────▶│        │────────────▶│         │      │
+ │  │  None  │            │ Active │             │ Expired │      │
+ │  │        │            │        │             │         │      │
+ │  └────────┘            └───┬────┘             └─────────┘      │
+ │                            │                                    │
+ │                   refresh  │  revoke                            │
+ │                   (rotate) │                                    │
+ │                            │                                    │
+ │                    ┌───────▼───────┐                            │
+ │                    │               │                            │
+ │                    │   Revoked     │                            │
+ │                    │               │                            │
+ │                    └───────────────┘                            │
+ │                                                                  │
+ └──────────────────────────────────────────────────────────────────┘
+```
 
-### Rate Limiter (`internal/ratelimit/`)
+### Grant Types
 
-Per-client token bucket rate limiting.
+| Grant | Flow | Use Case |
+|-------|------|----------|
+| `client_credentials` | Client sends ID + secret → gets access token | Machine-to-machine (CI/CD, agents) |
+| `authorization_code` | Browser PKCE flow → consent → code → token | Browser apps, interactive users |
+| `refresh_token` | Exchange refresh token → new access + refresh | Extend sessions without re-auth |
+| `urn:ietf:params:oauth:grant-type:token-exchange` | Swap external IdP JWT → scoped proxy token | Federation, cross-IdP access |
 
-- Scope-aware: each scope can have its own RPM limit
-- Most restrictive scope wins for multi-scope tokens
-- Per-client bucket isolation (no cross-client interference)
-- Returns `429 Too Many Requests` + `Retry-After` header
-- Token endpoint rate-limited by IP (abuse prevention)
+### Refresh Token Rotation
 
-### Audit Logger (`internal/audit/`)
+```
+ Client                     oauth4os
+    │                          │
+    │  POST /oauth/token       │
+    │  grant_type=refresh_token│
+    │  refresh_token=RT-1      │
+    │ ────────────────────────▶│
+    │                          │  1. Validate RT-1
+    │                          │  2. Issue new AT-2 + RT-2
+    │                          │  3. Invalidate RT-1
+    │                          │  4. Link RT-2 → RT-1 (family)
+    │  {access_token: AT-2,    │
+    │   refresh_token: RT-2}   │
+    │◀─────────────────────────│
+    │                          │
+    │  (attacker replays RT-1) │
+    │  POST /oauth/token       │
+    │  refresh_token=RT-1      │
+    │ ────────────────────────▶│
+    │                          │  RT-1 already used!
+    │                          │  → Revoke entire family
+    │                          │  → RT-2 also invalidated
+    │  401 invalid_grant       │
+    │◀─────────────────────────│
+```
 
-Structured request logging for compliance and debugging.
+**Reuse detection**: If a refresh token is used twice, the entire token family is revoked. This protects against token theft — if an attacker captures a refresh token, the legitimate client's next refresh will trigger revocation of all tokens in the family.
 
-- Logs: timestamp, client_id, scopes, method, path
-- Writes to stdout (container-friendly, pipe to any log collector)
+---
 
-### Config (`internal/config/`)
+## Multi-Cluster Federation
 
-YAML configuration loader.
+The federation router directs requests to different OpenSearch clusters based on index patterns.
+
+```
+                          ┌──────────────────────┐
+                          │   Federation Router   │
+                          │                       │
+  GET /logs-app-a/_search │  Rules:               │
+ ────────────────────────▶│  logs-app-a → Cluster A│──▶ Cluster A (us-east-1)
+                          │  logs-app-b → Cluster B│
+  GET /logs-app-b/_search │  metrics-*  → Cluster C│
+ ────────────────────────▶│  *          → Default  │──▶ Cluster B (us-west-2)
+                          │                       │
+  GET /_cluster/health    │                       │
+ ────────────────────────▶│  (no index prefix)    │──▶ Default cluster
+                          └──────────────────────┘
+```
+
+Configuration:
 
 ```yaml
-upstream:
-  engine: http://opensearch:9200
-  dashboards: http://opensearch-dashboards:5601
-
-providers:
-  - name: keycloak
-    issuer: https://keycloak.example.com/realms/opensearch
-
-scope_mapping:
-  "read:logs-*":
-    backend_roles: [logs_read_access]
-  "admin":
-    backend_roles: [all_access]
-
-tenants:
-  "https://dex.example.com":
-    scope_mapping:
-      "read:metrics-*":
-        backend_roles: [metrics_reader]
-
-rate_limits:
-  "read:logs-*": 600
-  "admin": 60
+clusters:
+  - name: app-a
+    url: https://cluster-a.example.com:9200
+    indices: ["logs-app-a", "logs-app-a-*"]
+  - name: app-b
+    url: https://cluster-b.example.com:9200
+    indices: ["logs-app-b*"]
+  - name: default
+    url: https://default.example.com:9200
+    indices: ["*"]
 ```
 
-## Security Model
+Pattern matching supports `*` wildcards. The first matching cluster wins. Requests without an index prefix (e.g., `/_cluster/health`) go to the default cluster.
 
-```mermaid
-graph LR
-    subgraph "Defense in Depth"
-        A[TLS Termination] --> B[Rate Limiting]
-        B --> C[JWT Validation]
-        C --> D[Scope Enforcement]
-        D --> E[Cedar Policies]
-        E --> F[Audit Logging]
-    end
-```
-
-1. **TLS** — Optional TLS termination at the proxy (or behind a load balancer)
-2. **Rate limiting** — Token bucket per client prevents abuse
-3. **JWT validation** — Cryptographic signature verification via JWKS
-4. **Scope enforcement** — Only mapped scopes get backend roles
-5. **Cedar policies** — Fine-grained deny rules (e.g., block security index access)
-6. **Audit logging** — Every authenticated request logged with client identity
-
-### Token Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> Issued: POST /oauth/token
-    Issued --> Active: Token valid
-    Active --> Expired: TTL exceeded (1h default)
-    Active --> Revoked: DELETE /oauth/token/{id}
-    Expired --> [*]
-    Revoked --> [*]
-    Active --> Introspected: POST /oauth/introspect
-    Introspected --> Active
-```
-
-### Scope Isolation
-
-Scopes control what indices and operations a client can access:
-
-| Scope | Allowed | Blocked |
-|-------|---------|---------|
-| `read:logs-*` | GET/POST on `logs-*` indices | Write operations, other indices |
-| `write:logs-*` | All operations on `logs-*` | Other indices |
-| `admin` | All operations, all indices | `.opendistro_security` (Cedar deny) |
-
-## Deployment Topology
-
-### Docker Compose (Development)
-
-```mermaid
-graph LR
-    subgraph "docker-compose.yml"
-        PROXY[oauth4os :8443]
-        OS[OpenSearch :9200]
-        OSD[Dashboards :5601]
-        KC[Keycloak :8080]
-    end
-    PROXY --> OS
-    PROXY --> OSD
-    PROXY -.->|JWKS| KC
-```
-
-### AWS (Production)
-
-```mermaid
-graph TB
-    subgraph "VPC"
-        ALB[Application Load Balancer]
-        subgraph "ECS / Fargate"
-            P1[oauth4os]
-            P2[oauth4os]
-        end
-        subgraph "Amazon OpenSearch Service"
-            OS[Domain]
-        end
-    end
-    ALB --> P1 & P2
-    P1 & P2 --> OS
-```
-
-Deployed via CDK (`deploy/cdk/`):
-- ECS Fargate service behind ALB
-- Amazon OpenSearch Service managed domain
-- Secrets Manager for OIDC client credentials
-- CloudWatch for logs and metrics
-
-### Helm (Kubernetes)
-
-```
-helm install oauth4os deploy/helm/oauth4os \
-  --set upstream.engine=https://opensearch:9200 \
-  --set providers[0].issuer=https://keycloak/realms/os
-```
-
-## Integration Points
-
-### MCP Server (`examples/mcp-server/`)
-
-Reference AI agent integration. Python MCP server with 7 tools:
-
-- `search_logs`, `aggregate`, `get_indices`, `get_mappings` (read)
-- `create_index`, `delete_docs` (write)
-- `get_cluster_health` (admin)
-
-Authenticates via client_credentials, auto-refreshes tokens.
-
-### OSD Plugin (`plugins/oauth4os-dashboards/`)
-
-OpenSearch Dashboards plugin for token management UI:
-- List active tokens
-- Create scoped tokens
-- Revoke tokens
-- View token details
-
-### CLI (`cmd/cli/`)
-
-Command-line tool for token management:
-- `oauth4os login` — OIDC login flow
-- `oauth4os create-token` — Issue scoped token
-- `oauth4os revoke-token` — Revoke token
-- `oauth4os status` — Show current auth state
-- Config file: `~/.oauth4os.yaml`
-- Token caching with auto-refresh
+---
 
 ## Metrics
 
-Prometheus metrics exposed at `GET /metrics`:
+The proxy exposes Prometheus metrics at `GET /metrics`:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `oauth4os_requests_total` | counter | Total proxied requests |
-| `oauth4os_requests_active` | gauge | Currently in-flight requests |
-| `oauth4os_requests_failed` | counter | Failed requests (auth + policy) |
-| `oauth4os_auth_success` | counter | Successful JWT validations |
-| `oauth4os_auth_failed` | counter | Failed JWT validations |
-| `oauth4os_cedar_denied` | counter | Cedar policy denials |
-| `oauth4os_rate_limited` | counter | Rate-limited requests (429s) |
-| `oauth4os_upstream_errors` | counter | Upstream connection failures |
-| `oauth4os_uptime_seconds` | gauge | Proxy uptime |
+| `oauth4os_requests_total` | Counter | Total proxied requests |
+| `oauth4os_requests_active` | Gauge | In-flight requests |
+| `oauth4os_requests_failed` | Counter | Failed requests (4xx/5xx) |
+| `oauth4os_auth_success` | Counter | Successful JWT validations |
+| `oauth4os_auth_failed` | Counter | Failed JWT validations |
+| `oauth4os_cedar_denied` | Counter | Cedar policy denials |
+| `oauth4os_rate_limited` | Counter | Rate limit rejections |
+| `oauth4os_upstream_errors` | Counter | Upstream connection errors |
+| `oauth4os_uptime_seconds` | Gauge | Proxy uptime |
 
-## Directory Structure
+---
+
+## Configuration Loading
 
 ```
-cmd/
-  proxy/              Main proxy binary
-  cli/                CLI tool
-internal/
-  jwt/                JWT validation + JWKS cache
-  scope/              Scope-to-role mapping (multi-tenant)
-  cedar/              Cedar policy engine (multi-tenant)
-  token/              Token lifecycle (issue/revoke/list/introspect)
-  introspect/         RFC 7662 token introspection
-  pkce/               RFC 7636 PKCE for browser clients
-  ratelimit/          Per-client token bucket rate limiting
-  config/             YAML config loader
-  audit/              Structured request audit logging
-plugins/
-  oauth4os-dashboards/  OSD plugin for token management UI
-examples/
-  mcp-server/         Reference MCP server for AI agents
-deploy/
-  cdk/                AWS CDK stack
-  helm/               Kubernetes Helm chart
-  keycloak/           Keycloak realm config for testing
-test/
-  integration/        Scope enforcement, Cedar, proxy tests
-  e2e/                Full docker-compose end-to-end tests
-bench/                Go benchmarks (JWT, scope, Cedar, proxy)
+ Startup
+    │
+    ▼
+ Load config.yaml
+    │
+    ├─▶ upstream.engine / upstream.dashboards
+    ├─▶ providers[] → JWKS URLs → background refresh
+    ├─▶ scope_mapping → in-memory lookup table
+    ├─▶ rate_limits → per-client token buckets
+    ├─▶ ip_filter → CIDR parsers per client
+    ├─▶ mtls → load CA certificate pool
+    ├─▶ clusters[] → federation router
+    ├─▶ sigv4 → AWS credential chain
+    └─▶ listen address + TLS config
+         │
+         ▼
+    Start HTTP(S) server
+    Register graceful shutdown (SIGTERM/SIGINT)
 ```
+
+All configuration is hot-reloadable via the Admin API (`/admin/*`) without restarting the proxy.
+
+---
+
+## Dependencies
+
+oauth4os uses only 2 external Go modules:
+
+| Module | Purpose |
+|--------|---------|
+| `github.com/golang-jwt/jwt/v5` | JWT parsing and validation |
+| `gopkg.in/yaml.v3` | YAML config file parsing |
+
+Everything else — HTTP server, TLS, crypto, rate limiting, tracing, reverse proxy — uses Go's standard library. This minimizes supply chain risk and keeps the binary under 15MB.

@@ -22,7 +22,7 @@ ${BOLD}USAGE:${NC}
 ${BOLD}COMMANDS:${NC}
   login              Authenticate via browser (PKCE flow)
   logout             Clear cached token
-  search <query>     Search logs (e.g. 'level:ERROR')
+  search <query>     Search logs with KQL (e.g. 'level:ERROR')
   tail [service]     Live tail — poll every 2s, show new entries
   services           List indexed services
   indices            List OpenSearch indices
@@ -33,10 +33,22 @@ ${BOLD}COMMANDS:${NC}
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
 
+${BOLD}KQL SYNTAX:${NC}
+  field:value              Exact match (service:payment)
+  field:>N / field:<N      Range (latency_ms:>500)
+  field:>=N / field:<=N    Range inclusive
+  field:val*               Wildcard (service:pay*)
+  term1 AND term2          Both must match
+  term1 OR term2           Either matches
+  NOT term                 Exclude
+
 ${BOLD}EXAMPLES:${NC}
   oauth4os-demo login
   oauth4os-demo search 'level:ERROR'
   oauth4os-demo search 'service:payment AND level:WARN'
+  oauth4os-demo search 'latency_ms:>500'
+  oauth4os-demo search 'service:auth* AND NOT level:INFO'
+  oauth4os-demo tail payment
   oauth4os-demo services
 EOF
   exit 0
@@ -134,14 +146,119 @@ cmd_logout() {
   echo -e "${GREEN}Logged out${NC}"
 }
 
+kql_to_dsl() {
+  # Convert KQL-style query to OpenSearch query DSL JSON
+  # Supports: field:value, field:>N, field:<N, field:>=N, field:<=N, AND, OR, NOT, wildcards
+  local input="$1"
+
+  # Pass-through for simple wildcard or empty
+  if [ "$input" = "*" ] || [ -z "$input" ]; then
+    echo '{"match_all":{}}'
+    return
+  fi
+
+  # Split on AND/OR and build bool query
+  # For simple single-term KQL like "service:payment" or "level:ERROR"
+  local clauses=() op="must"
+  local remaining="$input"
+
+  # Normalize: ensure spaces around AND/OR/NOT
+  remaining=$(echo "$remaining" | sed 's/  */ /g')
+
+  # Build using jq for safe JSON construction
+  local must_clauses=() must_not_clauses=() should_clauses=()
+  local use_should=false negate=false
+
+  for token in $remaining; do
+    case "$token" in
+      AND) op="must"; continue ;;
+      OR)  use_should=true; op="should"; continue ;;
+      NOT) negate=true; continue ;;
+    esac
+
+    local clause=""
+    if echo "$token" | grep -q ':>='; then
+      local field="${token%%:>=*}" val="${token#*:>=}"
+      clause="{\"range\":{\"${field}\":{\"gte\":${val}}}}"
+    elif echo "$token" | grep -q ':<='; then
+      local field="${token%%:<=*}" val="${token#*:<=}"
+      clause="{\"range\":{\"${field}\":{\"lte\":${val}}}}"
+    elif echo "$token" | grep -q ':>'; then
+      local field="${token%%:>*}" val="${token#*:>}"
+      clause="{\"range\":{\"${field}\":{\"gt\":${val}}}}"
+    elif echo "$token" | grep -q ':<'; then
+      local field="${token%%:<*}" val="${token#*:<}"
+      clause="{\"range\":{\"${field}\":{\"lt\":${val}}}}"
+    elif echo "$token" | grep -q ':'; then
+      local field="${token%%:*}" val="${token#*:}"
+      if echo "$val" | grep -q '[*?]'; then
+        clause="{\"wildcard\":{\"${field}.keyword\":{\"value\":\"${val}\"}}}"
+      else
+        clause="{\"match\":{\"${field}\":\"${val}\"}}"
+      fi
+    else
+      clause="{\"multi_match\":{\"query\":\"${token}\",\"fields\":[\"message\",\"service\",\"level\"]}}"
+    fi
+
+    if $negate; then
+      must_not_clauses+=("$clause")
+      negate=false
+    elif [ "$op" = "should" ]; then
+      should_clauses+=("$clause")
+    else
+      must_clauses+=("$clause")
+    fi
+  done
+
+  # Assemble bool query
+  local parts=()
+  if [ ${#must_clauses[@]} -gt 0 ]; then
+    local joined=$(IFS=,; echo "${must_clauses[*]}")
+    parts+=("\"must\":[${joined}]")
+  fi
+  if [ ${#must_not_clauses[@]} -gt 0 ]; then
+    local joined=$(IFS=,; echo "${must_not_clauses[*]}")
+    parts+=("\"must_not\":[${joined}]")
+  fi
+  if [ ${#should_clauses[@]} -gt 0 ]; then
+    local joined=$(IFS=,; echo "${should_clauses[*]}")
+    parts+=("\"should\":[${joined}],\"minimum_should_match\":1")
+  fi
+
+  if [ ${#parts[@]} -eq 0 ]; then
+    echo '{"match_all":{}}'
+  elif [ ${#must_clauses[@]} -eq 1 ] && [ ${#must_not_clauses[@]} -eq 0 ] && [ ${#should_clauses[@]} -eq 0 ]; then
+    echo "${must_clauses[0]}"
+  else
+    local joined=$(IFS=,; echo "${parts[*]}")
+    echo "{\"bool\":{${joined}}}"
+  fi
+}
+
 cmd_search() {
   local query="${1:-*}"
-  curl -sf -H "$(auth_header)" \
-    "${PROXY}/demo-logs/_search" \
+  local dsl
+  dsl=$(kql_to_dsl "$query")
+  echo -e "${CYAN}Query:${NC} $query"
+  echo -e "${CYAN}DSL:${NC}   $dsl\n"
+  local body="{\"query\":${dsl},\"size\":20,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
+  local resp
+  resp=$(curl -sf -H "$(auth_header)" \
+    "${PROXY}/logs-*/_search" \
     -H "Content-Type: application/json" \
-    -d "{\"query\":{\"query_string\":{\"query\":\"${query}\"}},\"size\":20,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}" \
-    | jq -r '.hits.hits[]._source | "\(.["@timestamp"]) [\(.level)] \(.service): \(.message)"' 2>/dev/null \
-    || echo -e "${RED}Search failed. Are you logged in?${NC}"
+    -d "$body" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$resp" ]; then
+    echo -e "${RED}Search failed. Are you logged in?${NC}"
+    return 1
+  fi
+  local total
+  total=$(echo "$resp" | jq '.hits.total.value // (.hits.total // 0)' 2>/dev/null)
+  echo -e "${GREEN}${total} hits${NC}\n"
+  echo "$resp" | jq -r '.hits.hits[]._source | "\(.["@timestamp"] // .timestamp // "—") [\(.level // "INFO")] \(.service // "?"): \(.message // .msg // "")"' 2>/dev/null | while IFS= read -r line; do
+    if echo "$line" | grep -qi 'error\|fatal'; then echo -e "${RED}${line}${NC}"
+    elif echo "$line" | grep -qi 'warn'; then echo -e "${YELLOW}${line}${NC}"
+    else echo "$line"; fi
+  done
 }
 
 cmd_services() {

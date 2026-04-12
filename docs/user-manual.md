@@ -19,7 +19,13 @@
 15. [AI Agent Integration](#ai-agent-integration)
 16. [Deployment](#deployment)
 17. [Monitoring](#monitoring)
-18. [Troubleshooting](#troubleshooting)
+18. [Developer Portal](#developer-portal)
+19. [Demo App & CLI Installer](#demo-app--cli-installer)
+20. [Client CRUD & Secret Rotation](#client-crud--secret-rotation)
+21. [Sliding Window Token Refresh](#sliding-window-token-refresh)
+22. [Webhook Authorization](#webhook-authorization)
+23. [mTLS Client Authentication](#mtls-client-authentication)
+24. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -752,6 +758,189 @@ All proxy logs are JSON-formatted for log aggregation (ELK, Loki, CloudWatch):
 {"level":"warn","msg":"rate limit exceeded","client_id":"my-agent","rpm":60,"timestamp":"2025-01-15T10:30:00Z"}
 {"level":"error","msg":"upstream error","error":"connection refused","upstream":"engine","timestamp":"2025-01-15T10:30:01Z"}
 ```
+
+---
+
+## Developer Portal
+
+The proxy serves a built-in developer portal at the root URL (`/`). It provides:
+
+- Live API documentation with all OAuth endpoints
+- Interactive "Try it" buttons for token issuance and introspection
+- Client registration form
+- Real-time metrics (requests, auth success/failure, Cedar denials)
+- Links to the demo app, CLI installer, and OpenAPI spec
+
+No separate deployment needed — the portal is embedded in the proxy binary.
+
+---
+
+## Demo App & CLI Installer
+
+### Demo Web App (`/demo`)
+
+A log viewer dashboard demonstrating the full PKCE auth flow:
+
+1. Visit `/demo` — shows login page
+2. Click "Login with oauth4os" — redirects to PKCE authorize endpoint
+3. Approve on consent screen — redirects back with authorization code
+4. App exchanges code for token (client-side, no backend secret needed)
+5. Dashboard loads — search logs, filter by service/level
+
+The demo also includes a scope enforcement section: try a `read` request (allowed) vs a `write` request (denied with 403).
+
+### CLI Installer
+
+Install the demo CLI with one command:
+
+```bash
+curl -sL https://your-proxy-url/install.sh | bash
+```
+
+The installer detects Linux/Mac, downloads the CLI wrapper, and adds it to PATH. Usage:
+
+```bash
+oauth4os-demo login          # Opens browser for PKCE flow, caches token
+oauth4os-demo search 'level:ERROR'   # Search logs through the proxy
+oauth4os-demo services       # List indexed services
+oauth4os-demo token          # Show current token info
+```
+
+---
+
+## Client CRUD & Secret Rotation
+
+### Register a Client
+
+```bash
+curl -X POST https://proxy/oauth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"client_name":"my-app","scope":"read:logs-*","redirect_uris":["http://localhost:8080/callback"]}'
+```
+
+Response includes `client_id` and `client_secret`. Store the secret securely — it cannot be retrieved later.
+
+### List Clients
+
+```bash
+curl -H 'Authorization: Bearer <admin-token>' https://proxy/admin/clients
+```
+
+### Update a Client
+
+```bash
+curl -X PUT https://proxy/admin/clients/<client_id> \
+  -H 'Authorization: Bearer <admin-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"scope":"read:logs-* write:logs-*","redirect_uris":["https://app.example.com/callback"]}'
+```
+
+### Delete a Client
+
+```bash
+curl -X DELETE https://proxy/admin/clients/<client_id> \
+  -H 'Authorization: Bearer <admin-token>'
+```
+
+### Secret Rotation
+
+Rotate a client's secret without downtime:
+
+```bash
+curl -X POST https://proxy/admin/clients/<client_id>/rotate-secret \
+  -H 'Authorization: Bearer <admin-token>'
+```
+
+Returns a new `client_secret`. The old secret remains valid for a grace period (default: 24 hours) to allow rolling updates.
+
+---
+
+## Sliding Window Token Refresh
+
+Tokens automatically extend their expiry on active use. When a token is used for an authenticated request and less than half its lifetime remains, the expiry is extended by the full window (default: 1 hour).
+
+**Behavior:**
+- Token issued with 1hr expiry
+- Each request: if <30min remaining, extend to now + 1hr
+- Idle tokens expire normally at their original expiry
+- Revoked tokens are never extended
+
+This eliminates the need for explicit refresh token flows in long-running sessions while still expiring idle tokens.
+
+**Configuration:** The sliding window is enabled by default. To disable, set `token.sliding_window: false` in config.yaml.
+
+---
+
+## Webhook Authorization
+
+Call an external webhook for custom auth decisions after JWT validation and Cedar evaluation. Use cases: LDAP group checks, compliance engines, internal policy systems.
+
+### Configuration
+
+```yaml
+webhook:
+  url: https://auth-webhook.internal.example.com/check
+  timeout_ms: 2000
+  fail_open: false   # deny on webhook error (default)
+  headers:
+    X-Api-Key: "your-webhook-api-key"
+```
+
+### Webhook Request (POST)
+
+```json
+{
+  "client_id": "my-app",
+  "sub": "user@example.com",
+  "scopes": ["read:logs-*"],
+  "action": "GET",
+  "resource": "/logs-prod/_search",
+  "ip": "10.0.1.50:43210"
+}
+```
+
+### Webhook Response
+
+```json
+{"allowed": true}
+```
+
+Or to deny:
+
+```json
+{"allowed": false, "reason": "compliance block"}
+```
+
+If the webhook is unreachable and `fail_open: false` (default), the request is denied.
+
+---
+
+## mTLS Client Authentication
+
+Authenticate clients via TLS client certificates as an alternative to Bearer tokens. Useful for service-to-service communication where certificate infrastructure already exists.
+
+### Configuration
+
+```yaml
+mtls:
+  clients:
+    "service-a.example.com":    # certificate CN or SAN
+      client_id: "service-a"
+      scopes: ["read:logs-*", "write:logs-*"]
+    "monitoring.example.com":
+      client_id: "monitoring"
+      scopes: ["read:logs-*"]
+```
+
+### How It Works
+
+1. Client connects with TLS client certificate
+2. Proxy extracts CN/SAN from the peer certificate
+3. Looks up the CN in the configured client map
+4. If found: sets X-Proxy-User and X-Proxy-Roles headers, forwards to OpenSearch
+5. If not found: falls through to Bearer token auth
+
+mTLS and Bearer token auth are not mutually exclusive — mTLS is checked first when no Bearer token is present.
 
 ---
 

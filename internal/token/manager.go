@@ -31,18 +31,22 @@ type Client struct {
 
 // Manager handles token lifecycle.
 type Manager struct {
-	tokens   map[string]*Token
-	refresh  map[string]string // refresh_token -> token_id
-	clients  map[string]*Client
-	mu       sync.RWMutex
+	tokens      map[string]*Token
+	refresh     map[string]string // refresh_token -> token_id
+	usedRefresh map[string]string // used refresh_token -> client_id (reuse detection)
+	families    map[string][]string // client_id -> [token_ids] (for family revocation)
+	clients     map[string]*Client
+	mu          sync.RWMutex
 }
 
 // NewManager creates a token manager.
 func NewManager() *Manager {
 	return &Manager{
-		tokens:  make(map[string]*Token),
-		refresh: make(map[string]string),
-		clients: make(map[string]*Client),
+		tokens:      make(map[string]*Token),
+		refresh:     make(map[string]string),
+		usedRefresh: make(map[string]string),
+		families:    make(map[string][]string),
+		clients:     make(map[string]*Client),
 	}
 }
 
@@ -117,6 +121,15 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m.mu.Lock()
+
+	// Reuse detection: if this refresh token was already used, revoke entire family
+	if stolenClient, reused := m.usedRefresh[refreshToken]; reused {
+		m.revokeFamily(stolenClient)
+		m.mu.Unlock()
+		writeError(w, http.StatusBadRequest, "invalid_grant", "refresh token reuse detected — all tokens revoked")
+		return
+	}
+
 	oldTokenID, ok := m.refresh[refreshToken]
 	if !ok {
 		m.mu.Unlock()
@@ -132,6 +145,7 @@ func (m *Manager) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	// Revoke old token + refresh token (rotation)
 	oldToken.Revoked = true
 	delete(m.refresh, refreshToken)
+	m.usedRefresh[refreshToken] = clientID // track for reuse detection
 	m.mu.Unlock()
 
 	tok, newRefresh := m.createToken(clientID, oldToken.Scopes)

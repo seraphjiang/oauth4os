@@ -101,7 +101,8 @@ func main() {
 	engineProxy.Transport = transport
 	engineProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		upstreamErrors.Add(1)
-		http.Error(w, `{"error":"upstream_error","message":"`+err.Error()+`"}`, http.StatusBadGateway)
+		log.Printf("upstream error: %v", err) // log internally, don't expose
+		http.Error(w, `{"error":"upstream_error","message":"upstream unavailable"}`, http.StatusBadGateway)
 	}
 
 	dashboardsProxy := httputil.NewSingleHostReverseProxy(dashboardsURL)
@@ -186,6 +187,11 @@ func main() {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			// Strip proxy-trust headers on unauthenticated path — prevents impersonation
+			r.Header.Del("X-Proxy-User")
+			r.Header.Del("X-Proxy-Roles")
+			r.Header.Del("X-Proxy-Scopes")
+			r.Header.Del("Cookie")
 			engineProxy.ServeHTTP(w, r)
 			return
 		}
@@ -195,7 +201,7 @@ func main() {
 		if err != nil {
 			authFailed.Add(1)
 			requestsFailed.Add(1)
-			http.Error(w, `{"error":"invalid_token","message":"`+err.Error()+`"}`, http.StatusUnauthorized)
+			http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
 			return
 		}
 		authSuccess.Add(1)
@@ -217,11 +223,12 @@ func main() {
 		if !decision.Allowed {
 			cedarDenied.Add(1)
 			requestsFailed.Add(1)
-			http.Error(w, `{"error":"forbidden","reason":"`+decision.Reason+`","policy":"`+decision.Policy+`"}`, http.StatusForbidden)
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 
 		r.Header.Del("Authorization")
+		r.Header.Del("Cookie")
 		r.Header.Set("X-Proxy-User", claims.ClientID)
 		r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
 		r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))

@@ -1,0 +1,73 @@
+groups:
+  - name: oauth4os
+    interval: 30s
+    rules:
+      # Auth failures spike — possible brute force or misconfigured client
+      - alert: HighAuthFailureRate
+        expr: rate(oauth4os_auth_failed[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High auth failure rate ({{ $value | printf \"%.1f\" }}/s)"
+          description: "Auth failures exceeding 10/s for 2+ minutes. Check for brute force or misconfigured clients."
+
+      # Auth failure ratio — most requests failing
+      - alert: AuthFailureRatioHigh
+        expr: oauth4os_auth_failed / (oauth4os_auth_success + oauth4os_auth_failed) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Over 50% of auth attempts failing"
+          description: "More than half of authentication attempts are failing. Possible JWKS issue or provider outage."
+
+      # Cedar denials spike
+      - alert: CedarDenialSpike
+        expr: rate(oauth4os_cedar_denied[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cedar policy denials spiking ({{ $value | printf \"%.1f\" }}/s)"
+          description: "Elevated Cedar denials — clients may be requesting out-of-scope resources."
+
+      # Rate limiting active
+      - alert: RateLimitingActive
+        expr: rate(oauth4os_rate_limited[5m]) > 1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Clients being rate limited ({{ $value | printf \"%.1f\" }}/s)"
+          description: "Rate limiting is actively throttling requests. Consider adjusting limits if legitimate."
+
+      # Upstream errors — OpenSearch unreachable
+      - alert: UpstreamErrors
+        expr: rate(oauth4os_upstream_errors[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Upstream OpenSearch errors ({{ $value | printf \"%.1f\" }}/s)"
+          description: "Proxy cannot reach OpenSearch. Check upstream connectivity and health."
+
+      # High error rate overall
+      - alert: HighErrorRate
+        expr: rate(oauth4os_requests_failed[5m]) / rate(oauth4os_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error rate above 10% ({{ $value | printf \"%.1f%%\" }})"
+          description: "More than 10% of requests are failing."
+
+      # Proxy down
+      - alert: ProxyDown
+        expr: up{job="oauth4os"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "oauth4os proxy is down"
+          description: "Prometheus cannot scrape the oauth4os /metrics endpoint."

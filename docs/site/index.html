@@ -18,6 +18,7 @@
     <div class="logo">🔐 oauth<span>4os</span></div>
     <nav>
       <a href="#quickstart">Quickstart</a>
+      <a href="#try-it">Try It</a>
       <a href="#architecture">Architecture</a>
       <a href="#features">Features</a>
       <a href="#docs">Docs</a>
@@ -146,6 +147,84 @@ oauth4os status</code></pre>
     </div>
   </div>
 </section>
+
+<section class="try-it" id="try-it">
+  <div class="container">
+    <h2>🧪 Try It Now</h2>
+    <p>This demo proxy is live. Click the buttons or paste the curl commands in your terminal.</p>
+    <div class="try-grid">
+      <div class="try-card">
+        <h3>1. Check Health</h3>
+        <pre id="health-cmd"><code>curl https://oauth4os.huanji.profile.aws.dev/health</code></pre>
+        <button class="btn btn-sm" onclick="runDemo('health')">▶ Run</button>
+        <pre class="result" id="health-result"></pre>
+      </div>
+      <div class="try-card">
+        <h3>2. Get a Token</h3>
+        <pre><code>curl -X POST https://oauth4os.huanji.profile.aws.dev/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=demo-agent" \
+  -d "client_secret=demo-secret" \
+  -d "scope=read:logs-*"</code></pre>
+        <button class="btn btn-sm" onclick="runDemo('token')">▶ Run</button>
+        <pre class="result" id="token-result"></pre>
+      </div>
+      <div class="try-card">
+        <h3>3. List Tokens</h3>
+        <pre><code>curl https://oauth4os.huanji.profile.aws.dev/oauth/tokens</code></pre>
+        <button class="btn btn-sm" onclick="runDemo('list')">▶ Run</button>
+        <pre class="result" id="list-result"></pre>
+      </div>
+      <div class="try-card">
+        <h3>4. View Metrics</h3>
+        <pre><code>curl https://oauth4os.huanji.profile.aws.dev/metrics</code></pre>
+        <button class="btn btn-sm" onclick="runDemo('metrics')">▶ Run</button>
+        <pre class="result" id="metrics-result"></pre>
+      </div>
+    </div>
+    <p class="try-note">Also try: <a href="playground.html">Cedar Policy Playground</a> · <a href="analytics.html">Token Analytics Dashboard</a></p>
+  </div>
+</section>
+
+<script>
+const BASE = window.location.origin;
+async function runDemo(type) {
+  const el = document.getElementById(type + '-result');
+  el.textContent = 'Loading...';
+  try {
+    let resp, data;
+    switch(type) {
+      case 'health':
+        resp = await fetch(BASE + '/health');
+        data = await resp.json();
+        el.textContent = JSON.stringify(data, null, 2);
+        break;
+      case 'token':
+        resp = await fetch(BASE + '/oauth/token', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+        });
+        data = await resp.json();
+        el.textContent = JSON.stringify(data, null, 2);
+        window._demoToken = data.access_token;
+        break;
+      case 'list':
+        resp = await fetch(BASE + '/oauth/tokens');
+        data = await resp.json();
+        el.textContent = JSON.stringify(data, null, 2);
+        break;
+      case 'metrics':
+        resp = await fetch(BASE + '/metrics');
+        data = await resp.text();
+        el.textContent = data.split('\n').slice(0, 20).join('\n') + '\n...';
+        break;
+    }
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message + '\n\n(Proxy may not be running — try the curl commands in your terminal instead)';
+  }
+}
+</script>
 
 <section class="features" id="features">
   <div class="container">

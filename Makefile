@@ -42,6 +42,12 @@ release: lint test build-all docker
 clean:
 	rm -rf bin/ dist/
 
+## Dependencies
+tidy:
+	@command -v go >/dev/null 2>&1 && go mod tidy || \
+		docker run --rm -v $(CURDIR):/app -w /app golang:1.22-alpine go mod tidy
+	@echo "go.sum updated"
+
 # Start demo environment
 demo-up:
 	docker compose -f docker-compose.demo.yml up -d

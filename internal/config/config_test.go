@@ -73,3 +73,40 @@ func TestLoadInvalidYAML(t *testing.T) {
 		t.Error("expected error for invalid YAML")
 	}
 }
+
+func TestLoadWithTenants(t *testing.T) {
+	content := `
+upstream:
+  engine: http://localhost:9200
+tenants:
+  "https://tenant-a.example.com":
+    scope_mapping:
+      "read:logs":
+        backend_roles: [tenant_a_read]
+    cedar_policies:
+      - 'permit(*, *, *);'
+rate_limits:
+  "read:logs": 100
+  "admin": 10
+listen: ":8443"
+`
+	f, _ := os.CreateTemp("", "oauth4os-tenant-*.yaml")
+	f.WriteString(content)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	tenant, ok := cfg.Tenants["https://tenant-a.example.com"]
+	if !ok {
+		t.Fatal("missing tenant")
+	}
+	if len(tenant.CedarPolicies) != 1 {
+		t.Errorf("expected 1 cedar policy, got %d", len(tenant.CedarPolicies))
+	}
+	if cfg.RateLimits["read:logs"] != 100 {
+		t.Errorf("expected rate_limit 100, got %d", cfg.RateLimits["read:logs"])
+	}
+}

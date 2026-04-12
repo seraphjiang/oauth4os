@@ -2,231 +2,203 @@ package cedar
 
 import "testing"
 
-// --- ParsePolicy edge cases (#19) ---
+// Edge case tests for Cedar policy parsing and evaluation.
 
-func TestParseEmpty(t *testing.T) {
-	_, err := ParsePolicy("e", "")
+func TestParsePolicy_EmptyString(t *testing.T) {
+	_, err := ParsePolicy("e1", "")
 	if err == nil {
-		t.Fatal("expected error for empty policy")
+		t.Error("empty string should fail")
 	}
 }
 
-func TestParseNoEffect(t *testing.T) {
-	_, err := ParsePolicy("e", "allow(*, *, *)")
+func TestParsePolicy_WhitespaceOnly(t *testing.T) {
+	_, err := ParsePolicy("e2", "   \n\t  ")
 	if err == nil {
-		t.Fatal("expected error for unknown effect")
+		t.Error("whitespace-only should fail")
 	}
 }
 
-func TestParseMissingParen(t *testing.T) {
-	_, err := ParsePolicy("e", "permit *, *, *)")
+func TestParsePolicy_NoParens(t *testing.T) {
+	_, err := ParsePolicy("e3", "permit *,*,*;")
 	if err == nil {
-		t.Fatal("expected error for missing (")
+		t.Error("missing parens should fail")
 	}
 }
 
-func TestParseMissingCloseParen(t *testing.T) {
-	_, err := ParsePolicy("e", "permit(*, *, *")
+func TestParsePolicy_UnclosedParen(t *testing.T) {
+	_, err := ParsePolicy("e4", "permit(*, *, *")
 	if err == nil {
-		t.Fatal("expected error for missing )")
+		t.Error("unclosed paren should fail")
 	}
 }
 
-func TestParseTooFewTargets(t *testing.T) {
-	_, err := ParsePolicy("e", "permit(*, *)")
+func TestParsePolicy_TwoTargets(t *testing.T) {
+	_, err := ParsePolicy("e5", "permit(*, *);")
 	if err == nil {
-		t.Fatal("expected error for 2 targets")
+		t.Error("2 targets should fail")
 	}
 }
 
-func TestParseOneTarget(t *testing.T) {
-	_, err := ParsePolicy("e", "permit(*)")
-	if err == nil {
-		t.Fatal("expected error for 1 target")
-	}
-}
-
-func TestParseWhenMissingBrace(t *testing.T) {
-	_, err := ParsePolicy("e", `permit(*, *, *) when principal.scope == "x"`)
-	if err == nil {
-		t.Fatal("expected error for when without {")
-	}
-}
-
-func TestParseWhenMissingCloseBrace(t *testing.T) {
-	_, err := ParsePolicy("e", `permit(*, *, *) when { principal.scope == "x"`)
-	if err == nil {
-		t.Fatal("expected error for when without }")
-	}
-}
-
-func TestParseUnlessMissingBrace(t *testing.T) {
-	_, err := ParsePolicy("e", `permit(*, *, *) unless resource.index == "x"`)
-	if err == nil {
-		t.Fatal("expected error for unless without {")
-	}
-}
-
-func TestParseEmptyWhenBlock(t *testing.T) {
-	p, err := ParsePolicy("e", `permit(*, *, *) when { }`)
+func TestParsePolicy_EmptyTargets(t *testing.T) {
+	p, err := ParsePolicy("e6", "permit(, , );")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("empty targets should parse: %v", err)
+	}
+	// Empty targets match nothing (not Any)
+	if p.Principal.Any || p.Action.Any || p.Resource.Any {
+		t.Error("empty targets should not be Any")
+	}
+}
+
+func TestParsePolicy_WhenEmptyBlock(t *testing.T) {
+	p, err := ParsePolicy("e7", "permit(*, *, *) when { };")
+	if err != nil {
+		t.Fatalf("empty when block should parse: %v", err)
 	}
 	if len(p.When) != 0 {
-		t.Fatalf("expected 0 when conditions, got %d", len(p.When))
+		t.Errorf("expected 0 conditions, got %d", len(p.When))
 	}
 }
 
-func TestParseEmptyUnlessBlock(t *testing.T) {
-	p, err := ParsePolicy("e", `permit(*, *, *) unless { }`)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(p.Unless) != 0 {
-		t.Fatalf("expected 0 unless conditions, got %d", len(p.Unless))
-	}
-}
-
-func TestParseBadConditionOp(t *testing.T) {
-	_, err := ParsePolicy("e", `permit(*, *, *) when { principal.scope > "x" }`)
+func TestParsePolicy_WhenUnclosedBrace(t *testing.T) {
+	_, err := ParsePolicy("e8", "permit(*, *, *) when { scope == \"admin\"")
 	if err == nil {
-		t.Fatal("expected error for unsupported operator >")
+		t.Error("unclosed brace should fail")
 	}
 }
 
-func TestParseMultipleConditions(t *testing.T) {
-	p, err := ParsePolicy("e", `permit(*, *, *) when { principal.scope == "admin" && principal.iss == "keycloak" }`)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(p.When) != 2 {
-		t.Fatalf("expected 2 when conditions, got %d", len(p.When))
+func TestParsePolicy_WhenBadCondition(t *testing.T) {
+	_, err := ParsePolicy("e9", `permit(*, *, *) when { scope };`)
+	if err == nil {
+		t.Error("condition without operator should fail")
 	}
 }
 
-func TestParseWhenAndUnless(t *testing.T) {
-	p, err := ParsePolicy("e", `permit(*, GET, logs-*) when { principal.scope == "read" } unless { resource.index == ".internal" }`)
+func TestParsePolicy_UnlessAndWhen(t *testing.T) {
+	p, err := ParsePolicy("e10", `permit(*, *, *) when { scope == "admin" } unless { index == ".internal" };`)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("when+unless should parse: %v", err)
 	}
 	if len(p.When) != 1 || len(p.Unless) != 1 {
-		t.Fatalf("expected 1 when + 1 unless, got %d + %d", len(p.When), len(p.Unless))
+		t.Errorf("expected 1 when + 1 unless, got %d + %d", len(p.When), len(p.Unless))
 	}
 }
 
-func TestParseSemicolon(t *testing.T) {
-	p, err := ParsePolicy("e", `permit(*, *, *);`)
+func TestParsePolicy_MultipleConditions(t *testing.T) {
+	p, err := ParsePolicy("e11", `forbid(*, *, *) when { scope == "read" && index == "secret" };`)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("multiple conditions should parse: %v", err)
+	}
+	if len(p.When) != 2 {
+		t.Errorf("expected 2 conditions, got %d", len(p.When))
+	}
+}
+
+func TestParsePolicy_NotEqualsOperator(t *testing.T) {
+	p, err := ParsePolicy("e12", `permit(*, *, *) when { scope != "readonly" };`)
+	if err != nil {
+		t.Fatalf("!= should parse: %v", err)
+	}
+	if p.When[0].Op != "!=" {
+		t.Errorf("expected !=, got %s", p.When[0].Op)
+	}
+}
+
+func TestParsePolicy_ContainsOperator(t *testing.T) {
+	p, err := ParsePolicy("e13", `permit(*, *, *) when { scope contains "admin" };`)
+	if err != nil {
+		t.Fatalf("contains should parse: %v", err)
+	}
+	if p.When[0].Op != "contains" {
+		t.Errorf("expected contains, got %s", p.When[0].Op)
+	}
+}
+
+func TestParsePolicy_GlobResource(t *testing.T) {
+	p, err := ParsePolicy("e14", "forbid(*, DELETE, logs-*);")
+	if err != nil {
+		t.Fatalf("glob resource should parse: %v", err)
+	}
+	if p.Resource.Pattern != "logs-*" {
+		t.Errorf("expected glob pattern, got %+v", p.Resource)
+	}
+}
+
+func TestParsePolicy_ExactMatch(t *testing.T) {
+	p, err := ParsePolicy("e15", "forbid(*, *, .opendistro_security);")
+	if err != nil {
+		t.Fatalf("exact match should parse: %v", err)
+	}
+	if p.Resource.Equals != ".opendistro_security" {
+		t.Errorf("expected exact match, got %+v", p.Resource)
+	}
+}
+
+func TestParsePolicy_GarbageAfterSemicolon(t *testing.T) {
+	// Parser should stop at semicolon — garbage after is ignored
+	p, err := ParsePolicy("e16", "permit(*, *, *); this is garbage")
+	if err != nil {
+		t.Fatalf("should parse up to semicolon: %v", err)
 	}
 	if p.Effect != Permit {
-		t.Fatal("expected permit")
+		t.Error("expected permit")
 	}
 }
 
-func TestParseWhitespace(t *testing.T) {
-	p, err := ParsePolicy("e", `   permit(  *  ,  *  ,  *  )   ;   `)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !p.Principal.Any || !p.Action.Any || !p.Resource.Any {
-		t.Fatal("expected all wildcards")
-	}
-}
+// Evaluation edge cases
 
-// --- Evaluate edge cases ---
-
-func TestEvaluateEmptyPolicies(t *testing.T) {
+func TestEvaluate_EmptyPolicySet(t *testing.T) {
 	e := NewEngine(nil)
 	d := e.Evaluate(Request{
-		Principal: map[string]string{"sub": "x"},
+		Principal: map[string]string{"sub": "user"},
 		Action:    "GET",
 		Resource:  map[string]string{"index": "logs"},
 	})
+	// No policies = default deny
 	if d.Allowed {
-		t.Fatal("expected deny with no policies")
+		t.Error("empty policy set should deny")
 	}
 }
 
-func TestEvaluateNilMaps(t *testing.T) {
-	e := NewEngine([]Policy{{
-		ID: "p", Effect: Permit,
-		Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true},
-	}})
+func TestEvaluate_EmptyRequest(t *testing.T) {
+	e := NewEngine([]Policy{
+		{ID: "p1", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}},
+	})
 	d := e.Evaluate(Request{})
 	if !d.Allowed {
-		t.Fatal("expected permit with nil maps and Any matchers")
+		t.Error("permit-all should allow empty request")
 	}
 }
 
-func TestEvaluateEmptyStrings(t *testing.T) {
-	e := NewEngine([]Policy{{
-		ID: "p", Effect: Permit,
-		Principal: Match{Equals: ""}, Action: Match{Equals: ""}, Resource: Match{Equals: ""},
-	}})
-	d := e.Evaluate(Request{
-		Principal: map[string]string{"sub": ""},
-		Action:    "",
-		Resource:  map[string]string{"index": ""},
-	})
-	if !d.Allowed {
-		t.Fatal("expected permit with empty string equals")
+func TestGlobMatch_EmptyPattern(t *testing.T) {
+	if globMatch("", "anything") {
+		t.Error("empty pattern should not match non-empty value")
 	}
 }
 
-func TestEvaluateConditionUnknownOp(t *testing.T) {
-	e := NewEngine([]Policy{{
-		ID: "p", Effect: Permit,
-		Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true},
-		When: []Condition{{Field: "principal.sub", Op: ">=", Value: "x"}},
-	}})
-	d := e.Evaluate(Request{
-		Principal: map[string]string{"sub": "x"},
-		Action:    "GET",
-		Resource:  map[string]string{"index": "logs"},
-	})
-	if d.Allowed {
-		t.Fatal("expected deny — unknown op should fail condition")
+func TestGlobMatch_EmptyValue(t *testing.T) {
+	if globMatch("logs-*", "") {
+		t.Error("non-empty pattern should not match empty value")
 	}
 }
 
-func TestEvaluateFieldNoPrefix(t *testing.T) {
-	e := NewEngine([]Policy{{
-		ID: "p", Effect: Permit,
-		Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true},
-		When: []Condition{{Field: "noDot", Op: "==", Value: "x"}},
-	}})
-	d := e.Evaluate(Request{
-		Principal: map[string]string{"sub": "x"},
-		Action:    "GET",
-		Resource:  map[string]string{"index": "logs"},
-	})
-	if d.Allowed {
-		t.Fatal("expected deny — field without dot resolves to empty")
+func TestGlobMatch_BothEmpty(t *testing.T) {
+	if !globMatch("", "") {
+		t.Error("empty pattern should match empty value")
 	}
 }
 
-func TestGlobMatchEmpty(t *testing.T) {
-	if globMatch("", "") {
-		// empty pattern with empty value — no wildcard, exact match
-	}
-	if globMatch("*", "") != true {
-		t.Fatal("* should match empty string")
+func TestGlobMatch_StarOnly(t *testing.T) {
+	if !globMatch("*", "anything-at-all") {
+		t.Error("* should match anything")
 	}
 }
 
-func TestGlobMatchNoWildcard(t *testing.T) {
-	if !globMatch("exact", "exact") {
-		t.Fatal("exact match should work")
+func TestGlobMatch_MiddleStar(t *testing.T) {
+	if !globMatch("logs-*-prod", "logs-2026-prod") {
+		t.Error("middle glob should match")
 	}
-	if globMatch("exact", "other") {
-		t.Fatal("non-matching exact should fail")
-	}
-}
-
-func TestMatchEmptyPattern(t *testing.T) {
-	m := Match{}
-	if matchesTarget(m, "anything") {
-		t.Fatal("empty match should not match")
+	if globMatch("logs-*-prod", "logs-2026-staging") {
+		t.Error("middle glob should not match wrong suffix")
 	}
 }

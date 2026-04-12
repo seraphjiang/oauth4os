@@ -581,10 +581,13 @@ token_expiry: 2025-01-15T11:30:00Z
 |--------|------|------|-------------|
 | `GET` | `/health` | None | Health check + version |
 | `GET` | `/metrics` | None | Prometheus metrics |
-| `POST` | `/oauth/token` | Client credentials | Issue token |
+| `POST` | `/oauth/token` | Client credentials | Issue token (client_credentials, refresh_token, authorization_code) |
 | `GET` | `/oauth/tokens` | Bearer | List tokens |
 | `GET` | `/oauth/token/{id}` | Bearer | Token details |
 | `DELETE` | `/oauth/token/{id}` | Bearer | Revoke token |
+| `POST` | `/oauth/introspect` | Bearer | Token introspection (RFC 7662) |
+| `GET` | `/oauth/authorize` | None | PKCE authorization (browser flow) |
+| `POST` | `/oauth/register` | Bearer (admin) | Dynamic client registration (RFC 7591) |
 | `*` | `/api/*` | Bearer or passthrough | Proxied to Dashboards |
 | `*` | `/*` | Bearer or passthrough | Proxied to Engine |
 
@@ -719,11 +722,35 @@ rate(oauth4os_cedar_denied[5m])
 
 ### Audit Log
 
-Every authenticated request is logged to stdout:
+Every authenticated request is logged as structured JSON to stdout:
 
+```json
+{
+  "timestamp": "2025-01-15T10:30:00Z",
+  "level": "info",
+  "request_id": "req_a1b2c3d4",
+  "client_id": "log-reader",
+  "scopes": ["read:logs-*"],
+  "method": "GET",
+  "path": "/logs-*/_search",
+  "status": 200,
+  "duration_ms": 42,
+  "upstream": "engine",
+  "cedar_decision": "permit",
+  "provider": "keycloak"
+}
 ```
-[2025-01-15T10:30:00Z] client=log-reader scopes=[read:logs-*] GET /logs-*/_search
-[2025-01-15T10:30:01Z] client=ci-pipeline scopes=[write:dashboards] POST /api/saved_objects/_import
+
+All proxied requests include an `X-Request-ID` header for distributed tracing. If the client sends one, it's preserved; otherwise the proxy generates a UUID.
+
+### Structured Logging
+
+All proxy logs are JSON-formatted for log aggregation (ELK, Loki, CloudWatch):
+
+```json
+{"level":"info","msg":"proxy started","addr":":8443","version":"0.2.0","timestamp":"2025-01-15T10:00:00Z"}
+{"level":"warn","msg":"rate limit exceeded","client_id":"my-agent","rpm":60,"timestamp":"2025-01-15T10:30:00Z"}
+{"level":"error","msg":"upstream error","error":"connection refused","upstream":"engine","timestamp":"2025-01-15T10:30:01Z"}
 ```
 
 ---

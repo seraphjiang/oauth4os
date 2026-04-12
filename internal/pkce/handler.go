@@ -260,6 +260,10 @@ func scopeIcon(s string) string {
 	}
 }
 
+type consentStrings struct {
+	Title, Subtitle, AppLabel, Permissions, WriteWarn, Deny, Approve, Footer string
+}
+
 func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []string) {
 	s := consentStrings{
 		Title: "Authorize — oauth4os", Subtitle: "An application is requesting access",
@@ -267,9 +271,8 @@ func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []s
 		WriteWarn: "This app is requesting write access", Deny: "Deny", Approve: "Approve",
 		Footer: "Authorizing will redirect you back to the application",
 	}
-	_ = s
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize — oauth4os</title><style>
+	fmt.Fprintf(w, `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize — oauth4os</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:40px;max-width:440px;width:100%;margin:20px}
@@ -298,7 +301,7 @@ h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;mar
 </style></head><body><div class="card">
 <div class="logo">🔐 oauth<span>4os</span></div>
 <div class="subtitle">%s</div>
-<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">%s</div><div class="app-id">`, s.Subtitle, s.AppLabel))
+<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">%s</div><div class="app-id">`, s.Subtitle, s.AppLabel)
 	// Escape clientID
 	for _, c := range clientID {
 		switch c {

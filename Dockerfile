@@ -7,8 +7,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -ldflags="-s -w" -o oauth4os ./cmd/proxy
 
-FROM scratch
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates
 COPY --from=builder /app/oauth4os /oauth4os
 COPY --from=builder /app/web /web
 COPY config.yaml /etc/oauth4os/config.yaml

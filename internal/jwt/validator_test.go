@@ -1,6 +1,9 @@
 package jwt
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	jwtgo "github.com/golang-jwt/jwt/v5"
@@ -141,5 +144,51 @@ func TestAudienceMatch(t *testing.T) {
 	}
 	if audienceMatch([]string{"a", "b"}, []string{"c"}) {
 		t.Fatal("expected no match")
+	}
+}
+
+func TestGetJWKS(t *testing.T) {
+	jwks := `{"keys":[{"kty":"RSA","kid":"test-key","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw","e":"AQAB","use":"sig","alg":"RS256"}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(jwks))
+	}))
+	defer srv.Close()
+
+	provider := &config.Provider{Name: "test", Issuer: "https://test.example.com", JWKSURI: srv.URL}
+	v := NewValidator([]config.Provider{*provider})
+	keys, err := v.getJWKS(provider, true)
+	if err != nil {
+		t.Fatalf("getJWKS failed: %v", err)
+	}
+	if len(keys) == 0 {
+		t.Fatal("expected at least 1 key")
+	}
+}
+
+func TestResolveJWKSURI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"issuer":%q,"jwks_uri":"https://example.com/.well-known/jwks.json"}`, "http://"+r.Host)
+	}))
+	defer srv.Close()
+
+	provider := &config.Provider{Name: "test", Issuer: srv.URL, JWKSURI: "auto"}
+	v := NewValidator([]config.Provider{*provider})
+	uri, err := v.resolveJWKSURI(provider)
+	if err != nil {
+		t.Fatalf("resolveJWKSURI failed: %v", err)
+	}
+	if uri != "https://example.com/.well-known/jwks.json" {
+		t.Errorf("expected jwks_uri, got %q", uri)
+	}
+}
+
+func TestResolveJWKSURI_Failure(t *testing.T) {
+	provider := &config.Provider{Name: "bad", Issuer: "http://localhost:1", JWKSURI: "auto"}
+	v := NewValidator([]config.Provider{*provider})
+	_, err := v.resolveJWKSURI(provider)
+	if err == nil {
+		t.Error("expected error for unreachable issuer")
 	}
 }

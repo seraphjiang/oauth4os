@@ -68,6 +68,13 @@ func (b *Breaker) Record(statusCode int) {
 	}
 }
 
+// State returns the current circuit breaker state.
+func (b *Breaker) State() State {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.state
+}
+
 // RetryAfter returns seconds until the circuit may close, or 0 if closed.
 func (b *Breaker) RetryAfter() int {
 	b.mu.Lock()

@@ -755,6 +755,24 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_uptime_seconds Proxy uptime\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_uptime_seconds gauge\n")
 		fmt.Fprintf(w, "oauth4os_uptime_seconds %d\n", int(time.Since(startTime).Seconds()))
+		fmt.Fprintf(w, "# HELP oauth4os_cache_hits Response cache hits\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_cache_hits counter\n")
+		fmt.Fprintf(w, "oauth4os_cache_hits %d\n", cacheHits.Load())
+		fmt.Fprintf(w, "# HELP oauth4os_cache_misses Response cache misses\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_cache_misses counter\n")
+		fmt.Fprintf(w, "oauth4os_cache_misses %d\n", cacheMisses.Load())
+		fmt.Fprintf(w, "# HELP oauth4os_circuit_opens Circuit breaker open events\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_circuit_opens counter\n")
+		fmt.Fprintf(w, "oauth4os_circuit_opens %d\n", circuitOpens.Load())
+		hs := upstreamChecker.Status()
+		fmt.Fprintf(w, "# HELP oauth4os_upstream_latency_ms Last upstream health check latency\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_upstream_latency_ms gauge\n")
+		fmt.Fprintf(w, "oauth4os_upstream_latency_ms %d\n", hs.Latency.Milliseconds())
+		healthy := 0
+		if hs.Healthy { healthy = 1 }
+		fmt.Fprintf(w, "# HELP oauth4os_upstream_healthy Upstream health (1=healthy, 0=unhealthy)\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_upstream_healthy gauge\n")
+		fmt.Fprintf(w, "oauth4os_upstream_healthy %d\n", healthy)
 	})
 
 	// Developer docs — Swagger UI
@@ -801,6 +819,7 @@ func main() {
 					authSuccess.Add(1)
 					r.Header.Set("X-Proxy-User", claims.ClientID)
 					r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))
+					r.Header.Set("X-Proxy-Key-ID", claims.KeyID)
 					roles := mapper.Map(claims.Scopes)
 					r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
 					auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)

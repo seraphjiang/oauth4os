@@ -62,7 +62,11 @@ func (w *RotatingWriter) rotate() {
 	os.Rename(w.path, w.path+".1")
 	// Remove oldest if over limit
 	os.Remove(fmt.Sprintf("%s.%d", w.path, w.maxFiles+1))
-	w.open()
+	if err := w.open(); err != nil {
+		// Fallback: reopen original path or write to stderr
+		w.file = os.Stderr
+		w.size = 0
+	}
 }
 
 // Close closes the underlying file.

@@ -94,3 +94,16 @@ func TestAutoRotation(t *testing.T) {
 		t.Fatal("key should have rotated")
 	}
 }
+
+func TestOnRotateCallback(t *testing.T) {
+	var called string
+	r, _ := New(2048, 0)
+	r.OnRotate = func(kid string) { called = kid }
+	r.Rotate()
+	if called == "" {
+		t.Error("OnRotate not called")
+	}
+	if called != r.Current().ID {
+		t.Errorf("callback kid %q != current %q", called, r.Current().ID)
+	}
+}

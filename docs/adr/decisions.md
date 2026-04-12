@@ -314,3 +314,52 @@ Three-tier rate limiting: per-client (by OAuth client_id), per-API-key (by key I
 ## Consequences
 - Memory grows linearly with unique client/key count (mitigated by cleanup)
 - Clients must handle 429 responses and Retry-After header
+
+---
+
+# ADR-016: JWT Access Tokens (RFC 9068)
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+Opaque tokens require a round-trip to the proxy for every validation. Resource servers in a distributed deployment need stateless token validation.
+
+## Decision
+Add optional JWT access tokens signed with the keyring RSA keys. Enabled via `jwt_access_token: true`. Token type is `at+jwt` per RFC 9068. Claims include iss, sub, client_id, scope, iat, exp, jti. kid header references the keyring key for JWKS-based validation.
+
+## Rationale
+- Stateless validation via JWKS endpoint
+- Standard format understood by any JWT library
+- Backward compatible — disabled by default
+- Key rotation handled by existing keyring
+
+## Consequences
+- JWTs are larger than opaque tokens (~800 bytes vs ~40 bytes)
+- Revocation requires introspection check (JWT is valid until exp)
+- Token content is visible to anyone with the token (base64, not encrypted)
+
+---
+
+# ADR-017: Refresh Token Expiry and Absolute Lifetime
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+Refresh tokens had no expiry — a stolen refresh token could be used indefinitely. This violates security compliance requirements (SOC 2, PCI DSS).
+
+## Decision
+Two expiry mechanisms:
+1. Per-token TTL (default 30 days) — each refresh token expires independently
+2. Absolute family lifetime (default 90 days) — the entire rotation chain expires, forcing re-authentication
+
+## Rationale
+- TTL limits exposure window for stolen tokens
+- Absolute lifetime prevents indefinite session extension via rotation
+- Family revocation on absolute expiry forces clean re-auth
+- Configurable via `refresh_token_ttl` and `refresh_max_life`
+
+## Consequences
+- Long-running services must handle re-authentication after 90 days
+- Clients should monitor token expiry and re-auth proactively

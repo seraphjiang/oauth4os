@@ -1,0 +1,15 @@
+# Default
+* @seraphjiang
+
+# CI/CD and infrastructure
+.github/ @seraphjiang
+deploy/ @seraphjiang
+Dockerfile @seraphjiang
+docker-compose*.yml @seraphjiang
+Makefile @seraphjiang
+.goreleaser.yml @seraphjiang
+
+# Security-sensitive
+internal/jwt/ @seraphjiang
+internal/cedar/ @seraphjiang
+internal/token/ @seraphjiang

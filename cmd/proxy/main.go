@@ -246,8 +246,14 @@ func main() {
 	// Retry with exponential backoff for upstream 5xx
 	upstreamTransport = &retry.Transport{Base: upstreamTransport, MaxRetries: 3, BaseDelay: 100 * time.Millisecond}
 
-	engineURL, _ := url.Parse(cfg.Upstream.Engine)
-	dashboardsURL, _ := url.Parse(cfg.Upstream.Dashboards)
+	engineURL, err := url.Parse(cfg.Upstream.Engine)
+	if err != nil {
+		log.Fatalf("Invalid upstream.engine URL: %v", err)
+	}
+	dashboardsURL, err := url.Parse(cfg.Upstream.Dashboards)
+	if err != nil && cfg.Upstream.Dashboards != "" {
+		log.Fatalf("Invalid upstream.dashboards URL: %v", err)
+	}
 
 	engineProxy := httputil.NewSingleHostReverseProxy(engineURL)
 	engineProxy.Transport = upstreamTransport

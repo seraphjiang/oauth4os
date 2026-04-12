@@ -1,8 +1,12 @@
 global:
   scrape_interval: 15s
 
+rule_files:
+  - alerts.yml
+
 scrape_configs:
   - job_name: oauth4os
-    metrics_path: /metrics
     static_configs:
-      - targets: ["proxy:8443"]
+      - targets: ['oauth-proxy:8443']
+    metrics_path: /metrics
+    scheme: http

@@ -1,73 +1,73 @@
 groups:
   - name: oauth4os
-    interval: 30s
     rules:
-      # Auth failures spike — possible brute force or misconfigured client
-      - alert: HighAuthFailureRate
-        expr: rate(oauth4os_auth_failed[5m]) > 10
+      - alert: HighErrorRate
+        expr: rate(oauth4os_requests_failed[5m]) / rate(oauth4os_requests_total[5m]) > 0.05
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "High auth failure rate ({{ $value | printf \"%.1f\" }}/s)"
-          description: "Auth failures exceeding 10/s for 2+ minutes. Check for brute force or misconfigured clients."
+          summary: "High error rate (>5%)"
+          description: "{{ $value | humanizePercentage }} of requests failing over 5m window"
 
-      # Auth failure ratio — most requests failing
-      - alert: AuthFailureRatioHigh
-        expr: oauth4os_auth_failed / (oauth4os_auth_success + oauth4os_auth_failed) > 0.5
-        for: 5m
+      - alert: UpstreamDown
+        expr: oauth4os_upstream_healthy == 0
+        for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Over 50% of auth attempts failing"
-          description: "More than half of authentication attempts are failing. Possible JWKS issue or provider outage."
+          summary: "Upstream OpenSearch unreachable"
+          description: "Background health check reports upstream unhealthy for >1m"
 
-      # Cedar denials spike
-      - alert: CedarDenialSpike
-        expr: rate(oauth4os_cedar_denied[5m]) > 5
-        for: 2m
+      - alert: CircuitBreakerOpen
+        expr: increase(oauth4os_circuit_opens[5m]) > 0
         labels:
           severity: warning
         annotations:
-          summary: "Cedar policy denials spiking ({{ $value | printf \"%.1f\" }}/s)"
-          description: "Elevated Cedar denials — clients may be requesting out-of-scope resources."
+          summary: "Circuit breaker opened"
+          description: "Upstream returned 5+ consecutive 5xx — circuit is open"
 
-      # Rate limiting active
+      - alert: HighAuthFailureRate
+        expr: rate(oauth4os_auth_failed[5m]) / (rate(oauth4os_auth_success[5m]) + rate(oauth4os_auth_failed[5m])) > 0.2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High auth failure rate (>20%)"
+          description: "{{ $value | humanizePercentage }} of auth attempts failing"
+
       - alert: RateLimitingActive
         expr: rate(oauth4os_rate_limited[5m]) > 1
         for: 5m
         labels:
           severity: info
         annotations:
-          summary: "Clients being rate limited ({{ $value | printf \"%.1f\" }}/s)"
-          description: "Rate limiting is actively throttling requests. Consider adjusting limits if legitimate."
+          summary: "Rate limiting active"
+          description: "{{ $value }} requests/s being rate limited"
 
-      # Upstream errors — OpenSearch unreachable
-      - alert: UpstreamErrors
-        expr: rate(oauth4os_upstream_errors[5m]) > 1
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Upstream OpenSearch errors ({{ $value | printf \"%.1f\" }}/s)"
-          description: "Proxy cannot reach OpenSearch. Check upstream connectivity and health."
-
-      # High error rate overall
-      - alert: HighErrorRate
-        expr: rate(oauth4os_requests_failed[5m]) / rate(oauth4os_requests_total[5m]) > 0.1
+      - alert: HighCedarDenials
+        expr: increase(oauth4os_cedar_denied[10m]) > 50
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Error rate above 10% ({{ $value | printf \"%.1f%%\" }})"
-          description: "More than 10% of requests are failing."
+          summary: "High Cedar policy denial rate"
+          description: "{{ $value }} denials in 10m — possible misconfigured policy"
 
-      # Proxy down
-      - alert: ProxyDown
-        expr: up{job="oauth4os"} == 0
-        for: 1m
+      - alert: LowCacheHitRate
+        expr: rate(oauth4os_cache_hits[5m]) / (rate(oauth4os_cache_hits[5m]) + rate(oauth4os_cache_misses[5m])) < 0.3
+        for: 10m
         labels:
-          severity: critical
+          severity: info
         annotations:
-          summary: "oauth4os proxy is down"
-          description: "Prometheus cannot scrape the oauth4os /metrics endpoint."
+          summary: "Low cache hit rate (<30%)"
+          description: "Cache may be undersized or TTL too short"
+
+      - alert: HighUpstreamLatency
+        expr: oauth4os_upstream_latency_ms > 5000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High upstream latency (>5s)"
+          description: "Upstream health check latency: {{ $value }}ms"

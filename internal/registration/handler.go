@@ -33,22 +33,28 @@ type Response struct {
 }
 
 // ClientRegistrar registers clients and notifies the token manager.
-type ClientRegistrar func(id, secret string, scopes []string)
+type ClientRegistrar func(id, secret string, scopes, redirectURIs []string)
 
 // Handler handles dynamic client registration.
 type Handler struct {
-	mu        sync.RWMutex
-	clients   map[string]*Response
-	register  ClientRegistrar
-	defaults  []string // default grant types
+	mu            sync.RWMutex
+	clients       map[string]*Response
+	register      ClientRegistrar
+	defaults      []string // default grant types
+	allowedScopes map[string]bool
 }
 
-// NewHandler creates a registration handler.
-func NewHandler(register ClientRegistrar) *Handler {
+// NewHandler creates a registration handler. allowedScopes restricts which scopes clients can request (nil = allow all).
+func NewHandler(register ClientRegistrar, allowedScopes []string) *Handler {
+	m := make(map[string]bool)
+	for _, s := range allowedScopes {
+		m[s] = true
+	}
 	return &Handler{
-		clients:  make(map[string]*Response),
-		register: register,
-		defaults: []string{"client_credentials"},
+		clients:       make(map[string]*Response),
+		register:      register,
+		defaults:      []string{"client_credentials"},
+		allowedScopes: m,
 	}
 }
 

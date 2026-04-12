@@ -47,7 +47,7 @@ func (r *Router) Resolve(urlPath string) (url string, name string) {
 	}
 	for _, c := range r.clusters {
 		for _, pattern := range c.Indices {
-			if matched, _ := path.Match(pattern, index); matched {
+			if globMatch(pattern, index) {
 				return c.URL, c.Name
 			}
 		}
@@ -101,14 +101,4 @@ func globMatch(pattern, value string) bool {
 	}
 	parts := strings.SplitN(pattern, "*", 2)
 	return strings.HasPrefix(value, parts[0]) && strings.HasSuffix(value, parts[1])
-}
-
-func globMatch(pattern, value string) bool {
-	if pattern == "*" {
-		return true
-	}
-	if strings.HasSuffix(pattern, "*") {
-		return strings.HasPrefix(value, pattern[:len(pattern)-1])
-	}
-	return pattern == value
 }

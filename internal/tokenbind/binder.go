@@ -5,6 +5,7 @@ package tokenbind
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"sync"
 )
@@ -23,7 +24,11 @@ func New() *Binder {
 // Fingerprint computes a client fingerprint from the request.
 func Fingerprint(r *http.Request) string {
 	h := sha256.New()
-	h.Write([]byte(r.RemoteAddr))
+	ip := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		ip = host
+	}
+	h.Write([]byte(ip))
 	h.Write([]byte(r.UserAgent()))
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }

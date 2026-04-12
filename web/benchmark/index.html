@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Benchmark</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent)}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+.container{max-width:800px;margin:0 auto;padding:20px}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.controls{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+select,input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px}
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.results{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.result-card h3{font-size:13px;margin-bottom:8px;color:var(--muted)}
+.metric{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)}
+.metric:last-child{border:none}
+.metric .val{font-weight:600;font-family:'SF Mono',Consolas,monospace}
+.faster{color:var(--green)}.slower{color:var(--red)}
+.bar-chart{margin-top:16px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.bar-label{width:60px;text-align:right;color:var(--muted)}
+.bar-track{flex:1;height:20px;background:var(--border);border-radius:4px;position:relative;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.bar-val{position:absolute;right:6px;top:2px;font-size:10px;font-weight:600}
+.progress{text-align:center;padding:40px;color:var(--muted)}
+.progress .spinner{font-size:32px;animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:375px){.results{grid-template-columns:1fr}.controls{flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⚡ Bench<span>mark</span></div>
+  <nav>
+    <a href="../demo/">Demo</a>
+    <a href="../">← oauth4os</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+<div class="container">
+  <h1>Performance Benchmark</h1>
+  <p class="sub">Compare proxy overhead: direct vs proxied, cached vs uncached. Runs in your browser.</p>
+  <div class="controls">
+    <label style="font-size:12px">Requests: <input id="reqCount" type="number" value="50" min="10" max="500" style="width:60px"></label>
+    <label style="font-size:12px">Concurrency: <select id="concurrency"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option><option value="20">20</option></select></label>
+    <button class="btn btn-primary" id="runBtn">▶ Run Benchmark</button>
+  </div>
+  <div id="output"></div>
+</div>
+<script>
+const PROXY = window.location.origin;
+let token = null;
+
+async function getToken() {
+  if (token) return token;
+  try {
+    const r = await fetch(PROXY + '/oauth/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+    });
+    if (r.ok) { const d = await r.json(); token = d.access_token; return token; }
+  } catch {}
+  return null;
+}
+
+async function runBatch(url, opts, count, concurrency) {
+  const latencies = [];
+  let errors = 0;
+  const queue = Array(count).fill(0);
+  let idx = 0;
+
+  async function worker() {
+    while (idx < queue.length) {
+      const i = idx++;
+      const start = performance.now();
+      try {
+        const r = await fetch(url, opts);
+        if (!r.ok) errors++;
+        await r.text();
+      } catch { errors++; }
+      latencies.push(performance.now() - start);
+    }
+  }
+
+  const workers = Array(Math.min(concurrency, count)).fill(0).map(() => worker());
+  await Promise.all(workers);
+
+  latencies.sort((a, b) => a - b);
+  return {
+    count: latencies.length,
+    errors,
+    p50: latencies[Math.floor(latencies.length * 0.5)] || 0,
+    p95: latencies[Math.floor(latencies.length * 0.95)] || 0,
+    p99: latencies[Math.floor(latencies.length * 0.99)] || 0,
+    avg: latencies.reduce((s, v) => s + v, 0) / latencies.length || 0,
+    min: latencies[0] || 0,
+    max: latencies[latencies.length - 1] || 0,
+    rps: latencies.length / (latencies.reduce((s, v) => s + v, 0) / 1000 / Math.min(concurrency, count)) || 0
+  };
+}
+
+document.getElementById('runBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('runBtn');
+  const out = document.getElementById('output');
+  const count = parseInt(document.getElementById('reqCount').value) || 50;
+  const conc = parseInt(document.getElementById('concurrency').value) || 5;
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+
+  out.innerHTML = '<div class="progress"><div class="spinner">⚡</div><p>Getting token...</p></div>';
+  const t = await getToken();
+  if (!t) { out.innerHTML = '<div class="progress" style="color:var(--red)">❌ Could not get token — is the proxy running?</div>'; btn.disabled = false; btn.textContent = '▶ Run Benchmark'; return; }
+
+  const headers = { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' };
+  const body = JSON.stringify({ query: { match_all: {} }, size: 1 });
+
+  // Test 1: Health (no auth overhead)
+  out.innerHTML = '<div class="progress"><div class="spinner">⚡</div><p>Running health check baseline...</p></div>';
+  const health = await runBatch(PROXY + '/health', {}, count, conc);
+
+  // Test 2: Proxied search (full auth pipeline)
+  out.innerHTML = '<div class="progress"><div class="spinner">⚡</div><p>Running proxied search...</p></div>';
+  const proxied = await runBatch(PROXY + '/logs-*/_search', { method: 'POST', headers, body }, count, conc);
+
+  // Test 3: Second run (cache warm)
+  out.innerHTML = '<div class="progress"><div class="spinner">⚡</div><p>Running cached search...</p></div>';
+  const cached = await runBatch(PROXY + '/logs-*/_search', { method: 'POST', headers, body }, count, conc);
+
+  const overhead = proxied.p50 - health.p50;
+  const cacheGain = proxied.p50 - cached.p50;
+
+  out.innerHTML = `
+    <div class="results">
+      <div class="result-card"><h3>🏥 Health (baseline)</h3>${renderMetrics(health)}</div>
+      <div class="result-card"><h3>🔍 Proxied Search</h3>${renderMetrics(proxied)}</div>
+      <div class="result-card"><h3>⚡ Cached Search</h3>${renderMetrics(cached)}</div>
+      <div class="result-card"><h3>📊 Analysis</h3>
+        <div class="metric"><span>Auth overhead (p50)</span><span class="val ${overhead < 10 ? 'faster' : 'slower'}">${overhead.toFixed(1)}ms</span></div>
+        <div class="metric"><span>Cache benefit (p50)</span><span class="val ${cacheGain > 0 ? 'faster' : ''}">${cacheGain.toFixed(1)}ms saved</span></div>
+        <div class="metric"><span>Overhead target</span><span class="val ${overhead < 5 ? 'faster' : overhead < 10 ? '' : 'slower'}">${overhead < 5 ? '✅ <5ms' : overhead < 10 ? '⚠️ <10ms' : '❌ >10ms'}</span></div>
+        <div class="metric"><span>Requests</span><span class="val">${count} × 3 = ${count * 3}</span></div>
+        <div class="metric"><span>Concurrency</span><span class="val">${conc}</span></div>
+      </div>
+    </div>
+    <div class="bar-chart"><h3 style="font-size:13px;color:var(--muted);margin-bottom:8px">p50 Latency Comparison</h3>
+      ${renderBar('Health', health.p50, Math.max(health.p50, proxied.p50, cached.p50), 'var(--green)')}
+      ${renderBar('Proxied', proxied.p50, Math.max(health.p50, proxied.p50, cached.p50), 'var(--accent)')}
+      ${renderBar('Cached', cached.p50, Math.max(health.p50, proxied.p50, cached.p50), 'var(--purple)')}
+    </div>`;
+
+  btn.disabled = false;
+  btn.textContent = '▶ Run Again';
+});
+
+function renderMetrics(m) {
+  return ['p50','p95','p99','avg','min','max'].map(k =>
+    `<div class="metric"><span>${k}</span><span class="val">${m[k].toFixed(1)}ms</span></div>`
+  ).join('') + `<div class="metric"><span>errors</span><span class="val ${m.errors ? 'slower' : ''}">${m.errors}</span></div>`;
+}
+
+function renderBar(label, val, max, color) {
+  const pct = max > 0 ? (val / max * 100) : 0;
+  return `<div class="bar-row"><div class="bar-label">${label}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div><div class="bar-val">${val.toFixed(1)}ms</div></div></div>`;
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+</script>
+</body>
+</html>

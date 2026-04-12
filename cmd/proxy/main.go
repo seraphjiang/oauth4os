@@ -41,6 +41,9 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/session"
 	"github.com/seraphjiang/oauth4os/internal/token"
 	"github.com/seraphjiang/oauth4os/internal/tracing"
+	"github.com/seraphjiang/oauth4os/internal/backup"
+	"github.com/seraphjiang/oauth4os/internal/mtls"
+	"github.com/seraphjiang/oauth4os/internal/webhook"
 )
 
 const version = "0.1.0"
@@ -178,6 +181,36 @@ func main() {
 		fedRouter = federation.New(clusters, transport)
 		logger.Info("  Federation: %d clusters", len(cfg.Clusters))
 	}
+
+	// Webhook external authorizer (optional)
+	var webhookAuth *webhook.Authorizer
+	if cfg.Webhook.URL != "" {
+		webhookAuth = webhook.NewAuthorizer(webhook.Config{
+			URL:      cfg.Webhook.URL,
+			Timeout:  cfg.Webhook.Timeout,
+			Headers:  cfg.Webhook.Headers,
+			FailOpen: cfg.Webhook.FailOpen,
+		})
+		logger.Info("  Webhook: %s", cfg.Webhook.URL)
+	}
+
+	// mTLS client auth (optional)
+	var mtlsMap *mtls.ClientMap
+	if len(cfg.MTLS.Clients) > 0 {
+		entries := make(map[string]*mtls.ClientEntry)
+		for cn, c := range cfg.MTLS.Clients {
+			entries[cn] = &mtls.ClientEntry{ClientID: c.ClientID, Scopes: c.Scopes}
+		}
+		mtlsMap = mtls.NewClientMap(entries)
+		logger.Info("  mTLS: %d client certs", len(cfg.MTLS.Clients))
+	}
+
+	// Backup handler
+	backupHandler := backup.NewHandler(
+		func() *config.Config { return cfg },
+		func() []backup.ClientEntry { return nil },
+		func(c *config.Config) { *cfg = *c },
+	)
 
 	mux := http.NewServeMux()
 
@@ -386,6 +419,8 @@ func main() {
 		fmt.Fprintf(w, `{"removed":%d}`, removed)
 	})
 
+	// Backup endpoints
+	backupHandler.Register(mux)
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintf(w, "# HELP oauth4os_requests_total Total proxy requests\n")

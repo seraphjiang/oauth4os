@@ -178,14 +178,17 @@ func TestMutation_ValidateRedirectURI(t *testing.T) {
 	}
 }
 
-// Mutation: remove TouchToken update → must extend token lifetime
+// Mutation: remove TouchToken update → must extend token near expiry
 func TestMutation_TouchToken(t *testing.T) {
 	m := NewManager()
 	m.RegisterClient("app", "secret", []string{"read"}, nil)
 	tok, _ := m.CreateTokenForClient("app", []string{"read"})
-	t.Logf("token ID: %q, IsValid: %v", tok.ID, m.IsValid(tok.ID))
-	if !m.TouchToken(tok.ID, 10*time.Minute) {
-		t.Error("TouchToken must return true for valid token")
+	// Token expires in 1h. Use 3h window so remaining (1h) < window/2 (1.5h) → triggers extend
+	if !m.TouchToken(tok.ID, 3*time.Hour) {
+		t.Error("TouchToken must return true when remaining < window/2")
+	}
+	if m.TouchToken("nonexistent", 3*time.Hour) {
+		t.Error("TouchToken must return false for unknown token")
 	}
 }
 

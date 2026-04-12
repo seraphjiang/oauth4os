@@ -570,6 +570,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize keyring: %v", err)
 	}
+	keys.OnRotate = func(kid string) {
+		logger.Info("signing key rotated", "kid", kid, "interval", rotateInterval.String())
+	}
 	defer keys.Stop()
 
 	// Enable JWT access tokens if configured

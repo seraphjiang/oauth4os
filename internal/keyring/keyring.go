@@ -23,12 +23,13 @@ type Key struct {
 
 // Ring holds the active and previous signing keys.
 type Ring struct {
-	mu       sync.RWMutex
-	current  *Key
-	previous *Key
-	bits     int
-	interval time.Duration
-	stopCh   chan struct{}
+	mu        sync.RWMutex
+	current   *Key
+	previous  *Key
+	bits      int
+	interval  time.Duration
+	stopCh    chan struct{}
+	OnRotate  func(kid string) // called after each rotation
 }
 
 // New creates a Ring, generates the first key, and starts rotation.
@@ -64,6 +65,9 @@ func (r *Ring) rotate() error {
 	r.previous = r.current
 	r.current = k
 	r.mu.Unlock()
+	if r.OnRotate != nil {
+		r.OnRotate(kid)
+	}
 	return nil
 }
 

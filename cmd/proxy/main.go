@@ -250,6 +250,15 @@ func main() {
 		json.NewEncoder(w).Encode(entries)
 	})
 
+	mux.HandleFunc("GET /admin/clusters", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if fedRouter != nil {
+			json.NewEncoder(w).Encode(map[string]interface{}{"clusters": fedRouter.ClusterNames(), "mode": "federation"})
+		} else {
+			json.NewEncoder(w).Encode(map[string]interface{}{"clusters": []string{cfg.Upstream.Engine}, "mode": "single"})
+		}
+	})
+
 	mux.HandleFunc("GET /admin/sessions", func(w http.ResponseWriter, r *http.Request) {
 		clientID := r.URL.Query().Get("client_id")
 		w.Header().Set("Content-Type", "application/json")

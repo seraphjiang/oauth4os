@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="oauth4os system status — all components">
+<title>oauth4os — Status</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+.container{max-width:600px;margin:0 auto;padding:24px 20px}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.overall{padding:16px;border-radius:10px;text-align:center;margin-bottom:20px;font-size:18px;font-weight:700}
+.overall.ok{background:#3fb95015;border:1px solid var(--green);color:var(--green)}
+.overall.degraded{background:#f0883e15;border:1px solid var(--orange);color:var(--orange)}
+.overall.down{background:#f8514915;border:1px solid var(--red);color:var(--red)}
+.component{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px}
+.component:last-child{border:none}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px}
+.dot-ok{background:var(--green)}.dot-warn{background:var(--orange)}.dot-down{background:var(--red)}.dot-unknown{background:var(--muted)}
+.latency{color:var(--muted);font-size:11px;font-family:'SF Mono',Consolas,monospace}
+.updated{text-align:center;color:var(--muted);font-size:11px;margin-top:16px}
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+<div class="container">
+  <h1>🟢 System Status</h1>
+  <p class="sub"><a href="../">oauth4os</a> — component health</p>
+  <div id="overall" class="overall ok">Checking...</div>
+  <div id="components"></div>
+  <div class="updated" id="updated"></div>
+</div>
+<script>
+const API = window.location.origin;
+const checks = [
+  { name: 'Proxy', endpoint: '/health', key: 'status', expect: 'ok' },
+  { name: 'Token Endpoint', endpoint: '/oauth/token', method: 'POST', body: 'grant_type=client_credentials&client_id=status-check&client_secret=x&scope=read:logs-*', expectStatus: [200, 400, 401] },
+  { name: 'Metrics', endpoint: '/metrics', expectStatus: [200] },
+  { name: 'JWKS', endpoint: '/.well-known/jwks.json', expectStatus: [200] },
+  { name: 'Discovery', endpoint: '/.well-known/openid-configuration', expectStatus: [200] },
+  { name: 'Registration', endpoint: '/oauth/register', expectStatus: [200, 405] },
+  { name: 'Admin Health', endpoint: '/admin/health', expectStatus: [200, 401, 403] },
+];
+
+async function checkAll() {
+  const results = [];
+  for (const c of checks) {
+    const start = performance.now();
+    try {
+      const opts = { method: c.method || 'GET' };
+      if (c.body) { opts.body = c.body; opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' }; }
+      const r = await fetch(API + c.endpoint, opts);
+      const ms = performance.now() - start;
+      const ok = c.expectStatus ? c.expectStatus.includes(r.status) : r.ok;
+      let status = ok ? 'ok' : 'degraded';
+      if (c.key) {
+        try { const d = await r.json(); if (d[c.key] !== c.expect) status = 'degraded'; } catch {}
+      }
+      results.push({ ...c, status, ms, code: r.status });
+    } catch (e) {
+      results.push({ ...c, status: 'down', ms: performance.now() - start, error: e.message });
+    }
+  }
+  render(results);
+}
+
+function render(results) {
+  const allOk = results.every(r => r.status === 'ok');
+  const anyDown = results.some(r => r.status === 'down');
+  const cls = anyDown ? 'down' : allOk ? 'ok' : 'degraded';
+  const msg = anyDown ? '🔴 Partial Outage' : allOk ? '🟢 All Systems Operational' : '🟡 Degraded Performance';
+  document.getElementById('overall').className = 'overall ' + cls;
+  document.getElementById('overall').textContent = msg;
+
+  document.getElementById('components').innerHTML = results.map(r => {
+    const dot = r.status === 'ok' ? 'ok' : r.status === 'degraded' ? 'warn' : 'down';
+    return `<div class="component"><div><span class="dot dot-${dot}"></span>${r.name}</div><span class="latency">${r.code || '—'} · ${r.ms.toFixed(0)}ms</span></div>`;
+  }).join('');
+
+  document.getElementById('updated').textContent = 'Last checked: ' + new Date().toLocaleTimeString();
+}
+
+checkAll();
+setInterval(checkAll, 30000);
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+if (localStorage.getItem('oauth4os_theme')) document.documentElement.dataset.theme = localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

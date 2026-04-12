@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /demo/
+Allow: /developer/
+Allow: /playground/
+Allow: /benchmark/
+Disallow: /oauth/
+Disallow: /admin/
+Disallow: /metrics
+Sitemap: /sitemap.xml

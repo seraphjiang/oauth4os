@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -61,6 +62,8 @@ func main() {
 	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)
 	tokenMgr := token.NewManager()
 	auditor := audit.NewJSONAuditor(os.Stdout)
+	auditStore, _ := audit.NewMemoryStore(10000, "")
+	auditor.WithStore(auditStore)
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
@@ -199,6 +202,23 @@ func main() {
 		discovery.Handler(discovery.Config{Issuer: issuerURL}, scopeNames))
 
 	// Prometheus metrics
+	mux.HandleFunc("GET /admin/audit", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		filter := audit.QueryFilter{
+			ClientID: q.Get("client_id"),
+			Event:    q.Get("event"),
+			Limit:    100,
+		}
+		if since := q.Get("since"); since != "" {
+			if t, err := time.Parse(time.RFC3339, since); err == nil {
+				filter.Since = t
+			}
+		}
+		entries, _ := auditor.Query(filter)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(entries)
+	})
+
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintf(w, "# HELP oauth4os_requests_total Total proxy requests\n")

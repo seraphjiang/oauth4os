@@ -16,6 +16,9 @@ func NewAuditor(w io.Writer) *Auditor {
 	return &Auditor{w: w, enc: json.NewEncoder(w)}
 }
 
+// NewJSONAuditor is an alias for NewAuditor (backward compat).
+var NewJSONAuditor = NewAuditor
+
 // WithStore adds persistent storage to the auditor.
 func (a *Auditor) WithStore(s Store) *Auditor {
 	a.store = s

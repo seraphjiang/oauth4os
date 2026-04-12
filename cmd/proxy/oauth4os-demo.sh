@@ -138,6 +138,27 @@ auth_header() {
   echo "Authorization: Bearer $(get_token)"
 }
 
+# Authenticated curl — auto-refreshes token on 401
+authed_curl() {
+  local tok=$(get_token)
+  local code body
+  body=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer ${tok}" "$@" 2>/dev/null)
+  code=$(echo "$body" | tail -1)
+  body=$(echo "$body" | sed '$d')
+  if [ "$code" = "401" ] && [ -f "${TOKEN_FILE}.refresh" ]; then
+    # Try refresh
+    cmd_refresh >/dev/null 2>&1 && {
+      tok=$(cat "$TOKEN_FILE")
+      body=$(curl -sf -H "Authorization: Bearer ${tok}" "$@" 2>/dev/null)
+      echo "$body"
+      return $?
+    }
+  fi
+  [ "$code" -ge 200 ] && [ "$code" -lt 400 ] 2>/dev/null && { echo "$body"; return 0; }
+  echo "$body"
+  return 1
+}
+
 # PKCE login — opens browser, starts local callback server
 cmd_login() {
   mkdir -p "$(dirname "$TOKEN_FILE")"
@@ -356,10 +377,9 @@ cmd_search() {
 
 cmd_services() {
   local resp
-  resp=$(curl -sf -H "$(auth_header)" \
-    "${PROXY}/demo-logs/_search" \
-    -H "Content-Type: application/json" \
-    -d '{"size":0,"aggs":{"services":{"terms":{"field":"service.keyword","size":50}}}}' 2>/dev/null)
+  resp=$(authed_curl -H "Content-Type: application/json" \
+    -d '{"size":0,"aggs":{"services":{"terms":{"field":"service.keyword","size":50}}}}' \
+    "${PROXY}/demo-logs/_search")
   if [ -z "$resp" ]; then echo -e "${RED}Failed to list services${NC}"; return 1; fi
   if [ "$IS_TTY" = "false" ]; then echo "$resp" | jq '.aggregations.services.buckets' 2>/dev/null || echo "$resp"; return; fi
   echo "$resp" | jq -r '.aggregations.services.buckets[] | "\(.key) (\(.doc_count) logs)"' 2>/dev/null
@@ -367,7 +387,7 @@ cmd_services() {
 
 cmd_indices() {
   local resp
-  resp=$(curl -sf -H "$(auth_header)" "${PROXY}/_cat/indices?format=json" 2>/dev/null)
+  resp=$(authed_curl "${PROXY}/_cat/indices?format=json")
   if [ -z "$resp" ]; then echo -e "${RED}Failed to list indices${NC}"; return 1; fi
   if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
   echo "$resp" | jq -r '.[] | "\(.index)\t\(.["docs.count"]) docs\t\(.["store.size"])"' 2>/dev/null

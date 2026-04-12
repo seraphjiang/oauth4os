@@ -1,8 +1,12 @@
 package token
 
 import (
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -10,6 +14,11 @@ import (
 	"sync"
 	"time"
 )
+
+// KeyProvider returns the current signing key.
+type KeyProvider interface {
+	CurrentKey() (kid string, key *rsa.PrivateKey)
+}
 
 // Token represents an issued access token.
 type Token struct {
@@ -40,6 +49,9 @@ type Manager struct {
 	families    map[string][]string // client_id -> [token_ids] (for family revocation)
 	clients     map[string]*Client
 	mu          sync.RWMutex
+	jwtEnabled  bool
+	issuer      string
+	keyProvider KeyProvider
 }
 
 // NewManager creates a token manager.
@@ -51,6 +63,13 @@ func NewManager() *Manager {
 		families:    make(map[string][]string),
 		clients:     make(map[string]*Client),
 	}
+}
+
+// EnableJWT configures the manager to issue signed JWT access tokens.
+func (m *Manager) EnableJWT(issuer string, kp KeyProvider) {
+	m.jwtEnabled = true
+	m.issuer = issuer
+	m.keyProvider = kp
 }
 
 // RegisterClient adds a client for authentication.

@@ -294,6 +294,7 @@ async function handleCallback() {
       token = data.access_token;
       tokenData = data;
       sessionStorage.setItem('oauth4os_token', token);
+      if (data.refresh_token) sessionStorage.setItem('oauth4os_refresh', data.refresh_token);
       sessionStorage.setItem('oauth4os_token_data', JSON.stringify(data));
       window.history.replaceState({}, '', window.location.pathname);
       return true;
@@ -316,6 +317,7 @@ async function fallbackLogin() {
       token = data.access_token;
       tokenData = data;
       sessionStorage.setItem('oauth4os_token', token);
+      if (data.refresh_token) sessionStorage.setItem('oauth4os_refresh', data.refresh_token);
       sessionStorage.setItem('oauth4os_token_data', JSON.stringify(data));
       window.history.replaceState({}, '', window.location.pathname);
       return true;
@@ -393,7 +395,11 @@ async function doSearch() {
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: { bool: { must } }, size: 50, sort: [{ timestamp: 'desc' }] })
     });
-    if (resp.status === 401) { sessionStorage.clear(); token = null; showLogin(); return; }
+    if (resp.status === 401) {
+      const refreshed = await tryRefresh();
+      if (refreshed) { doSearch(); return; }
+      sessionStorage.clear(); token = null; showLogin(); return;
+    }
     const data = await resp.json();
     const hits = data.hits?.hits || [];
     const total = data.hits?.total?.value ?? data.hits?.total ?? 0;

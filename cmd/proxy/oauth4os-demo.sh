@@ -23,12 +23,18 @@ CLIENT_ID="demo-cli"
 REDIRECT_PORT=8199
 REDIRECT_URI="http://localhost:${REDIRECT_PORT}/callback"
 
+# --json flag: force machine-readable JSON output
+JSON_MODE=false
+for arg in "$@"; do
+  [ "$arg" = "--json" ] && JSON_MODE=true
+done
+
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 
-# Disable colors and output raw JSON when piped
+# Disable colors and output raw JSON when piped or --json
 IS_TTY=true
-if [ ! -t 1 ]; then
+if [ ! -t 1 ] || $JSON_MODE; then
   IS_TTY=false
   RED=''; GREEN=''; CYAN=''; YELLOW=''; BOLD=''; NC=''
 fi

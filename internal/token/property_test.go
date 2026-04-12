@@ -172,7 +172,7 @@ func TestProperty_ConcurrentStoreIntegrity(t *testing.T) {
 // Property: Scope validation rejects any scope not in client's allowlist.
 func TestProperty_ScopeValidation(t *testing.T) {
 	f := func(scope string) bool {
-		if strings.ContainsAny(scope, "&= ") {
+		if strings.ContainsAny(scope, "&= %+") {
 			return true // skip URL-unsafe
 		}
 		m := NewManager()

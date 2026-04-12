@@ -483,7 +483,7 @@ curl https://proxy:8443/health
 
 Response:
 ```json
-{"status": "ok", "version": "0.5.0", "uptime": "2h15m"}
+{"status": "ok", "version": "1.0.0", "uptime": "2h15m"}
 ```
 
 ---
@@ -561,7 +561,7 @@ curl https://proxy:8443/version
 
 Response:
 ```json
-{"version": "0.5.0", "go": "go1.22", "os": "linux", "arch": "amd64"}
+{"version": "1.0.0", "go": "go1.22", "os": "linux", "arch": "amd64"}
 ```
 
 ---

@@ -32,7 +32,7 @@ Wait ~60 seconds for OpenSearch + Keycloak to initialize.
 ```bash
 # Verify everything is running
 curl -s http://localhost:8443/health | jq
-# → {"status":"ok","version":"0.5.0"}
+# → {"status":"ok","version":"1.0.0"}
 ```
 
 ## Step 2: Get a Scoped Token

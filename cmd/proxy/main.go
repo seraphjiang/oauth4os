@@ -143,6 +143,21 @@ func main() {
 			version, int(time.Since(startTime).Seconds()))
 	})
 
+	// OIDC Discovery
+	issuerURL := "http://localhost" + cfg.Listen
+	if cfg.TLS.Enabled {
+		issuerURL = "https://localhost" + cfg.Listen
+	}
+	if envIssuer := os.Getenv("OAUTH4OS_ISSUER"); envIssuer != "" {
+		issuerURL = envIssuer
+	}
+	var scopeNames []string
+	for s := range cfg.ScopeMapping {
+		scopeNames = append(scopeNames, s)
+	}
+	mux.HandleFunc("GET /.well-known/openid-configuration",
+		discovery.Handler(discovery.Config{Issuer: issuerURL}, scopeNames))
+
 	// Prometheus metrics
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")

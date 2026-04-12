@@ -91,6 +91,9 @@ var (
 	cedarDenied     atomic.Int64
 	rateLimited     atomic.Int64
 	upstreamErrors  atomic.Int64
+	cacheHits       atomic.Int64
+	cacheMisses     atomic.Int64
+	circuitOpens    atomic.Int64
 	startTime       = time.Now()
 )
 
@@ -327,6 +330,7 @@ func main() {
 		tokenMgr.IssueToken(w, r)
 	})
 	mux.HandleFunc("DELETE /oauth/token/{id}", tokenMgr.RevokeToken)
+	mux.HandleFunc("POST /oauth/revoke", tokenMgr.RevokeRFC7009)
 	mux.HandleFunc("GET /oauth/tokens", tokenMgr.ListTokens)
 	mux.HandleFunc("GET /oauth/token/{id}", tokenMgr.GetToken)
 
@@ -946,15 +950,18 @@ func main() {
 					w.Header().Set(k, v)
 				}
 				w.Header().Set("X-Cache", "HIT")
+				cacheHits.Add(1)
 				w.WriteHeader(cached.StatusCode)
 				w.Write(cached.Body)
 				return
 			}
+			cacheMisses.Add(1)
 		}
 
 		// Circuit breaker — reject if upstream is failing
 		if !breaker.Allow() {
 			w.Header().Set("Retry-After", fmt.Sprintf("%d", breaker.RetryAfter()))
+			circuitOpens.Add(1)
 			writeError(w, http.StatusServiceUnavailable, "circuit_open")
 			return
 		}

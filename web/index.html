@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — OAuth 2.0 Proxy for OpenSearch</title>
+<meta name="description" content="Secure machine-to-machine access for OpenSearch. OAuth 2.0 proxy with JWT validation, scope-to-role mapping, and zero breaking changes.">
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:0.9em;font-family:'SF Mono',Consolas,monospace}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0}
+
+/* Layout */
+.container{max-width:960px;margin:0 auto;padding:0 24px}
+header{padding:16px 0;border-bottom:1px solid var(--border)}
+header .container{display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:18px;font-weight:700;color:var(--text)}
+.logo span{color:var(--accent)}
+nav a{margin-left:20px;color:var(--muted);font-size:14px}
+nav a:hover{color:var(--text)}
+
+/* Hero */
+.hero{padding:80px 0 60px;text-align:center}
+.hero h1{font-size:42px;font-weight:800;margin-bottom:16px;letter-spacing:-0.5px}
+.hero h1 span{color:var(--accent)}
+.hero p{font-size:18px;color:var(--muted);max-width:600px;margin:0 auto 32px}
+.hero-badges{display:flex;gap:8px;justify-content:center;margin-bottom:32px}
+.hero-badges img{height:20px}
+.cta-row{display:flex;gap:12px;justify-content:center}
+.btn{display:inline-block;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.btn:hover{opacity:.85;text-decoration:none}
+
+/* Comparison */
+.compare{padding:60px 0}
+.compare h2{text-align:center;font-size:24px;margin-bottom:24px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase}
+td:first-child{font-weight:600}
+
+/* Architecture */
+.arch{padding:60px 0;text-align:center}
+.arch h2{font-size:24px;margin-bottom:24px}
+.arch-diagram{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:700px;margin:0 auto;font-family:'SF Mono',Consolas,monospace;font-size:13px;line-height:1.8;text-align:left;white-space:pre}
+
+/* Try it */
+.try{padding:60px 0}
+.try h2{text-align:center;font-size:24px;margin-bottom:8px}
+.try p{text-align:center;color:var(--muted);margin-bottom:24px}
+.try-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.try-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px}
+.try-step h3{font-size:14px;margin-bottom:8px;color:var(--accent)}
+.try-step pre{font-size:12px;margin:0}
+
+/* Features */
+.features{padding:60px 0}
+.features h2{text-align:center;font-size:24px;margin-bottom:24px}
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px}
+.feat-card .icon{font-size:24px;margin-bottom:8px}
+.feat-card h3{font-size:14px;margin-bottom:4px}
+.feat-card p{font-size:12px;color:var(--muted)}
+
+/* Phases */
+.phases{padding:60px 0}
+.phases h2{text-align:center;font-size:24px;margin-bottom:24px}
+.phase-row{display:flex;gap:16px;justify-content:center}
+.phase-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;flex:1;max-width:280px}
+.phase-card h3{font-size:14px;margin-bottom:4px}
+.phase-card .status{font-size:11px;padding:2px 8px;border-radius:10px;display:inline-block;margin-bottom:8px}
+.phase-card .building{background:#d2992233;color:var(--orange)}
+.phase-card .planned{background:#30363d;color:var(--muted)}
+.phase-card p{font-size:12px;color:var(--muted)}
+
+/* Footer */
+footer{padding:32px 0;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:12px}
+footer a{color:var(--muted)}
+
+/* Responsive */
+@media(max-width:640px){
+  .hero h1{font-size:28px}
+  .try-grid,.feat-grid{grid-template-columns:1fr}
+  .phase-row{flex-direction:column;align-items:center}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">🔐 oauth<span>4os</span></div>
+    <nav>
+      <a href="#architecture">Architecture</a>
+      <a href="#try">Try It</a>
+      <a href="#features">Features</a>
+      <a href="https://github.com/opensearch-project/.github/issues/491">RFC</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="hero-badges">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0">
+      <img src="https://img.shields.io/badge/Go-1.22-00ADD8" alt="Go 1.22">
+      <img src="https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange" alt="OpenSearch">
+    </div>
+    <h1>OAuth 2.0 Proxy for <span>OpenSearch</span></h1>
+    <p>Secure machine-to-machine access with scoped tokens, OIDC federation, and zero breaking changes to your existing cluster.</p>
+    <div class="cta-row">
+      <a href="#try" class="btn btn-primary">Try It Now</a>
+      <a href="https://github.com/opensearch-project/.github/issues/491" class="btn btn-secondary">Read the RFC</a>
+    </div>
+  </div>
+</section>
+
+<section class="compare">
+  <div class="container">
+    <h2>The Gap oauth4os Fills</h2>
+    <table>
+      <thead><tr><th>Capability</th><th>Grafana</th><th>Datadog</th><th>Elastic</th><th>OpenSearch</th><th>+ oauth4os</th></tr></thead>
+      <tbody>
+        <tr><td>OIDC / SSO</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>API Keys</td><td>✅</td><td>✅</td><td>✅</td><td>🔄 3.7</td><td>✅</td></tr>
+        <tr><td>OAuth Apps / Scoped Tokens</td><td>✅</td><td>✅</td><td>✅</td><td style="color:var(--orange)">❌</td><td style="color:var(--green)">✅</td></tr>
+        <tr><td>Token Governance UI</td><td>✅</td><td>✅</td><td>✅</td><td style="color:var(--orange)">❌</td><td style="color:var(--green)">✅</td></tr>
+        <tr><td>Cedar Fine-Grained Policies</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td style="color:var(--green)">✅</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="arch" id="architecture">
+  <div class="container">
+    <h2>Architecture</h2>
+    <div class="arch-diagram">┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│  AI Agent   │────▶│  OAuth Proxy │────▶│   OpenSearch     │
+│  CI/CD      │     │  (Go, :8443) │     │   Engine (:9200) │
+│  Slack Bot  │     │              │────▶│   Dashboards     │
+│  CLI        │     │  JWT + JWKS  │     │   (:5601)        │
+└─────────────┘     └──────┬───────┘     └─────────────────┘
+                           │
+                    ┌──────▼───────┐
+                    │ OIDC Provider│
+                    │ Keycloak     │
+                    │ Auth0 / Okta │
+                    └──────────────┘</div>
+  </div>
+</section>
+
+<section class="try" id="try">
+  <div class="container">
+    <h2>Try It Now</h2>
+    <p>Get a scoped token and query OpenSearch in 30 seconds.</p>
+    <div class="try-grid">
+      <div class="try-step">
+        <h3>1. Start the proxy</h3>
+        <pre><code>docker compose up</code></pre>
+      </div>
+      <div class="try-step">
+        <h3>2. Get a scoped token</h3>
+        <pre><code>curl -X POST http://localhost:8443/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=my-agent" \
+  -d "client_secret=secret" \
+  -d "scope=read:logs-*"</code></pre>
+      </div>
+      <div class="try-step">
+        <h3>3. Query with the token</h3>
+        <pre><code>curl -H "Authorization: Bearer &lt;token&gt;" \
+  http://localhost:8443/logs-*/_search \
+  -d '{"query":{"match":{"level":"error"}}}'</code></pre>
+      </div>
+      <div class="try-step">
+        <h3>4. Revoke when done</h3>
+        <pre><code>curl -X POST http://localhost:8443/oauth/revoke \
+  -d "token=&lt;token&gt;"</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <h2>Features</h2>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="icon">🔑</div><h3>JWT Validation</h3><p>JWKS auto-discovery, RS256/ES256. Validates tokens from any OIDC provider.</p></div>
+      <div class="feat-card"><div class="icon">🎯</div><h3>Scope-to-Role Mapping</h3><p><code>read:logs-*</code> → OpenSearch <code>logs_reader</code> role. Configurable in YAML.</p></div>
+      <div class="feat-card"><div class="icon">🔄</div><h3>Unified Auth</h3><p>Single entry point for Engine + Dashboards APIs. Zero changes to existing components.</p></div>
+      <div class="feat-card"><div class="icon">📋</div><h3>Token Lifecycle</h3><p>Issue, revoke, list, inspect tokens via REST API. Full audit trail.</p></div>
+      <div class="feat-card"><div class="icon">🌲</div><h3>Cedar Policies</h3><p>Fine-grained access control with Cedar policy language. Evaluate locally, no network calls.</p></div>
+      <div class="feat-card"><div class="icon">⚡</div><h3>CLI Tool</h3><p><code>oauth4os login</code>, <code>create-token</code>, <code>revoke</code>, <code>status</code>. Developer-friendly.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="phases">
+  <div class="container">
+    <h2>Roadmap</h2>
+    <div class="phase-row">
+      <div class="phase-card">
+        <span class="status building">🔨 Building</span>
+        <h3>Phase 1 — OAuth Proxy MVP</h3>
+        <p>JWT validation, scope mapping, token lifecycle, CLI, Docker deployment.</p>
+      </div>
+      <div class="phase-card">
+        <span class="status planned">📋 Planned</span>
+        <h3>Phase 2 — OSD Plugin</h3>
+        <p>Token management UI in OpenSearch Dashboards. Consent screen for OAuth apps.</p>
+      </div>
+      <div class="phase-card">
+        <span class="status planned">📋 Planned</span>
+        <h3>Phase 3 — Cedar Policies</h3>
+        <p>Fine-grained local policy evaluation. Field-level access control.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>oauth4os — Apache 2.0 · <a href="https://github.com/opensearch-project/.github/issues/491">RFC #491</a> · Built for the OpenSearch community</p>
+  </div>
+</footer>
+
+</body>
+</html>

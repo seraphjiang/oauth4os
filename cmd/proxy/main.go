@@ -27,6 +27,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/admin"
 	"github.com/seraphjiang/oauth4os/internal/analytics"
 	"github.com/seraphjiang/oauth4os/internal/audit"
+	"github.com/seraphjiang/oauth4os/internal/auditexport"
 	"github.com/seraphjiang/oauth4os/internal/cedar"
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/discovery"
@@ -190,6 +191,10 @@ func main() {
 	auditor := audit.NewJSONAuditor(os.Stdout)
 	auditStore, _ := audit.NewMemoryStore(10000, "")
 	auditor.WithStore(auditStore)
+
+	// Audit log export (no-op if no uploader configured; S3 uploader in v2.1)
+	var auditExporter *auditexport.Exporter
+	_ = auditExporter // wired when S3 uploader is configured
 
 	sessionMgr := session.New(map[string]int{"*": 100})
 	apiKeyStore := apikey.NewStore()

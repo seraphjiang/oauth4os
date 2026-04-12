@@ -492,14 +492,6 @@ paths:
         "200":
           description: Rate limits updated
 
-  /admin/config:
-    get:
-      tags: [Admin]
-      summary: Get full runtime configuration
-      responses:
-        "200":
-          description: Current configuration (sensitive fields redacted)
-
   /{path}:
     get:
       tags: [Proxy]

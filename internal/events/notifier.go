@@ -84,6 +84,11 @@ func (n *Notifier) drain() {
 				continue
 			}
 			req.Header.Set("Content-Type", "application/json")
+			if len(n.signKey) > 0 {
+				mac := hmac.New(sha256.New, n.signKey)
+				mac.Write(body)
+				req.Header.Set("X-Webhook-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+			}
 			resp, err := n.client.Do(req)
 			if err == nil {
 				resp.Body.Close()

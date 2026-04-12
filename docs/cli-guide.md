@@ -14,11 +14,16 @@ curl -sL https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh | bash
 
 | Command | Description |
 |---------|-------------|
-| `login` | Authenticate via client credentials, cache token |
+| `login [scope]` | Authenticate via browser (PKCE flow) |
 | `logout` | Clear cached token |
+| `refresh` | Refresh access token using saved refresh token |
 | `token` | Show raw cached token |
 | `whoami` | Decode JWT payload |
 | `profile` | Formatted view: client, scopes, expiry countdown |
+| `register <name> [scopes]` | Register a new OAuth client |
+| `revoke [token]` | Revoke current or specified token |
+| `clients` | List registered OAuth clients |
+| `sessions` | List active sessions |
 
 ```bash
 oauth4os-demo login

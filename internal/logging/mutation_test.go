@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 

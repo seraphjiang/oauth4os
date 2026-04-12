@@ -36,11 +36,11 @@ func TestMutation_ScopeTracking(t *testing.T) {
 
 // Mutation: remove per-client tracking → Snapshot must show client breakdown
 func TestMutation_PerClientTracking(t *testing.T) {
-	tr := NewTracker()
-	tr.Record("client-a", "/logs/_search", 200, 50)
-	tr.Record("client-b", "/logs/_search", 200, 30)
+	tr := New()
+	tr.Record("client-a", []string{"read"}, "logs")
+	tr.Record("client-b", []string{"write"}, "logs")
 	snap := tr.Snapshot()
-	if len(snap.ByClient) < 2 {
-		t.Errorf("expected 2 clients in snapshot, got %d", len(snap.ByClient))
+	if len(snap.Clients) < 2 {
+		t.Errorf("expected 2 clients in snapshot, got %d", len(snap.Clients))
 	}
 }

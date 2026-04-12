@@ -128,3 +128,18 @@ func TestFindProviderHit(t *testing.T) {
 		t.Fatal("expected provider 'a'")
 	}
 }
+
+func TestAudienceMatch(t *testing.T) {
+	if !audienceMatch([]string{"api.example.com"}, []string{"api.example.com", "other"}) {
+		t.Fatal("expected match")
+	}
+	if audienceMatch([]string{"evil.com"}, []string{"api.example.com"}) {
+		t.Fatal("expected no match")
+	}
+	if audienceMatch(nil, []string{"api.example.com"}) {
+		t.Fatal("expected no match for nil aud")
+	}
+	if audienceMatch([]string{"a", "b"}, []string{"c"}) {
+		t.Fatal("expected no match")
+	}
+}

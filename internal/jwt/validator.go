@@ -273,6 +273,18 @@ func findKey(keys []jwksKey, kid string) (*rsa.PublicKey, error) {
 	return nil, fmt.Errorf("no matching RSA key for kid=%s", kid)
 }
 
+// audienceMatch checks if any token audience is in the expected list.
+func audienceMatch(tokenAud, expected []string) bool {
+	for _, t := range tokenAud {
+		for _, e := range expected {
+			if t == e {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func parseRSAKey(k jwksKey) (*rsa.PublicKey, error) {
 	nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
 	if err != nil {

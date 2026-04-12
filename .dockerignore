@@ -1,0 +1,10 @@
+.git
+*.md
+docs/
+pkg/rust/
+pkg/java/
+test/
+scripts/
+bench/
+*.sh
+LICENSE

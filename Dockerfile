@@ -13,4 +13,5 @@ COPY --from=builder /app/oauth4os /oauth4os
 COPY --from=builder /app/web /web
 COPY config.yaml /etc/oauth4os/config.yaml
 EXPOSE 8443
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://localhost:8443/health || exit 1
 ENTRYPOINT ["/oauth4os", "-config", "/etc/oauth4os/config.yaml"]

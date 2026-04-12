@@ -35,9 +35,10 @@ type Upstream struct {
 }
 
 type Provider struct {
-	Name    string `yaml:"name"`
-	Issuer  string `yaml:"issuer"`
-	JWKSURI string `yaml:"jwks_uri"`
+	Name     string   `yaml:"name"`
+	Issuer   string   `yaml:"issuer"`
+	JWKSURI  string   `yaml:"jwks_uri"`
+	Audience []string `yaml:"audience"` // expected aud values; if empty, aud not checked
 }
 
 type Role struct {

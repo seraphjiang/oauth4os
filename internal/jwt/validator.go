@@ -103,9 +103,12 @@ func (v *Validator) Validate(tokenStr string) (*Claims, error) {
 
 	verifiedClaims := verified.Claims.(jwtgo.MapClaims)
 
-	// Validate audience if provider specifies expected audience
-	if aud, ok := verifiedClaims["aud"]; ok {
-		_ = aud // audience present — could validate against config
+	// Validate audience if provider specifies expected values
+	if len(provider.Audience) > 0 {
+		tokenAud, _ := verifiedClaims.GetAudience()
+		if !audienceMatch(tokenAud, provider.Audience) {
+			return nil, fmt.Errorf("audience mismatch: token has %v, expected one of %v", tokenAud, provider.Audience)
+		}
 	}
 
 	// Extract scopes (support both space-delimited string and array)

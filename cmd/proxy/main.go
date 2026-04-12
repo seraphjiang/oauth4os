@@ -22,6 +22,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/cedar"
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/discovery"
+	"github.com/seraphjiang/oauth4os/internal/exchange"
 	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
@@ -227,35 +228,49 @@ func main() {
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		// Span: JWT validation
+		ctx, jwtSpan := tracer.StartSpan(r.Context(), string(tracing.SpanJWT), nil)
+		r = r.WithContext(ctx)
 		claims, err := validator.Validate(tokenStr)
 		if err != nil {
+			tracer.EndSpan(jwtSpan, "error")
 			authFailed.Add(1)
 			requestsFailed.Add(1)
 			http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
 			return
 		}
+		tracer.EndSpan(jwtSpan, "ok")
 		authSuccess.Add(1)
 
+		// Span: scope mapping
+		ctx, scopeSpan := tracer.StartSpan(r.Context(), string(tracing.SpanScope), map[string]string{"issuer": claims.Issuer})
+		r = r.WithContext(ctx)
 		roles := mapper.MapForIssuer(claims.Issuer, claims.Scopes)
 		if len(roles) == 0 {
+			tracer.EndSpan(scopeSpan, "error")
 			requestsFailed.Add(1)
 			http.Error(w, `{"error":"insufficient_scope"}`, http.StatusForbidden)
 			return
 		}
+		tracer.EndSpan(scopeSpan, "ok")
 
-		// Cedar policy evaluation (tenant-scoped)
+		// Span: Cedar policy evaluation (tenant-scoped)
 		index := extractIndex(r.URL.Path)
+		ctx, cedarSpan := tracer.StartSpan(r.Context(), string(tracing.SpanCedar), map[string]string{"index": index})
+		r = r.WithContext(ctx)
 		decision := policyEngine.Evaluate(claims.Issuer, cedar.Request{
 			Principal: map[string]string{"sub": claims.ClientID, "scope": strings.Join(claims.Scopes, ",")},
 			Action:    r.Method,
 			Resource:  map[string]string{"index": index, "path": r.URL.Path},
 		})
 		if !decision.Allowed {
+			tracer.EndSpan(cedarSpan, "error")
 			cedarDenied.Add(1)
 			requestsFailed.Add(1)
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
 		}
+		tracer.EndSpan(cedarSpan, "ok")
 
 		r.Header.Del("Authorization")
 		r.Header.Del("Cookie")

@@ -401,6 +401,43 @@ cmd_stats() {
   fi
 }
 
+cmd_export() {
+  local query="" fmt="json" outfile=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --format|-f) fmt="$2"; shift 2 ;;
+      --output|-o) outfile="$2"; shift 2 ;;
+      *) query="${query:+$query }$1"; shift ;;
+    esac
+  done
+  query="${query:-*}"
+  [ -z "$outfile" ] && { echo -e "${RED}Usage: oauth4os-demo export <query> --format csv|json --output <file>${NC}"; return 1; }
+
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}"; return 1; }
+  local dsl
+  dsl=$(kql_to_dsl "$query")
+  local body="{\"query\":${dsl},\"size\":10000,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
+  echo -e "${CYAN}Exporting:${NC} $query → $outfile ($fmt)"
+
+  local resp
+  resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    "${PROXY}/logs-*/_search" -d "$body" 2>/dev/null)
+  [ $? -ne 0 ] && { echo -e "${RED}Query failed${NC}"; return 1; }
+
+  local count
+  count=$(echo "$resp" | jq '.hits.hits | length' 2>/dev/null)
+
+  if [ "$fmt" = "csv" ]; then
+    echo "timestamp,level,service,message" > "$outfile"
+    echo "$resp" | jq -r '.hits.hits[]._source | [(.["@timestamp"] // .timestamp // ""), (.level // ""), (.service // ""), (.message // .msg // "")] | @csv' >> "$outfile" 2>/dev/null
+  else
+    echo "$resp" | jq '[.hits.hits[]._source]' > "$outfile" 2>/dev/null
+  fi
+
+  echo -e "${GREEN}✓ Exported ${count} records to ${outfile}${NC}"
+}
+
 # Main
 ensure_deps
 case "${1:-}" in

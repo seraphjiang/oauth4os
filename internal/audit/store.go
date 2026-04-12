@@ -98,3 +98,10 @@ func (s *MemoryStore) Close() error {
 	}
 	return nil
 }
+
+// Len returns the number of stored entries.
+func (s *MemoryStore) Len() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.entries)
+}

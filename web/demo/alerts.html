@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Alerts</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+.container{max-width:800px;margin:0 auto;padding:20px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.toolbar h1{font-size:20px}
+.toolbar .actions{display:flex;gap:8px;align-items:center}
+select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px}
+.btn-sm{padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn-sm:hover{border-color:var(--accent)}
+
+/* Summary */
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.sum-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.sum-card .num{font-size:28px;font-weight:800}
+.sum-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase}
+
+/* Alert cards */
+.alert-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;border-left:3px solid var(--border);transition:border-color .15s}
+.alert-card:hover{border-left-color:var(--accent)}
+.alert-card.sev-critical{border-left-color:var(--red)}
+.alert-card.sev-warning{border-left-color:var(--orange)}
+.alert-card.sev-info{border-left-color:var(--accent)}
+.alert-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.alert-title{font-size:14px;font-weight:600}
+.alert-time{font-size:11px;color:var(--muted);white-space:nowrap}
+.sev{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase}
+.sev-critical .sev{background:#f8514922;color:var(--red)}
+.sev-warning .sev{background:#f0883e22;color:var(--orange)}
+.sev-info .sev{background:#58a6ff22;color:var(--accent)}
+.alert-body{font-size:12px;color:var(--muted);margin-bottom:8px}
+.alert-meta{display:flex;gap:8px;flex-wrap:wrap}
+.tag{padding:1px 8px;border-radius:10px;font-size:10px;background:var(--border);color:var(--text)}
+.empty{text-align:center;padding:60px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🚨 Alert <span>Feed</span></div>
+  <nav>
+    <a href="./">Demo App</a>
+    <a href="services.html">Service Map</a>
+    <a href="../">← oauth4os</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+<div class="container">
+  <div class="toolbar">
+    <h1>Alerts</h1>
+    <div class="actions">
+      <select id="filterSev" aria-label="Filter severity"><option value="">All</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option></select>
+      <select id="filterSvc" aria-label="Filter service"><option value="">All Services</option></select>
+      <button class="btn-sm" id="refreshBtn" aria-label="Refresh">🔄</button>
+    </div>
+  </div>
+  <div class="summary" id="summary"></div>
+  <div id="alertList"></div>
+</div>
+<script>
+const PROXY = window.location.origin;
+const SERVICES = ['payment','auth','cart','shipping','inventory'];
+let alerts = [];
+let token = sessionStorage.getItem('oauth4os_token');
+
+async function getToken() {
+  if (token) return;
+  try {
+    const r = await fetch(PROXY + '/oauth/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+    });
+    if (r.ok) { const d = await r.json(); token = d.access_token; sessionStorage.setItem('oauth4os_token', token); }
+  } catch {}
+}
+
+async function fetchAlerts() {
+  await getToken();
+  alerts = [];
+  if (!token) { generateFallback(); render(); return; }
+
+  // Per-service: error count, latest error, latency
+  for (const svc of SERVICES) {
+    try {
+      const r = await fetch(PROXY + '/logs-*/_search', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          size: 3,
+          query: { bool: { must: [{ term: { 'service.keyword': svc } }] } },
+          sort: [{ timestamp: 'desc' }],
+          aggs: {
+            errors: { filter: { term: { 'level.keyword': 'ERROR' } } },
+            warns: { filter: { term: { 'level.keyword': 'WARN' } } },
+            total: { value_count: { field: 'timestamp' } },
+            latency: { avg: { field: 'latency_ms' } },
+            recent_errors: { filter: { term: { 'level.keyword': 'ERROR' } }, aggs: { latest: { top_hits: { size: 1, sort: [{ timestamp: 'desc' }] } } } }
+          }
+        })
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const total = d.aggregations?.total?.value ?? 0;
+      const errCount = d.aggregations?.errors?.doc_count ?? 0;
+      const warnCount = d.aggregations?.warns?.doc_count ?? 0;
+      const avgLatency = d.aggregations?.latency?.value ?? 0;
+      const errRate = total > 0 ? errCount / total : 0;
+
+      // Error spike
+      if (errRate > 0.1) {
+        const latestErr = d.aggregations?.recent_errors?.latest?.hits?.hits?.[0]?._source;
+        alerts.push({
+          severity: 'critical', type: 'Error Spike', service: svc,
+          title: `${svc}: error rate ${(errRate * 100).toFixed(0)}% (${errCount}/${total})`,
+          body: latestErr?.message || `${errCount} errors detected in recent logs`,
+          time: latestErr?.timestamp || new Date().toISOString()
+        });
+      } else if (errCount > 0) {
+        const latestErr = d.aggregations?.recent_errors?.latest?.hits?.hits?.[0]?._source;
+        alerts.push({
+          severity: 'warning', type: 'Errors Detected', service: svc,
+          title: `${svc}: ${errCount} error(s) in recent logs`,
+          body: latestErr?.message || 'Check error logs for details',
+          time: latestErr?.timestamp || new Date().toISOString()
+        });
+      }
+
+      // Latency spike
+      if (avgLatency > 500) {
+        alerts.push({
+          severity: 'critical', type: 'Latency Spike', service: svc,
+          title: `${svc}: avg latency ${Math.round(avgLatency)}ms`,
+          body: `Average latency exceeds 500ms threshold`,
+          time: new Date().toISOString()
+        });
+      } else if (avgLatency > 200) {
+        alerts.push({
+          severity: 'warning', type: 'High Latency', service: svc,
+          title: `${svc}: avg latency ${Math.round(avgLatency)}ms`,
+          body: `Latency above 200ms baseline`,
+          time: new Date().toISOString()
+        });
+      }
+
+      // Warn spike
+      if (warnCount > 5) {
+        alerts.push({
+          severity: 'info', type: 'Warning Pattern', service: svc,
+          title: `${svc}: ${warnCount} warnings detected`,
+          body: 'Elevated warning count may indicate emerging issue',
+          time: new Date().toISOString()
+        });
+      }
+
+      // Healthy
+      if (errCount === 0 && avgLatency < 200 && total > 0) {
+        alerts.push({
+          severity: 'info', type: 'Healthy', service: svc,
+          title: `${svc}: all clear — ${total} requests, 0 errors`,
+          body: `Avg latency: ${Math.round(avgLatency)}ms`,
+          time: new Date().toISOString()
+        });
+      }
+    } catch {}
+  }
+
+  if (!alerts.length) generateFallback();
+  alerts.sort((a, b) => sevOrder(a.severity) - sevOrder(b.severity) || new Date(b.time) - new Date(a.time));
+  render();
+}
+
+function sevOrder(s) { return s === 'critical' ? 0 : s === 'warning' ? 1 : 2; }
+
+function generateFallback() {
+  const now = Date.now();
+  alerts = [
+    { severity:'critical', type:'Error Spike', service:'payment', title:'payment: error rate 23% (47/204)', body:'Connection refused to downstream inventory service', time: new Date(now - 120000).toISOString() },
+    { severity:'critical', type:'Latency Spike', service:'auth', title:'auth: avg latency 1,240ms', body:'JWT validation latency spike — JWKS endpoint slow', time: new Date(now - 300000).toISOString() },
+    { severity:'warning', type:'Errors Detected', service:'shipping', title:'shipping: 8 errors in last 5 min', body:'Timeout waiting for inventory stock check', time: new Date(now - 600000).toISOString() },
+    { severity:'warning', type:'New Error Pattern', service:'cart', title:'cart: new error pattern detected', body:'NullPointerException in CartService.addItem — first seen 3 min ago', time: new Date(now - 180000).toISOString() },
+    { severity:'info', type:'Warning Pattern', service:'inventory', title:'inventory: 12 warnings — low stock alerts', body:'Multiple SKUs below reorder threshold', time: new Date(now - 900000).toISOString() },
+    { severity:'info', type:'Healthy', service:'cart', title:'cart: all clear — 1,204 requests, 0 errors', body:'Avg latency: 45ms', time: new Date(now - 60000).toISOString() },
+  ];
+}
+
+function render() {
+  const sevFilter = document.getElementById('filterSev').value;
+  const svcFilter = document.getElementById('filterSvc').value;
+  const filtered = alerts.filter(a => (!sevFilter || a.severity === sevFilter) && (!svcFilter || a.service === svcFilter));
+
+  const crit = filtered.filter(a => a.severity === 'critical').length;
+  const warn = filtered.filter(a => a.severity === 'warning').length;
+  const info = filtered.filter(a => a.severity === 'info').length;
+  document.getElementById('summary').innerHTML = `
+    <div class="sum-card"><div class="num" style="color:var(--red)">${crit}</div><div class="lbl">Critical</div></div>
+    <div class="sum-card"><div class="num" style="color:var(--orange)">${warn}</div><div class="lbl">Warning</div></div>
+    <div class="sum-card"><div class="num" style="color:var(--accent)">${info}</div><div class="lbl">Info</div></div>`;
+
+  if (!filtered.length) {
+    document.getElementById('alertList').innerHTML = '<div class="empty">🎉 No alerts — all services healthy</div>';
+    return;
+  }
+  document.getElementById('alertList').innerHTML = filtered.map(a => `
+    <div class="alert-card sev-${a.severity}">
+      <div class="alert-header">
+        <div><span class="sev">${a.severity}</span> <span class="alert-title">${esc(a.title)}</span></div>
+        <div class="alert-time">${timeAgo(a.time)}</div>
+      </div>
+      <div class="alert-body">${esc(a.body)}</div>
+      <div class="alert-meta">
+        <span class="tag">${a.type}</span>
+        <span class="tag">${a.service}</span>
+      </div>
+    </div>`).join('');
+}
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  return Math.floor(s / 3600) + 'h ago';
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// Populate service filter
+SERVICES.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; document.getElementById('filterSvc').appendChild(o); });
+
+document.getElementById('filterSev').addEventListener('change', render);
+document.getElementById('filterSvc').addEventListener('change', render);
+document.getElementById('refreshBtn').addEventListener('click', fetchAlerts);
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+fetchAlerts();
+setInterval(fetchAlerts, 30000);
+</script>
+</body>
+</html>

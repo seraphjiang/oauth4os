@@ -802,6 +802,14 @@ func main() {
 	log.Println("Server stopped")
 }
 
+// writeError writes a JSON error response with the request ID included.
+func writeError(w http.ResponseWriter, code int, errType string) {
+	reqID := w.Header().Get("X-Request-ID")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	fmt.Fprintf(w, `{"error":%q,"request_id":%q}`, errType, reqID)
+}
+
 func extractIndex(path string) string {
 	path = strings.TrimPrefix(path, "/")
 	if idx := strings.IndexByte(path, '/'); idx > 0 {

@@ -20,6 +20,14 @@ type Config struct {
 	IPFilter     IPFilterConfig    `yaml:"ip_filter"`
 	MTLS         MTLSConfig        `yaml:"mtls"`
 	Webhook      WebhookConfig     `yaml:"webhook"`
+	CORS         CORSConfig        `yaml:"cors"`
+}
+
+// CORSConfig holds CORS settings.
+type CORSConfig struct {
+	Origins []string `yaml:"origins"` // allowed origins, empty = "*"
+	Methods []string `yaml:"methods"` // allowed methods, empty = default set
+	Headers []string `yaml:"headers"` // allowed headers, empty = default set
 }
 
 // WebhookConfig holds external webhook authorizer settings.

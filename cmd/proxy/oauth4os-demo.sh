@@ -1196,6 +1196,15 @@ cmd_ping() {
   echo -e "\n  ${BOLD}min/avg/max = ${min}/${avg}/${max} ms${NC}"
 }
 
+cmd_changelog() {
+  local resp
+  resp=$(curl -sf "${PROXY}/version" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Cannot reach proxy${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}📋 oauth4os${NC}\n"
+  echo "$resp" | jq -r '"  Version: \(.version // "unknown")\n  Commit:  \(.commit // "unknown")\n  Built:   \(.built // "unknown")"' 2>/dev/null || echo "$resp"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1233,6 +1242,7 @@ case "${1:-}" in
   alerts)   cmd_alerts ;;
   latency)  cmd_latency ;;
   ping)     shift; cmd_ping "${1:-5}" ;;
+  changelog|version) cmd_changelog ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

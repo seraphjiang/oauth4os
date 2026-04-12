@@ -483,7 +483,7 @@ curl https://proxy:8443/health
 
 Response:
 ```json
-{"status": "ok", "version": "0.3.0", "uptime": "2h15m"}
+{"status": "ok", "version": "0.5.0", "uptime": "2h15m"}
 ```
 
 ---
@@ -548,6 +548,44 @@ curl https://proxy:8443/developer/openapi.yaml
 ### GET /developer/analytics
 
 Developer analytics dashboard (HTML) — top clients, scope distribution, request timeline.
+
+---
+
+### GET /version
+
+Machine-readable version info.
+
+```bash
+curl https://proxy:8443/version
+```
+
+Response:
+```json
+{"version": "0.5.0", "go": "go1.22", "os": "linux", "arch": "amd64"}
+```
+
+---
+
+### GET /ready
+
+Kubernetes readiness probe. Returns 503 during graceful shutdown.
+
+```bash
+curl https://proxy:8443/ready
+```
+
+Response (ready): `{"status":"ready"}`
+Response (shutting down): `503 {"status":"shutting_down"}`
+
+---
+
+### GET /playground
+
+Interactive OAuth playground — step through PKCE flow visually.
+
+### GET /analytics
+
+Token analytics dashboard (HTML) — top clients, scope distribution, request timeline. Auto-refreshes.
 
 ---
 

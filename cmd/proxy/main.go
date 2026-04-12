@@ -315,7 +315,7 @@ func main() {
 	}
 
 	// Backup handler
-	_ = backup.NewHandler(
+	backupHandler := backup.NewHandler(
 		func() *config.Config { return cfg },
 		func() []backup.ClientEntry { return nil },
 		func(c *config.Config) { *cfg = *c },

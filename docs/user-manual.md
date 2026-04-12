@@ -53,8 +53,8 @@ Client → oauth4os (:8443) → OpenSearch Engine (:9200)
 ### Docker (recommended)
 
 ```bash
-docker pull ghcr.io/seraphjiang/oauth4os:latest
-docker run -p 8443:8443 -v ./config.yaml:/etc/oauth4os/config.yaml ghcr.io/seraphjiang/oauth4os
+docker pull jianghuan/oauth4os:latest
+docker run -p 8443:8443 -v ./config.yaml:/etc/oauth4os/config.yaml jianghuan/oauth4os
 ```
 
 ### Docker Compose (with OpenSearch + Keycloak)
@@ -663,7 +663,7 @@ curl -H "Authorization: Bearer $TOKEN" https://proxy:8443/logs-*/_search
 ```bash
 docker run -p 8443:8443 \
   -v ./config.yaml:/etc/oauth4os/config.yaml \
-  ghcr.io/seraphjiang/oauth4os:latest
+  jianghuan/oauth4os:latest
 ```
 
 ### Kubernetes (Helm)
@@ -693,7 +693,7 @@ containers:
     image: opensearchproject/opensearch:latest
     ports: [{containerPort: 9200}]
   - name: oauth-proxy
-    image: ghcr.io/seraphjiang/oauth4os:latest
+    image: jianghuan/oauth4os:latest
     ports: [{containerPort: 8443}]
     volumeMounts:
       - name: config

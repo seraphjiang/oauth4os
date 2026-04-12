@@ -65,6 +65,7 @@ ${BOLD}COMMANDS:${NC}
   top                  Real-time top consumers (like Unix top)
   env                  Show config, paths, connectivity diagnostic
   audit [n]            Show last n admin audit events (default 20)
+  alerts               Show alert status from proxy metrics
   install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}
@@ -1059,6 +1060,45 @@ cmd_audit() {
   done
 }
 
+cmd_alerts() {
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+  local resp
+  resp=$(curl -sf -H "Authorization: Bearer ${tok}" "${PROXY}/admin/alerts" 2>/dev/null)
+  if [ -z "$resp" ]; then
+    # Fallback: show metrics-based status
+    local metrics
+    metrics=$(curl -sf "${PROXY}/metrics" 2>/dev/null)
+    if [ -z "$metrics" ]; then echo -e "${RED}Cannot reach proxy${NC}" >&2; return 1; fi
+    echo -e "${BOLD}🔔 Alert Status (from metrics)${NC}\n"
+    local auth_fail=$(echo "$metrics" | grep '^oauth4os_auth_failed ' | awk '{print $2}')
+    local upstream_err=$(echo "$metrics" | grep '^oauth4os_upstream_errors ' | awk '{print $2}')
+    local shed=$(echo "$metrics" | grep '^oauth4os_loadshed_total ' | awk '{print $2}')
+    local circuit=$(echo "$metrics" | grep '^oauth4os_circuit_opens ' | awk '{print $2}')
+    local healthy=$(echo "$metrics" | grep '^oauth4os_upstream_healthy ' | awk '{print $2}')
+    local latency=$(echo "$metrics" | grep '^oauth4os_upstream_latency_ms ' | awk '{print $2}')
+
+    _status() { [ "${1:-0}" = "0" ] && echo -e "${GREEN}OK${NC}" || echo -e "${YELLOW}${1}${NC}"; }
+    _health() { [ "${1:-1}" = "1" ] && echo -e "${GREEN}healthy${NC}" || echo -e "${RED}DOWN${NC}"; }
+
+    printf "  %-25s %s\n" "Auth failures:" "$(_status $auth_fail)"
+    printf "  %-25s %s\n" "Upstream errors:" "$(_status $upstream_err)"
+    printf "  %-25s %s\n" "Upstream health:" "$(_health $healthy)"
+    printf "  %-25s %s\n" "Upstream latency:" "${latency:-?}ms"
+    printf "  %-25s %s\n" "Load shed rejections:" "$(_status $shed)"
+    printf "  %-25s %s\n" "Circuit breaker opens:" "$(_status $circuit)"
+    return
+  fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🔔 Active Alerts${NC}\n"
+  echo "$resp" | jq -r '.alerts[]? | "\(.state) \(.labels.severity) \(.labels.alertname) \(.annotations.summary)"' 2>/dev/null | while read -r state sev name summary; do
+    local icon="🟢"
+    [ "$state" = "firing" ] && icon="🔴"
+    [ "$state" = "pending" ] && icon="🟡"
+    printf "  %s %-10s %-8s %-25s %s\n" "$icon" "$state" "$sev" "$name" "$summary"
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -1083,6 +1123,7 @@ case "${1:-}" in
   top)      cmd_top ;;
   env)      cmd_env ;;
   audit)    shift; cmd_audit "${1:-20}" ;;
+  alerts)   cmd_alerts ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

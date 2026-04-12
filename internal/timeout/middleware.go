@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,7 +28,7 @@ func Middleware(next http.Handler, d time.Duration) http.Handler {
 		case <-done:
 			// Handler completed in time
 		case <-ctx.Done():
-			if !tw.written {
+			if !tw.written.Load() {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusGatewayTimeout)
 				reqID := w.Header().Get("X-Request-ID")
@@ -40,16 +41,17 @@ func Middleware(next http.Handler, d time.Duration) http.Handler {
 type timeoutWriter struct {
 	http.ResponseWriter
 	code    int
-	written bool
+	written atomic.Bool
 }
 
 func (w *timeoutWriter) WriteHeader(code int) {
-	w.written = true
-	w.code = code
-	w.ResponseWriter.WriteHeader(code)
+	if w.written.CompareAndSwap(false, true) {
+		w.code = code
+		w.ResponseWriter.WriteHeader(code)
+	}
 }
 
 func (w *timeoutWriter) Write(b []byte) (int, error) {
-	w.written = true
+	w.written.Store(true)
 	return w.ResponseWriter.Write(b)
 }

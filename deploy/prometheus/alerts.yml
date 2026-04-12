@@ -67,6 +67,16 @@ groups:
         annotations:
           summary: "Load shedding near threshold ({{ $value }}/500 inflight)"
 
+      # Load shedding rejections
+      - alert: LoadSheddingRejections
+        expr: rate(oauth4os_loadshed_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Requests being shed at {{ $value }}/s"
+          description: "Server at capacity — consider scaling up."
+
       # High request latency
       - alert: HighUpstreamLatency
         expr: oauth4os_upstream_latency_ms > 2000

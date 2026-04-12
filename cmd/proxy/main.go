@@ -324,7 +324,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Register backup routes
-	backupHandler.Register(mux)
+	// backupHandler.Register(mux) — routes handled by admin API
 
 	// Issuer URL for discovery + token exchange
 	issuerURL := "http://localhost" + cfg.Listen

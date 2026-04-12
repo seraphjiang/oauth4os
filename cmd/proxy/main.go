@@ -44,6 +44,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/tracing"
 	"github.com/seraphjiang/oauth4os/internal/backup"
 	"github.com/seraphjiang/oauth4os/internal/demo"
+	"github.com/seraphjiang/oauth4os/internal/tokenui"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 )
@@ -515,6 +516,10 @@ func main() {
 	// Demo web app (log viewer with PKCE login)
 	demoApp := demo.NewHandler(issuerURL, "demo-app")
 	demoApp.Register(mux)
+
+	// Token inspector page
+	tokenInspector := tokenui.New(issuerURL)
+	tokenInspector.Register(mux)
 
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")

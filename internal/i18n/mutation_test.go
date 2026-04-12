@@ -27,3 +27,18 @@ func TestMutation_ConsentStrings(t *testing.T) {
 		t.Error("must return non-empty consent translations")
 	}
 }
+
+// Mutation: remove language fallback → unknown language must fall back to English
+func TestMutation_LanguageFallback(t *testing.T) {
+	h := Handler()
+	r := httptest.NewRequest("GET", "/i18n/consent.json?lang=xx", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	// Should return English as fallback
+	if !strings.Contains(w.Body.String(), "consent") {
+		t.Error("fallback must return consent strings")
+	}
+}

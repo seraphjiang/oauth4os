@@ -38,3 +38,17 @@ func TestMutation_NoGzipWithout(t *testing.T) {
 		t.Errorf("uncompressed body should be 'hello', got %q", body)
 	}
 }
+
+// Mutation: remove status code passthrough → must preserve upstream status
+func TestMutation_StatusPreserved(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(201)
+		w.Write([]byte("created"))
+	})
+	handler := Middleware(inner)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != 201 {
+		t.Errorf("must preserve upstream status 201, got %d", w.Code)
+	}
+}

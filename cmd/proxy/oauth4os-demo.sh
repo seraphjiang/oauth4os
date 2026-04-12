@@ -487,7 +487,7 @@ cmd_stats() {
     }
   }'
   local resp
-  resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+  resp=$(authed_curl -H "Content-Type: application/json" \
     "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
   if [ $? -ne 0 ] || [ -z "$resp" ]; then
     echo -e "${RED}Query failed${NC}"; return 1
@@ -548,7 +548,7 @@ cmd_export() {
   echo -e "${CYAN}Exporting:${NC} $query → $outfile ($fmt)"
 
   local resp
-  resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+  resp=$(authed_curl -H "Content-Type: application/json" \
     "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
   [ $? -ne 0 ] && { echo -e "${RED}Query failed${NC}"; return 1; }
 

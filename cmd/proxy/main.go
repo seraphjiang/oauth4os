@@ -50,6 +50,7 @@ import (
 	corsmw "github.com/seraphjiang/oauth4os/internal/cors"
 	"github.com/seraphjiang/oauth4os/internal/apikey"
 	"github.com/seraphjiang/oauth4os/internal/device"
+	"github.com/seraphjiang/oauth4os/internal/i18n"
 	"github.com/seraphjiang/oauth4os/internal/tokenbind"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
@@ -736,6 +737,7 @@ func main() {
 	demoApp := demo.NewHandler(issuerURL, "demo-app")
 	demoApp.Register(mux)
 	deviceHandler.Register(mux)
+	mux.HandleFunc("GET /i18n/consent.json", i18n.Handler)
 
 	// Token inspector page
 	tokenInspector := tokenui.New(issuerURL)

@@ -871,6 +871,68 @@ This eliminates the need for explicit refresh token flows in long-running sessio
 
 ---
 
+## Device Flow (RFC 8628)
+
+For CLI tools and IoT devices without a browser:
+
+```bash
+# 1. Device requests codes
+curl -X POST https://proxy/oauth/device/code \
+  -d 'client_id=my-cli&scope=read:logs-*'
+# Returns: device_code, user_code, verification_uri
+
+# 2. User visits verification_uri, enters user_code, approves
+
+# 3. Device polls for token
+curl -X POST https://proxy/oauth/device/token \
+  -d 'grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=<code>'
+# Returns: authorization_pending (keep polling) or access_token
+```
+
+Codes expire after 10 minutes. Poll interval: 5 seconds.
+
+---
+
+## Pushed Authorization Requests (RFC 9126)
+
+Prevents auth parameter tampering by pushing params server-side:
+
+```bash
+# 1. Push auth params
+curl -X POST https://proxy/oauth/par \
+  -d 'client_id=my-app&scope=read:logs-*&redirect_uri=https://app/callback&code_challenge=abc&code_challenge_method=S256'
+# Returns: request_uri, expires_in
+
+# 2. Redirect user with opaque URI only
+https://proxy/oauth/authorize?request_uri=urn:ietf:params:oauth:request_uri:...
+```
+
+Request URIs are one-time use and expire after 60 seconds.
+
+---
+
+## CIBA (Client Initiated Backchannel Authentication)
+
+For backend services that need to authenticate users without browser redirects:
+
+```bash
+# 1. Service initiates auth
+curl -X POST https://proxy/oauth/bc-authorize \
+  -d 'client_id=my-service&login_hint=user@example.com&scope=read:logs-*'
+# Returns: auth_req_id
+
+# 2. User approves on separate device (visits approval page)
+
+# 3. Service polls for token
+curl -X POST https://proxy/oauth/bc-token \
+  -d 'auth_req_id=<id>'
+# Returns: authorization_pending or access_token
+```
+
+Requests expire after 5 minutes.
+
+---
+
 ## Webhook Authorization
 
 Call an external webhook for custom auth decisions after JWT validation and Cedar evaluation. Use cases: LDAP group checks, compliance engines, internal policy systems.

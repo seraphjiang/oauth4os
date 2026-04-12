@@ -3,6 +3,30 @@
 All notable changes to oauth4os are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [v1.0.0] — 2026-04-12 🎉 Production Ready
+
+### Added
+- Gzip response compression middleware (sync.Pool, 28µs/op)
+- Toast notifications + offline detection in demo app
+- `--json` output flag on all CLI data commands (fully scriptable)
+- mTLS + keyring mutation tests (117 total mutations killed)
+- Compress edge tests + benchmarks (pool safety, concurrent)
+- Traceparent benchmarks (80ns/op, 0 allocs)
+- SigV4 benchmarks (6µs/op), token lookup benchmarks (18ns/op)
+- Registration edge tests, tokenbind + discovery mutation tests
+- 726 tests across 50 packages
+
+### Fixed
+- Race condition in token exchange StaticTokenIssuer (added mutex)
+- 3 E2E test failures (consent flow, health/deep 503 acceptance)
+- Non-TTY output handling in CLI stats command
+- Code quality audit: zero TODOs, zero vet warnings, zero duplicate routes
+
+### Stats
+- 542 commits, 443 files, 726 tests, 117 mutations killed, 50 packages
+- Docker Hub: `docker run -p 8443:8443 jianghuan/oauth4os:latest`
+- Live demo: https://f5cmk2hxwx.us-west-2.awsapprunner.com
+
 ## [v0.8.0] — 2026-04-12
 
 ### Added
@@ -180,6 +204,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Fixed header injection in proxied requests
 - Error responses no longer leak internal details
 
+[v0.7.0]: https://github.com/seraphjiang/oauth4os/compare/v0.6.0...v0.7.0
+[v0.6.0]: https://github.com/seraphjiang/oauth4os/compare/v0.5.0...v0.6.0
+[v1.0.0]: https://github.com/seraphjiang/oauth4os/compare/v0.8.0...v1.0.0
+[v0.8.0]: https://github.com/seraphjiang/oauth4os/compare/v0.7.0...v0.8.0
 [v0.7.0]: https://github.com/seraphjiang/oauth4os/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/seraphjiang/oauth4os/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/seraphjiang/oauth4os/compare/v0.4.0...v0.5.0

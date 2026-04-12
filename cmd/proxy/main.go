@@ -769,7 +769,7 @@ func main() {
 	mux.HandleFunc("POST /admin/sessions/logout", func(w http.ResponseWriter, r *http.Request) {
 		clientID := r.URL.Query().Get("client_id")
 		if clientID == "" {
-			http.Error(w, `{"error":"client_id required"}`, http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "client_id_required")
 			return
 		}
 		removed := sessionMgr.ForceLogout(clientID)
@@ -786,7 +786,7 @@ func main() {
 			Scopes   []string `json:"scopes"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClientID == "" {
-			http.Error(w, `{"error":"client_id required"}`, http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "client_id_required")
 			return
 		}
 		raw, k := apiKeyStore.Generate(req.ClientID, req.Scopes)
@@ -801,7 +801,7 @@ func main() {
 		if apiKeyStore.Revoke(r.PathValue("id")) {
 			w.WriteHeader(http.StatusNoContent)
 		} else {
-			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+			writeError(w, http.StatusNotFound, "not_found")
 		}
 	})
 
@@ -946,7 +946,7 @@ func main() {
 					return
 				}
 				authFailed.Add(1)
-				http.Error(w, `{"error":"invalid_api_key"}`, http.StatusUnauthorized)
+				writeError(w, http.StatusUnauthorized, "invalid_api_key")
 				return
 			}
 			// mTLS client cert auth (alternative to Bearer token)
@@ -1015,7 +1015,7 @@ func main() {
 		fp := tokenbind.Fingerprint(r)
 		if !tokenBinder.Verify(tokenStr[:16], fp) {
 			authFailed.Add(1)
-			http.Error(w, `{"error":"token_binding_mismatch"}`, http.StatusUnauthorized)
+			writeError(w, http.StatusUnauthorized, "token_binding_mismatch")
 			return
 		}
 		tokenBinder.Bind(tokenStr[:16], fp) // bind on first use

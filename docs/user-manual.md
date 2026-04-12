@@ -762,10 +762,13 @@ All proxy logs are JSON-formatted for log aggregation (ELK, Loki, CloudWatch):
 | `401 invalid_token` | JWT expired or malformed | Get a fresh token from OIDC provider |
 | `401 unknown issuer` | Token issuer not in config | Add provider to `providers` list |
 | `403 insufficient_scope` | Token scopes don't map to any roles | Check `scope_mapping` in config |
-| `403 cedar_denied` | Cedar policy blocked the request | Review Cedar policies |
+| `403 cedar_denied` | Cedar policy blocked the request | Review Cedar policies, check `policy` field in response |
+| `429 Too Many Requests` | Client exceeded rate limit | Wait for `Retry-After` seconds, or increase `rate_limit` config |
 | `502 Bad Gateway` | Can't reach upstream OpenSearch | Check `upstream.engine` URL |
 | JWKS fetch timeout | OIDC provider unreachable | Check network, verify `jwks_uri` |
 | Token not refreshing | CLI cache stale | Run `oauth4os logout && oauth4os login` |
+| PKCE `invalid_grant` | Code verifier mismatch | Ensure same `code_verifier` used for challenge and exchange |
+| `400 invalid_scope` | Requested scope not allowed for client | Check client's allowed scopes in OIDC provider |
 
 ### Debug Mode
 

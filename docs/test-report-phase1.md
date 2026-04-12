@@ -27,22 +27,30 @@ oauth4os is an OAuth2 proxy for OpenSearch that adds token-based auth, scope-to-
 
 ## 2. Test Inventory
 
-### 2.1 Unit Tests
+### 2.1 Unit Tests (71 functions across 9 packages)
 
 | File | Tests | Coverage Target |
 |---|---|---|
-| `internal/cedar/engine_test.go` | 8 | Cedar policy evaluation, parsing, glob matching |
+| `internal/cedar/engine_test.go` | 8 | Policy evaluation, parsing, glob matching |
+| `internal/cedar/tenant_test.go` | 2 | Per-tenant Cedar policies |
+| `internal/token/manager_test.go` | 14 | Issuance, auth, scopes, refresh, revocation, listing, lookup |
+| `internal/jwt/validator_test.go` | 12 | JWT validation, malformed tokens, scope extraction, JWKS |
+| `internal/ratelimit/limiter_test.go` | 9 | Token bucket, per-scope limits, middleware, 429, Retry-After |
+| `internal/introspect/handler_test.go` | 9 | RFC 7662 active/inactive, adapter states, method check |
+| `internal/pkce/handler_test.go` | 9 | Authorize, exchange, bad verifier, code reuse, redirect mismatch |
+| `internal/scope/mapper_test.go` | 3 | Global mapping, tenant override, dedup |
+| `internal/config/config_test.go` | 4 | Valid config, missing file, invalid YAML, tenants |
+| `internal/audit/auditor_test.go` | 2 | Log output format |
 
-**Only 1 of 8 internal packages has unit tests.** This is the biggest gap.
+All 9 internal packages have unit tests.
 
-### 2.2 Integration Tests
+### 2.2 Integration Tests (26 functions)
 
 | File | Tests | Coverage |
 |---|---|---|
-| `test/integration/proxy_test.go` | 10 | Health, token CRUD, proxy passthrough, bearer auth |
+| `test/integration/proxy_test.go` | 11 | Health, token CRUD, proxy passthrough, bearer auth |
 | `test/integration/scope_test.go` | 10 | Scope enforcement, token expiry, revocation, routing, concurrency |
 | `test/integration/cedar_test.go` | 5 | Permit/forbid, conditions, multi-provider |
-| **Total** | **25** | |
 
 ### 2.3 E2E Tests
 
@@ -50,7 +58,13 @@ oauth4os is an OAuth2 proxy for OpenSearch that adds token-based auth, scope-to-
 |---|---|---|
 | `test/e2e/e2e_test.go` (Go) | 8 | Health, token issuance, auth rejection, index CRUD, search, revocation, listing |
 | `test/e2e/run.sh` (Bash) | 12 | Same + audit trail, cleanup — runs against docker-compose.demo.yml |
-| **Total** | **20** | |
+
+### 2.4 Other Tests
+
+| File | Tests | Coverage |
+|---|---|---|
+| `test/proxy_test.go` | 4 | Proxy-level tests |
+| `bench/bench_test.go` | 0 | Benchmark stubs (no Test functions) |
 
 ### 2.4 CI Pipeline
 

@@ -174,6 +174,16 @@ func main() {
 		requestsActive.Add(1)
 		defer requestsActive.Add(-1)
 
+		// Inject X-Request-ID for tracing
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			b := make([]byte, 16)
+			rand.Read(b)
+			reqID = fmt.Sprintf("%x", b)
+			r.Header.Set("X-Request-ID", reqID)
+		}
+		w.Header().Set("X-Request-ID", reqID)
+
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			engineProxy.ServeHTTP(w, r)

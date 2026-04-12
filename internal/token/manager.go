@@ -22,13 +22,15 @@ type KeyProvider interface {
 
 // Token represents an issued access token.
 type Token struct {
-	ID           string    `json:"id"`
-	ClientID     string    `json:"client_id"`
-	Scopes       []string  `json:"scopes"`
-	CreatedAt    time.Time `json:"created_at"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	Revoked      bool      `json:"revoked"`
-	RefreshToken string    `json:"-"` // never exposed in list/get
+	ID              string    `json:"id"`
+	ClientID        string    `json:"client_id"`
+	Scopes          []string  `json:"scopes"`
+	CreatedAt       time.Time `json:"created_at"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	Revoked         bool      `json:"revoked"`
+	RefreshToken    string    `json:"-"` // never exposed in list/get
+	RefreshExpiresAt time.Time `json:"-"` // refresh token TTL
+	FamilyCreatedAt  time.Time `json:"-"` // absolute lifetime anchor
 }
 
 // Client represents a registered OAuth client.

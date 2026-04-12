@@ -66,6 +66,7 @@ ${BOLD}COMMANDS:${NC}
   env                  Show config, paths, connectivity diagnostic
   audit [n]            Show last n admin audit events (default 20)
   alerts               Show alert status from proxy metrics
+  latency              Show upstream latency and throughput
   install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}
@@ -1099,6 +1100,30 @@ cmd_alerts() {
   done
 }
 
+cmd_latency() {
+  local metrics
+  metrics=$(curl -sf "${PROXY}/metrics" 2>/dev/null)
+  if [ -z "$metrics" ]; then echo -e "${RED}Cannot reach proxy${NC}" >&2; return 1; fi
+  local lat=$(echo "$metrics" | grep '^oauth4os_upstream_latency_ms ' | awk '{print $2}')
+  local active=$(echo "$metrics" | grep '^oauth4os_requests_active ' | awk '{print $2}')
+  local total=$(echo "$metrics" | grep '^oauth4os_requests_total ' | awk '{print $2}')
+  local failed=$(echo "$metrics" | grep '^oauth4os_requests_failed ' | awk '{print $2}')
+  local uptime=$(echo "$metrics" | grep '^oauth4os_uptime_seconds ' | awk '{print $2}')
+
+  echo -e "${BOLD}⏱  Latency & Throughput${NC}\n"
+  echo -e "  ${BOLD}Upstream latency:${NC}  ${CYAN}${lat:-?}ms${NC}"
+  echo -e "  ${BOLD}Active requests:${NC}   ${active:-0}"
+  echo -e "  ${BOLD}Total requests:${NC}    ${total:-0}"
+  echo -e "  ${BOLD}Failed requests:${NC}   ${RED}${failed:-0}${NC}"
+  if [ "${uptime:-0}" -gt 0 ] 2>/dev/null && [ "${total:-0}" -gt 0 ] 2>/dev/null; then
+    local rps=$(( total / uptime ))
+    local err_pct=0
+    [ "$total" -gt 0 ] && err_pct=$(( failed * 100 / total ))
+    echo -e "  ${BOLD}Avg throughput:${NC}    ~${rps} req/s"
+    echo -e "  ${BOLD}Error rate:${NC}        ${err_pct}%"
+  fi
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -1124,6 +1149,7 @@ case "${1:-}" in
   env)      cmd_env ;;
   audit)    shift; cmd_audit "${1:-20}" ;;
   alerts)   cmd_alerts ;;
+  latency)  cmd_latency ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

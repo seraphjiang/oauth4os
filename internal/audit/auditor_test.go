@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -73,5 +74,61 @@ func TestAuditorEmptyScopes(t *testing.T) {
 	json.Unmarshal(buf.Bytes(), &entry)
 	if entry.Scopes != nil {
 		t.Errorf("scopes should be nil, got %v", entry.Scopes)
+	}
+}
+
+func TestWithStore(t *testing.T) {
+	var buf bytes.Buffer
+	a := NewAuditor(&buf)
+	s, _ := NewMemoryStore(100, "")
+	a2 := a.WithStore(s)
+	if a2 == nil {
+		t.Fatal("WithStore returned nil")
+	}
+	a2.Log("client1", "GET", "/test", []string{"read:*"}, []string{"reader"}, "10.0.0.1")
+	if s.Len() != 1 {
+		t.Errorf("store should have 1 entry, got %d", s.Len())
+	}
+}
+
+func TestLogCedar(t *testing.T) {
+	var buf bytes.Buffer
+	a := NewAuditor(&buf)
+	s, _ := NewMemoryStore(100, "")
+	a.WithStore(s)
+	a.LogCedar("client1", "GET", "logs-demo", "policy-1", "permitted", true)
+	if buf.Len() == 0 {
+		t.Error("expected JSON output")
+	}
+	if !strings.Contains(buf.String(), "cedar") {
+		t.Error("expected cedar in output")
+	}
+}
+
+func TestAuditorQuery(t *testing.T) {
+	var buf bytes.Buffer
+	a := NewAuditor(&buf)
+	s, _ := NewMemoryStore(100, "")
+	a = a.WithStore(s)
+	a.Log("c1", "GET", "/a", nil, nil, "1.2.3.4")
+	a.Log("c2", "POST", "/b", nil, nil, "5.6.7.8")
+	entries, err := a.Query(QueryFilter{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Errorf("expected 2 entries, got %d", len(entries))
+	}
+}
+
+func TestStoreCloseAndLen(t *testing.T) {
+	s, _ := NewMemoryStore(100, "")
+	s.Write(LogEntry{ClientID: "c1"})
+	s.Write(LogEntry{ClientID: "c2"})
+	if s.Len() != 2 {
+		t.Errorf("Len = %d, want 2", s.Len())
+	}
+	if err := s.Close(); err != nil {
+		t.Errorf("Close error: %v", err)
 	}
 }

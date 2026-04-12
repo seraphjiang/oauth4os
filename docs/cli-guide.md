@@ -67,6 +67,9 @@ oauth4os-demo watch 'level:FATAL'
 | `dashboard` | Full-screen TUI dashboard (htop for logs) |
 | `top` | Real-time top consumers (requests, clients, scopes) |
 | `diff <r1> <r2>` | Compare time ranges (today/yesterday/1h/24h/7d) |
+| `latency` | Upstream latency, throughput, error rate |
+| `alerts` | Alert status from proxy metrics |
+| `audit [n]` | Show last n admin audit events |
 | `services` | List indexed services |
 | `indices` | List OpenSearch indices |
 | `status` | Check proxy health |

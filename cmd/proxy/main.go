@@ -173,6 +173,11 @@ func main() {
 	mux.HandleFunc("GET /oauth/authorize", pkceHandler.Authorize)
 	mux.HandleFunc("POST /oauth/authorize/token", pkceHandler.Exchange)
 
+	// Dynamic Client Registration (RFC 7591)
+	regHandler := registration.NewHandler(tokenMgr.RegisterClient)
+	mux.HandleFunc("POST /oauth/register", regHandler.Register)
+	mux.HandleFunc("GET /oauth/register/{client_id}", regHandler.Get)
+
 	// Admin API — runtime config management
 	adminState := admin.NewState(cfg, mapper, policyEngine)
 	adminState.Register(mux)

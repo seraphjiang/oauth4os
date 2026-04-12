@@ -25,7 +25,7 @@ func FuzzPush(f *testing.F) {
 }
 
 // Test PAR push → resolve round-trip
-func TestPushAndResolve(t *testing.T) {
+func TestPushAndResolveRoundTrip(t *testing.T) {
 	h := NewHandler(func(id, secret string) error { return nil })
 	mux := http.NewServeMux()
 	h.Register(mux)

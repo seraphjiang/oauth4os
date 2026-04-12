@@ -52,6 +52,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 	"github.com/seraphjiang/oauth4os/internal/cache"
+	"github.com/seraphjiang/oauth4os/internal/circuit"
 )
 
 const version = "0.2.0"
@@ -232,6 +233,9 @@ func main() {
 	dashboardsProxy := httputil.NewSingleHostReverseProxy(dashboardsURL)
 	dashboardsProxy.Transport = upstreamTransport
 	dashboardsProxy.ErrorHandler = engineProxy.ErrorHandler
+
+	// Circuit breaker — opens after 5 consecutive 5xx, 30s cooldown
+	_ = circuit.New(5, 30*time.Second)
 
 	// Multi-cluster federation router
 	var fedRouter *federation.Router
@@ -918,20 +922,30 @@ func main() {
 			}
 		}
 
+		// Circuit breaker — reject if upstream is failing
+		if !breaker.Allow() {
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", breaker.RetryAfter()))
+			writeError(w, http.StatusServiceUnavailable, "circuit_open")
+			return
+		}
+
 		// Span: upstream forwarding
 		ctx, upSpan := tracer.StartSpan(r.Context(), string(tracing.SpanUpstream), map[string]string{"target": r.URL.Path})
 		r = r.WithContext(ctx)
+		// Record upstream status for circuit breaker
+		bw := &breakerWriter{ResponseWriter: w}
 		if fedRouter != nil {
 			if proxy := fedRouter.Route(r); proxy != nil {
-				proxy.ServeHTTP(w, r)
+				proxy.ServeHTTP(bw, r)
 			} else {
-				engineProxy.ServeHTTP(w, r)
+				engineProxy.ServeHTTP(bw, r)
 			}
 		} else if strings.HasPrefix(r.URL.Path, "/api/") {
-			dashboardsProxy.ServeHTTP(w, r)
+			dashboardsProxy.ServeHTTP(bw, r)
 		} else {
-			engineProxy.ServeHTTP(w, r)
+			engineProxy.ServeHTTP(bw, r)
 		}
+		breaker.Record(bw.code)
 		tracer.EndSpan(upSpan, "ok")
 	})
 
@@ -1036,3 +1050,13 @@ func extractIndex(path string) string {
 	return path
 }
 
+// breakerWriter captures the response status code for the circuit breaker.
+type breakerWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (w *breakerWriter) WriteHeader(code int) {
+	w.code = code
+	w.ResponseWriter.WriteHeader(code)
+}

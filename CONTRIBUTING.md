@@ -1,56 +1,70 @@
 # Contributing to oauth4os
 
-Thank you for your interest in contributing! oauth4os is an open-source OAuth 2.0 proxy for OpenSearch.
+Thanks for your interest! This guide helps you get started.
 
-## Getting Started
+## Development Setup
 
 ```bash
 git clone https://github.com/seraphjiang/oauth4os.git
 cd oauth4os
-docker compose up -d          # Start OpenSearch + proxy
-go test ./... -v              # Run all tests
+make build        # Build proxy + CLI
+make lint         # Run linters
+make test-unit    # Run unit tests
 ```
 
-## Development
+## Running Locally
 
-- **Language**: Go 1.22+
-- **Build**: `go build ./cmd/proxy`
-- **Test**: `go test ./... -v`
-- **Lint**: `golangci-lint run`
-- **Integration tests**: `./test/run-integration.sh` (requires Docker)
+```bash
+docker compose up                          # Proxy + OpenSearch + Dashboards
+docker compose -f docker-compose.monitoring.yml up  # + Prometheus + Grafana
+```
 
-## Pull Request Process
+## Testing
+
+```bash
+make test-unit          # Unit tests
+make test-integration   # Integration tests (needs Docker)
+make test-e2e           # E2E tests (needs docker compose up)
+```
+
+## Pull Requests
 
 1. Fork the repo and create a feature branch
 2. Write tests for new functionality
-3. Ensure all tests pass: `go test ./... -v`
-4. Update documentation if needed
-5. Submit a PR with a clear description
+3. Run `make lint` and `make test-unit` before submitting
+4. Follow [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat:` new feature
+   - `fix:` bug fix
+   - `docs:` documentation
+   - `test:` tests
+   - `ci:` CI/CD changes
+   - `chore:` maintenance
 
-## Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+## Project Structure
 
 ```
-feat(proxy): Add connection pooling
-fix(jwt): Handle expired JWKS cache
-test(cedar): Add multi-provider policy tests
-docs: Update quickstart guide
+cmd/proxy/       — Proxy server entry point
+cmd/cli/         — CLI tool
+internal/        — Core packages (jwt, cedar, scope, token, audit, tracing, logging)
+deploy/          — Helm, CDK, Prometheus, Grafana configs
+test/            — Integration, E2E, chaos tests
+docs/            — Architecture, security, API spec, guides
 ```
 
 ## Code Style
 
-- Follow standard Go conventions (`gofmt`, `go vet`)
-- Keep functions focused and small
-- Add godoc comments for exported types and functions
-- Error messages should be lowercase, no trailing punctuation
+- `gofmt` and `golangci-lint` enforced in CI
+- Keep packages small and focused
+- Error messages should not leak internal details
+- Security-sensitive code (internal/jwt/, internal/cedar/, internal/token/) requires extra review
 
 ## Reporting Issues
 
-- Use GitHub Issues for bugs and feature requests
-- Include steps to reproduce for bugs
-- Check existing issues before creating new ones
+Use [GitHub Issues](https://github.com/seraphjiang/oauth4os/issues). Include:
+- Steps to reproduce
+- Expected vs actual behavior
+- Go version, OS, OpenSearch version
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.

@@ -1,6 +1,6 @@
-# MCP Server Example — AI Agent → oauth4os → OpenSearch
+# MCP Server — AI Agent → oauth4os → OpenSearch
 
-A [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents secure, scoped access to OpenSearch through oauth4os.
+Reference [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents secure, scoped access to OpenSearch through oauth4os.
 
 ## How It Works
 
@@ -13,26 +13,26 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server that gives A
                    auto-refreshed      scope→role mapped
 ```
 
-The MCP server:
-1. Authenticates to oauth4os using client_credentials grant
-2. Caches and auto-refreshes the access token
-3. Exposes 3 tools to the AI agent: `search_logs`, `get_indices`, `get_cluster_health`
-4. All requests go through oauth4os — scoped, audited, revocable
-
 ## Quick Start
 
 ```bash
-# Set environment
+pip install -r requirements.txt
+
 export OAUTH4OS_URL=http://localhost:8443
 export OAUTH4OS_CLIENT_ID=mcp-agent
 export OAUTH4OS_CLIENT_SECRET=secret
-export OAUTH4OS_SCOPE="read:logs-*"
+export OAUTH4OS_SCOPE="read:logs-* write:logs-*"
 
-# Run
+# MCP mode (for Claude Desktop)
 python3 server.py
+
+# Standalone mode (for testing)
+python3 server.py get_indices
+python3 server.py search_logs '{"index": "logs-*", "query": "level:error"}'
+python3 server.py aggregate '{"index": "logs-*", "field": "service.keyword", "agg_type": "terms"}'
 ```
 
-## Add to Claude Desktop
+## Claude Desktop Config
 
 ```json
 {
@@ -44,24 +44,40 @@ python3 server.py
         "OAUTH4OS_URL": "http://localhost:8443",
         "OAUTH4OS_CLIENT_ID": "mcp-agent",
         "OAUTH4OS_CLIENT_SECRET": "secret",
-        "OAUTH4OS_SCOPE": "read:logs-*"
+        "OAUTH4OS_SCOPE": "read:logs-* write:logs-*"
       }
     }
   }
 }
 ```
 
-## Tools
+## Tools (7)
 
-| Tool | Description |
-|------|-------------|
-| `search_logs` | Search OpenSearch index with a query string |
-| `get_indices` | List available indices |
-| `get_cluster_health` | Check OpenSearch cluster status |
+| Tool | Scope | Description |
+|------|-------|-------------|
+| `search_logs` | read | Search index with Lucene query string |
+| `aggregate` | read | Run aggregations: terms, date_histogram, avg, sum, min, max, percentiles |
+| `get_indices` | read | List indices with doc counts and sizes |
+| `get_mappings` | read | Get field names and types for an index |
+| `create_index` | write | Create index with optional mappings |
+| `delete_docs` | write | Delete documents matching a query |
+| `get_cluster_health` | read | Cluster status, node count, shard info |
+
+## Example Conversations
+
+**"Show me error trends"**
+→ Agent calls `aggregate` with `{"index": "logs-*", "field": "@timestamp", "agg_type": "date_histogram", "query": "level:error"}`
+
+**"What fields are in my logs?"**
+→ Agent calls `get_mappings` with `{"index": "logs-*"}`
+
+**"Clean up old test data"**
+→ Agent calls `delete_docs` with `{"index": "test-logs", "query": "environment:test AND @timestamp:<2025-01-01"}`
 
 ## Security
 
-- Token is scoped to `read:logs-*` — agent can only read log indices
-- Token auto-refreshes before expiry (no long-lived credentials)
-- All requests audited by oauth4os
-- Token can be revoked at any time via oauth4os API
+- Token scoped via `OAUTH4OS_SCOPE` — `read:logs-*` can only read log indices
+- Token auto-refreshes 60s before expiry
+- All requests audited by oauth4os proxy
+- Token revocable at any time via `oauth4os revoke <token_id>`
+- Write operations require explicit `write:` scope

@@ -70,8 +70,21 @@ ${BOLD}COMMANDS:${NC}
   diff <r1> <r2>      Compare time ranges (today, yesterday, 1h, 24h, 7d)
   config <action>      show|set|get|reset proxy settings
   alias <action>       add|rm|run|list command aliases
-  completion <shell>   Generate bash/zsh completions
+  completion <shell>   Generate bash/zsh/fish completions
   profile              Formatted token claims, scopes, expiry
+  register <name> [s]  Register new OAuth client
+  revoke [token]       Revoke current or specified token
+  rotate <client_id>   Rotate client secret
+  clients              List registered OAuth clients
+  tokens               List active tokens
+  keys                 Show JWKS public keys
+  sessions             List active sessions
+  stream [filter]      Live log stream (WebSocket + polling fallback)
+  policy <action>      list|add|remove|test Cedar policies
+  backup [file]        Export proxy state to JSON
+  restore <file>       Import proxy state from backup
+  metrics [filter]     Show Prometheus metrics
+  tutorial             Open interactive tutorial in browser
   top                  Real-time top consumers (like Unix top)
   env                  Show config, paths, connectivity diagnostic
   audit [n]            Show last n admin audit events (default 20)
@@ -1538,6 +1551,22 @@ cmd_restore() {
   echo -e "${GREEN}✅ Restore complete${NC}"
 }
 
+cmd_metrics() {
+  local filter="${1:-}"
+  local resp
+  resp=$(curl -sf "${PROXY}/metrics" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Cannot fetch metrics${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}📊 Prometheus Metrics${NC}\n"
+  if [ -n "$filter" ]; then
+    echo "$resp" | grep -i "$filter" | grep -v '^#' | head -30
+  else
+    echo "$resp" | grep -v '^#' | grep 'oauth4os_' | head -30
+  fi
+  local total=$(echo "$resp" | grep -v '^#' | grep -c 'oauth4os_')
+  echo -e "\n  ${CYAN}${total} oauth4os metric(s)${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1589,6 +1618,7 @@ case "${1:-}" in
   policy)   shift; cmd_policy "$@" ;;
   backup)   shift; cmd_backup "${1:-}" ;;
   restore)  shift; cmd_restore "$@" ;;
+  metrics)  shift; cmd_metrics "${1:-}" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

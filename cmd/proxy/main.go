@@ -224,9 +224,24 @@ func main() {
 		addr = ":8443"
 	}
 
+	// Rate limiting middleware wraps the mux
+	rateLimited := limiter.Middleware(mux, func(r *http.Request) (string, []string) {
+		// Extract client from X-Proxy-User header (set by auth handler)
+		// For unauthenticated requests, use remote IP
+		if user := r.Header.Get("X-Proxy-User"); user != "" {
+			scopes := strings.Split(r.Header.Get("X-Proxy-Scopes"), ",")
+			return user, scopes
+		}
+		// Rate limit by IP for token endpoint abuse prevention
+		if strings.HasPrefix(r.URL.Path, "/oauth/token") {
+			return r.RemoteAddr, nil
+		}
+		return "", nil
+	})
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      rateLimited,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

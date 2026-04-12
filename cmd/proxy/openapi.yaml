@@ -582,6 +582,30 @@ paths:
       responses:
         '200': { description: HTML token inspector dashboard }
 
+  /admin/api/stats:
+    get:
+      summary: Token store statistics
+      tags: [Admin API]
+      responses:
+        '200':
+          description: JSON with total, active, revoked, expired, clients, refresh counts
+
+  /admin/api/clients:
+    get:
+      summary: List registered clients (no secrets)
+      tags: [Admin API]
+      responses:
+        '200':
+          description: Array of ClientInfo objects
+
+  /admin/api/tokens:
+    get:
+      summary: List active tokens (IDs truncated)
+      tags: [Admin API]
+      responses:
+        '200':
+          description: Array of active token summaries
+
   /admin/config:
     get:
       summary: Config viewer page

@@ -55,3 +55,41 @@ func TestShedOverCapacity(t *testing.T) {
 	close(block)
 	wg.Wait()
 }
+
+func TestActiveCounterNeverNegative(t *testing.T) {
+	s := New(1)
+	block := make(chan struct{})
+	handler := s.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	}))
+
+	// Fill capacity
+	go func() {
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	}()
+	for s.active.Load() == 0 {
+	}
+
+	// Shed 5 requests
+	for i := 0; i < 5; i++ {
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	}
+
+	// Active should still be 1 (the blocked request), not negative
+	active, rejected := s.Stats()
+	if active != 1 {
+		t.Fatalf("expected active=1, got %d (counter went negative)", active)
+	}
+	if rejected != 5 {
+		t.Fatalf("expected 5 rejected, got %d", rejected)
+	}
+
+	close(block)
+	// Wait for goroutine to finish
+	for s.active.Load() != 0 {
+	}
+	active, _ = s.Stats()
+	if active != 0 {
+		t.Fatalf("expected active=0 after drain, got %d", active)
+	}
+}

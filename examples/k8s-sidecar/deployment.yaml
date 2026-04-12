@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth4os-config
+data:
+  config.yaml: |
+    upstream:
+      engine: https://opensearch.internal:9200
+      dashboards: https://opensearch-dashboards.internal:5601
+    providers: []
+    scope_mapping:
+      "read:logs-*":
+        backend_user: app-reader
+        backend_roles: [logs_read_access]
+      "write:logs-*":
+        backend_user: app-writer
+        backend_roles: [logs_write_access]
+    listen: :8443
+    tls:
+      enabled: false
+      insecure_skip_verify: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        # Application container
+        - name: app
+          image: my-app:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: OPENSEARCH_URL
+              value: "http://localhost:8443"  # talks to sidecar
+            - name: OAUTH4OS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: oauth4os-token
+                  key: access_token
+
+        # oauth4os sidecar
+        - name: oauth4os
+          image: ghcr.io/seraphjiang/oauth4os:latest
+          args: ["--config", "/etc/oauth4os/config.yaml"]
+          ports:
+            - containerPort: 8443
+          volumeMounts:
+            - name: config
+              mountPath: /etc/oauth4os
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8443
+            initialDelaySeconds: 3
+            periodSeconds: 5
+
+      volumes:
+        - name: config
+          configMap:
+            name: oauth4os-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oauth4os-token
+type: Opaque
+stringData:
+  access_token: "<token>"  # replace with actual token

@@ -69,26 +69,35 @@ OpenSearch has OIDC auth and API Keys (3.7), but lacks the developer experience 
 ## Quick Start
 
 ```bash
-# Start proxy + OpenSearch + Keycloak
-docker compose up
+# Option 1: Docker (recommended)
+docker run -p 8443:8443 seraphjiang/oauth4os:latest
+# Open http://localhost:8443
 
-# Get a scoped token
-curl -X POST http://localhost:8443/oauth/token \
-  -d "grant_type=client_credentials&client_id=my-agent&client_secret=secret&scope=read:logs-*"
+# Option 2: Clone + Docker Compose
+git clone https://github.com/seraphjiang/oauth4os
+cd oauth4os && docker compose up
 
-# Query OpenSearch through the proxy
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:8443/logs-*/_search \
-  -d '{"query": {"match": {"level": "error"}}}'
+# Option 3: CLI
+curl -sL https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh | bash
+oauth4os-demo login
+oauth4os-demo search 'level:ERROR'
 ```
 
-Or use the CLI:
+Then get a token and query:
 
 ```bash
-oauth4os login --provider keycloak
-oauth4os create-token --scope "read:logs-*" --name my-agent
-oauth4os status
-oauth4os revoke <token-id>
+# Get a scoped token
+TOKEN=$(curl -sf -X POST http://localhost:8443/oauth/token \
+  -d "grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*" \
+  | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+
+# Query OpenSearch through the proxy
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8443/logs-*/_search \
+  -d '{"query": {"match": {"level": "error"}}}'
+
+# Revoke when done
+curl -X DELETE http://localhost:8443/oauth/token/<token-id>
 ```
 
 ## Architecture

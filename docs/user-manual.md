@@ -871,6 +871,37 @@ This eliminates the need for explicit refresh token flows in long-running sessio
 
 ---
 
+## JWT Access Tokens (v1.1.0)
+
+Enable signed JWT access tokens for stateless validation by resource servers:
+
+```yaml
+jwt_access_token: true
+issuer: https://auth.example.com
+```
+
+Tokens are signed RS256 using the keyring keys. Resource servers validate via `/.well-known/jwks.json`. JWT claims: `iss`, `sub`, `client_id`, `scope`, `iat`, `exp`, `jti`.
+
+When disabled (default), tokens are opaque strings requiring introspection.
+
+---
+
+## Refresh Token Expiry (v1.1.0)
+
+Refresh tokens now expire. Configure in `config.yaml`:
+
+```yaml
+refresh_token_ttl: "720h"    # 30 days (default)
+refresh_max_life: "2160h"    # 90 days absolute max (default)
+```
+
+- **TTL**: each refresh token expires after this duration
+- **Absolute lifetime**: the entire rotation chain expires after this duration, forcing re-authentication
+- Expired refresh tokens return `invalid_grant`
+- Family expiry revokes all tokens for the client
+
+---
+
 ## Device Flow (RFC 8628)
 
 For CLI tools and IoT devices without a browser:

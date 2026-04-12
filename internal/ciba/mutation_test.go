@@ -2,7 +2,9 @@ package ciba
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -80,5 +82,20 @@ func TestMutation_ApproveNotFound(t *testing.T) {
 	w := post(mux, "/oauth/bc-approve", url.Values{"auth_req_id": {"nonexistent"}, "action": {"approve"}})
 	if w.Code != 404 {
 		t.Errorf("approve unknown ID should return 404, got %d", w.Code)
+	}
+}
+
+// Mutation: remove login_hint check → initiate must require hint
+func TestMutation_LoginHintRequired(t *testing.T) {
+	h := NewHandler(nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	body := "client_id=app&scope=openid"
+	r := httptest.NewRequest("POST", "/ciba/authorize", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code == 200 {
+		t.Error("must reject CIBA request without login_hint")
 	}
 }

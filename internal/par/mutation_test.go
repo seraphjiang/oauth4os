@@ -104,3 +104,18 @@ func TestMutation_Cleanup(t *testing.T) {
 		t.Error("Cleanup must keep valid entries")
 	}
 }
+
+// Mutation: remove request_uri prefix → must start with urn:ietf:params:oauth:request_uri:
+func TestMutation_RequestURIFormat(t *testing.T) {
+	h := NewHandler(nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	body := "client_id=app&redirect_uri=http://localhost/cb&response_type=code&scope=openid"
+	r := httptest.NewRequest("POST", "/par", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code == 201 && !strings.Contains(w.Body.String(), "urn:ietf:params:oauth:request_uri:") {
+		t.Error("request_uri must use urn:ietf:params:oauth:request_uri: prefix")
+	}
+}

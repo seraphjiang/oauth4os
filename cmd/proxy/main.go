@@ -43,6 +43,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/token"
 	"github.com/seraphjiang/oauth4os/internal/tracing"
 	"github.com/seraphjiang/oauth4os/internal/backup"
+	"github.com/seraphjiang/oauth4os/internal/demo"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 )

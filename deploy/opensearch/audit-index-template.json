@@ -1,0 +1,41 @@
+{
+  "index_patterns": ["oauth4os-audit-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "5s",
+      "index.lifecycle.name": "oauth4os-audit-policy",
+      "index.lifecycle.rollover_alias": "oauth4os-audit"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "event_type": { "type": "keyword" },
+        "client_id": { "type": "keyword" },
+        "user_id": { "type": "keyword" },
+        "action": { "type": "keyword" },
+        "resource": { "type": "keyword" },
+        "method": { "type": "keyword" },
+        "path": { "type": "keyword" },
+        "status_code": { "type": "integer" },
+        "latency_ms": { "type": "long" },
+        "source_ip": { "type": "ip" },
+        "user_agent": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+        "request_id": { "type": "keyword" },
+        "trace_id": { "type": "keyword" },
+        "scopes": { "type": "keyword" },
+        "cedar_decision": { "type": "keyword" },
+        "error_message": { "type": "text" },
+        "token_id": { "type": "keyword" },
+        "tenant_id": { "type": "keyword" }
+      }
+    }
+  },
+  "priority": 100,
+  "composed_of": [],
+  "_meta": {
+    "description": "Index template for oauth4os audit logs",
+    "version": "2.0.0"
+  }
+}

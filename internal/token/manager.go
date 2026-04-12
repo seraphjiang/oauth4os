@@ -24,9 +24,10 @@ type Token struct {
 
 // Client represents a registered OAuth client.
 type Client struct {
-	ID     string
-	Secret string
-	Scopes []string // allowed scopes
+	ID           string
+	Secret       string
+	Scopes       []string // allowed scopes
+	RedirectURIs []string // allowed redirect URIs (required for PKCE)
 }
 
 // Manager handles token lifecycle.
@@ -51,10 +52,26 @@ func NewManager() *Manager {
 }
 
 // RegisterClient adds a client for authentication.
-func (m *Manager) RegisterClient(id, secret string, scopes []string) {
+func (m *Manager) RegisterClient(id, secret string, scopes, redirectURIs []string) {
 	m.mu.Lock()
-	m.clients[id] = &Client{ID: id, Secret: secret, Scopes: scopes}
+	m.clients[id] = &Client{ID: id, Secret: secret, Scopes: scopes, RedirectURIs: redirectURIs}
 	m.mu.Unlock()
+}
+
+// ValidateRedirectURI checks if a redirect URI is allowed for a client.
+func (m *Manager) ValidateRedirectURI(clientID, uri string) bool {
+	m.mu.RLock()
+	client, ok := m.clients[clientID]
+	m.mu.RUnlock()
+	if !ok || len(client.RedirectURIs) == 0 {
+		return false
+	}
+	for _, allowed := range client.RedirectURIs {
+		if allowed == uri {
+			return true
+		}
+	}
+	return false
 }
 
 // IsValid checks if a token ID is valid (not expired, not revoked).

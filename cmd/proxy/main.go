@@ -27,6 +27,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
 	"github.com/seraphjiang/oauth4os/internal/ratelimit"
+	"github.com/seraphjiang/oauth4os/internal/registration"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 	"github.com/seraphjiang/oauth4os/internal/token"
 	"github.com/seraphjiang/oauth4os/internal/tracing"

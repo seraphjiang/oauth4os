@@ -7,12 +7,108 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
-const defaultServer = "http://localhost:8443"
+// CLIConfig is persisted at ~/.oauth4os.yaml
+type CLIConfig struct {
+	Server       string `yaml:"server"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+	DefaultScope string `yaml:"default_scope"`
+	// Cached token (written by login, read by all commands)
+	Token     string `yaml:"token,omitempty"`
+	ExpiresAt string `yaml:"expires_at,omitempty"`
+}
+
+func configPath() string {
+	if p := os.Getenv("OAUTH4OS_CONFIG"); p != "" {
+		return p
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".oauth4os.yaml")
+}
+
+func loadConfig() *CLIConfig {
+	cfg := &CLIConfig{Server: "http://localhost:8443", DefaultScope: "admin"}
+	data, err := os.ReadFile(configPath())
+	if err == nil {
+		yaml.Unmarshal(data, cfg)
+	}
+	// Env vars override config file
+	if s := os.Getenv("OAUTH4OS_SERVER"); s != "" {
+		cfg.Server = s
+	}
+	if t := os.Getenv("OAUTH4OS_TOKEN"); t != "" {
+		cfg.Token = t
+	}
+	return cfg
+}
+
+func (c *CLIConfig) save() error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(configPath(), data, 0600)
+}
+
+func (c *CLIConfig) tokenValid() bool {
+	if c.Token == "" || c.ExpiresAt == "" {
+		return false
+	}
+	exp, err := time.Parse(time.RFC3339, c.ExpiresAt)
+	if err != nil {
+		return false
+	}
+	return time.Now().Before(exp.Add(-30 * time.Second)) // 30s buffer
+}
+
+func (c *CLIConfig) ensureToken() string {
+	if c.tokenValid() {
+		return c.Token
+	}
+	// Auto-refresh if credentials are saved
+	if c.ClientID != "" && c.ClientSecret != "" {
+		tok, exp := requestToken(c.Server, c.ClientID, c.ClientSecret, c.DefaultScope)
+		if tok != "" {
+			c.Token = tok
+			c.ExpiresAt = exp
+			c.save()
+			fmt.Fprintf(os.Stderr, "Token auto-refreshed.\n")
+			return tok
+		}
+	}
+	if c.Token != "" {
+		return c.Token // expired but try anyway
+	}
+	return ""
+}
+
+func requestToken(server, clientID, secret, scope string) (token, expiresAt string) {
+	data := url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {clientID},
+		"client_secret": {secret},
+		"scope":         {scope},
+	}
+	resp, err := http.PostForm(server+"/oauth/token", data)
+	if err != nil || resp.StatusCode != 200 {
+		return "", ""
+	}
+	defer resp.Body.Close()
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	tok, _ := result["access_token"].(string)
+	expiresIn, _ := result["expires_in"].(float64)
+	exp := time.Now().Add(time.Duration(expiresIn) * time.Second).Format(time.RFC3339)
+	return tok, exp
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -20,24 +116,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := os.Getenv("OAUTH4OS_SERVER")
-	if server == "" {
-		server = defaultServer
-	}
+	cfg := loadConfig()
 
 	switch os.Args[1] {
 	case "login":
-		cmdLogin(server)
+		cmdLogin(cfg)
 	case "create-token":
-		cmdCreateToken(server)
+		cmdCreateToken(cfg)
 	case "revoke-token":
-		cmdRevokeToken(server)
+		cmdRevokeToken(cfg)
 	case "list-tokens":
-		cmdListTokens(server)
+		cmdListTokens(cfg)
 	case "inspect-token":
-		cmdInspectToken(server)
+		cmdInspectToken(cfg)
 	case "status":
-		cmdStatus(server)
+		cmdStatus(cfg)
+	case "config":
+		cmdConfig(cfg)
+	case "logout":
+		cmdLogout(cfg)
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -53,52 +150,61 @@ func printUsage() {
 Usage: oauth4os <command> [options]
 
 Commands:
-  login            Authenticate and save credentials
+  login            Authenticate and cache token
+  logout           Clear cached credentials
   create-token     Create a scoped access token
   revoke-token     Revoke an access token
   list-tokens      List active tokens
   inspect-token    Show token details
   status           Check proxy health
+  config           Show current configuration
+
+Config file: ~/.oauth4os.yaml (or OAUTH4OS_CONFIG env)
 
 Environment:
-  OAUTH4OS_SERVER  Proxy URL (default: http://localhost:8443)
-  OAUTH4OS_TOKEN   Bearer token for authenticated commands`)
+  OAUTH4OS_SERVER  Proxy URL (overrides config)
+  OAUTH4OS_TOKEN   Bearer token (overrides cached token)
+  OAUTH4OS_CONFIG  Config file path`)
 }
 
-func cmdLogin(server string) {
+func cmdLogin(cfg *CLIConfig) {
 	clientID := flagOrPrompt(2, "Client ID")
 	clientSecret := flagOrPrompt(3, "Client Secret")
-	scope := flagOrDefault(4, "admin")
+	scope := flagOrDefault(4, cfg.DefaultScope)
 
-	data := url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-		"scope":         {scope},
+	tok, exp := requestToken(cfg.Server, clientID, clientSecret, scope)
+	if tok == "" {
+		fatal("Login failed — check credentials and server (%s)", cfg.Server)
 	}
 
-	resp, err := http.PostForm(server+"/oauth/token", data)
-	if err != nil {
-		fatal("Connection failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
-
-	if resp.StatusCode != 200 {
-		fatal("Login failed: %v", result)
+	cfg.ClientID = clientID
+	cfg.ClientSecret = clientSecret
+	cfg.DefaultScope = scope
+	cfg.Token = tok
+	cfg.ExpiresAt = exp
+	if err := cfg.save(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not save config: %v\n", err)
 	}
 
-	token := result["access_token"].(string)
-	fmt.Printf("Authenticated. Token: %s\n", token)
-	fmt.Printf("Expires in: %.0fs\n", result["expires_in"].(float64))
-	fmt.Printf("\nExport to use:\n  export OAUTH4OS_TOKEN=%s\n", token)
+	fmt.Printf("Authenticated as %s\n", clientID)
+	fmt.Printf("Token cached at %s\n", configPath())
+	fmt.Printf("Expires: %s\n", exp)
 }
 
-func cmdCreateToken(server string) {
-	clientID := flagOrPrompt(2, "Client ID")
-	scope := flagOrDefault(3, "read:*")
+func cmdLogout(cfg *CLIConfig) {
+	cfg.Token = ""
+	cfg.ExpiresAt = ""
+	cfg.ClientSecret = ""
+	cfg.save()
+	fmt.Println("Credentials cleared.")
+}
+
+func cmdCreateToken(cfg *CLIConfig) {
+	clientID := flagOrDefault(2, cfg.ClientID)
+	scope := flagOrDefault(3, cfg.DefaultScope)
+	if clientID == "" {
+		clientID = flagOrPrompt(2, "Client ID")
+	}
 
 	data := url.Values{
 		"grant_type": {"client_credentials"},
@@ -106,7 +212,7 @@ func cmdCreateToken(server string) {
 		"scope":      {scope},
 	}
 
-	resp, err := http.PostForm(server+"/oauth/token", data)
+	resp, err := http.PostForm(cfg.Server+"/oauth/token", data)
 	if err != nil {
 		fatal("Connection failed: %v", err)
 	}
@@ -114,7 +220,6 @@ func cmdCreateToken(server string) {
 
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
-
 	if resp.StatusCode != 200 {
 		fatal("Token creation failed: %v", result)
 	}
@@ -124,11 +229,11 @@ func cmdCreateToken(server string) {
 	fmt.Printf("Expires in: %.0fs\n", result["expires_in"].(float64))
 }
 
-func cmdRevokeToken(server string) {
+func cmdRevokeToken(cfg *CLIConfig) {
 	tokenID := flagOrPrompt(2, "Token ID")
 
-	req, _ := http.NewRequest("DELETE", server+"/oauth/token/"+tokenID, nil)
-	addAuth(req)
+	req, _ := http.NewRequest("DELETE", cfg.Server+"/oauth/token/"+tokenID, nil)
+	addAuth(req, cfg)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fatal("Connection failed: %v", err)
@@ -143,9 +248,9 @@ func cmdRevokeToken(server string) {
 	}
 }
 
-func cmdListTokens(server string) {
-	req, _ := http.NewRequest("GET", server+"/oauth/tokens", nil)
-	addAuth(req)
+func cmdListTokens(cfg *CLIConfig) {
+	req, _ := http.NewRequest("GET", cfg.Server+"/oauth/tokens", nil)
+	addAuth(req, cfg)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fatal("Connection failed: %v", err)
@@ -182,11 +287,11 @@ func cmdListTokens(server string) {
 	w.Flush()
 }
 
-func cmdInspectToken(server string) {
+func cmdInspectToken(cfg *CLIConfig) {
 	tokenID := flagOrPrompt(2, "Token ID")
 
-	req, _ := http.NewRequest("GET", server+"/oauth/token/"+tokenID, nil)
-	addAuth(req)
+	req, _ := http.NewRequest("GET", cfg.Server+"/oauth/token/"+tokenID, nil)
+	addAuth(req, cfg)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fatal("Connection failed: %v", err)
@@ -205,25 +310,45 @@ func cmdInspectToken(server string) {
 	enc.Encode(token)
 }
 
-func cmdStatus(server string) {
-	resp, err := http.Get(server + "/health")
+func cmdStatus(cfg *CLIConfig) {
+	resp, err := http.Get(cfg.Server + "/health")
 	if err != nil {
-		fatal("Proxy unreachable: %v", err)
+		fatal("Proxy unreachable at %s: %v", cfg.Server, err)
 	}
 	defer resp.Body.Close()
 
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	fmt.Printf("Server:  %s\n", server)
+	fmt.Printf("Server:  %s\n", cfg.Server)
 	fmt.Printf("Status:  %s\n", result["status"])
 	fmt.Printf("Version: %s\n", result["version"])
+	if cfg.tokenValid() {
+		fmt.Printf("Token:   cached (expires %s)\n", cfg.ExpiresAt)
+	} else if cfg.Token != "" {
+		fmt.Printf("Token:   expired\n")
+	} else {
+		fmt.Printf("Token:   not logged in\n")
+	}
+}
+
+func cmdConfig(cfg *CLIConfig) {
+	fmt.Printf("Config:  %s\n", configPath())
+	fmt.Printf("Server:  %s\n", cfg.Server)
+	fmt.Printf("Client:  %s\n", cfg.ClientID)
+	fmt.Printf("Scope:   %s\n", cfg.DefaultScope)
+	if cfg.tokenValid() {
+		fmt.Printf("Token:   cached (expires %s)\n", cfg.ExpiresAt)
+	} else {
+		fmt.Printf("Token:   none\n")
+	}
 }
 
 // --- helpers ---
 
-func addAuth(req *http.Request) {
-	if tok := os.Getenv("OAUTH4OS_TOKEN"); tok != "" {
+func addAuth(req *http.Request, cfg *CLIConfig) {
+	tok := cfg.ensureToken()
+	if tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 }

@@ -228,7 +228,7 @@ func BenchmarkProxyRoundTrip_Passthrough(b *testing.B) {
 func BenchmarkCache_Hit(b *testing.B) {
 	c := cache.New(5*time.Second, 1000)
 	defer c.Stop()
-	c.Put("key", &cache.Entry{Body: []byte(`{"hits":[]}`), StatusCode: 200, ExpiresAt: time.Now().Add(5 * time.Second)})
+	c.Set("key", 200, nil, []byte(`{"hits":[]}`))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		c.Get("key")
@@ -244,13 +244,12 @@ func BenchmarkCache_Miss(b *testing.B) {
 	}
 }
 
-func BenchmarkCache_Put(b *testing.B) {
+func BenchmarkCache_Set(b *testing.B) {
 	c := cache.New(5*time.Second, 10000)
 	defer c.Stop()
-	entry := &cache.Entry{Body: []byte(`{"hits":[]}`), StatusCode: 200, ExpiresAt: time.Now().Add(5 * time.Second)}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c.Put(fmt.Sprintf("key-%d", i), entry)
+		c.Set(fmt.Sprintf("key-%d", i), 200, nil, []byte(`{"hits":[]}`))
 	}
 }
 
@@ -261,7 +260,7 @@ func BenchmarkCircuit_Closed(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cb.Allow()
-		cb.RecordSuccess()
+		cb.Record(200)
 	}
 }
 
@@ -293,7 +292,7 @@ func BenchmarkProxyWithCache(b *testing.B) {
 			Action:    r.Method,
 			Resource:  map[string]string{"index": "logs-0-2026"},
 		})
-		c.Put(key, &cache.Entry{Body: nil, StatusCode: 200, ExpiresAt: time.Now().Add(5 * time.Second)})
+		c.Set(key, 200, nil, nil)
 		w.WriteHeader(200)
 	})
 

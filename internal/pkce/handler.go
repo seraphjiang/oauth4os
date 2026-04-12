@@ -290,8 +290,8 @@ h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;mar
 .footer{text-align:center;margin-top:20px;font-size:11px;color:#484f58}
 </style></head><body><div class="card">
 <div class="logo">🔐 oauth<span>4os</span></div>
-<div class="subtitle">An application is requesting access</div>
-<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">Application</div><div class="app-id">`)
+<div class="subtitle">%s</div>
+<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">%s</div><div class="app-id">`, s.Subtitle, s.AppLabel))
 	// Escape clientID
 	for _, c := range clientID {
 		switch c {
@@ -307,7 +307,7 @@ h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;mar
 			fmt.Fprintf(w, "%c", c)
 		}
 	}
-	fmt.Fprint(w, `</div></div></div><h3>Requested permissions</h3><ul class="scopes">`)
+	fmt.Fprintf(w, `</div></div></div><h3>%s</h3><ul class="scopes">`, s.Permissions)
 	hasWrite := false
 	for _, s := range scopes {
 		if len(s) >= 5 && (s[:5] == "write" || s[:5] == "admin") {

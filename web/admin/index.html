@@ -58,6 +58,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:600}
       <a data-tab="apikeys">🔑 API Keys</a>
       <a data-tab="webhooks">🔔 Webhooks</a>
       <a data-tab="ratelimits">⚡ Rate Limits</a>
+      <a data-tab="config">📝 Config</a>
     </nav>
     <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
       <a href="../">← oauth4os</a><br>
@@ -99,6 +100,7 @@ async function loadTab() {
     case 'apikeys': await renderApiKeys(el); break;
     case 'webhooks': await renderWebhooks(el); break;
     case 'ratelimits': await renderRateLimits(el); break;
+    case 'config': await renderConfig(el); break;
   }
 }
 

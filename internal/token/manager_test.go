@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func setup() *Manager {
@@ -239,8 +240,8 @@ func TestValidateRedirectURI(t *testing.T) {
 	if m.ValidateRedirectURI("app", "http://evil.com/cb") {
 		t.Error("should reject unregistered URI")
 	}
-	if !m.ValidateRedirectURI("unknown", "http://anything.com") {
-		t.Error("should allow any URI for unknown client (no restrictions)")
+	if m.ValidateRedirectURI("unknown", "http://anything.com") {
+		t.Error("should reject URI for unknown client")
 	}
 }
 

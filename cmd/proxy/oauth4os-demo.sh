@@ -1156,6 +1156,10 @@ cmd_ping() {
 
 # Main
 ensure_deps
+# Strip --json from args (already parsed above)
+args=()
+for arg in "$@"; do [ "$arg" != "--json" ] && args+=("$arg"); done
+set -- "${args[@]}"
 case "${1:-}" in
   login)    cmd_login ;;
   logout)   cmd_logout ;;

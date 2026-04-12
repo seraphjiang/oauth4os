@@ -68,21 +68,16 @@ func TestDeviceFlowDeny(t *testing.T) {
 	h.Register(mux)
 
 	// Request code
-	resp := httptest.NewRecorder()
-	mux.ServeHTTP(resp, httptest.NewRequest("POST", "/oauth/device/code",
-		strings.NewReader(url.Values{"client_id": {"cli-1"}}.Encode())))
+	resp := post(mux, "/oauth/device/code", url.Values{"client_id": {"cli-1"}}.Encode())
 	var cr map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&cr)
 
 	// Deny
-	resp2 := httptest.NewRecorder()
-	mux.ServeHTTP(resp2, httptest.NewRequest("POST", "/oauth/device/approve",
-		strings.NewReader(url.Values{"user_code": {cr["user_code"].(string)}, "action": {"deny"}}.Encode())))
+	resp2 := post(mux, "/oauth/device/approve", url.Values{"user_code": {cr["user_code"].(string)}, "action": {"deny"}}.Encode())
+	_ = resp2
 
 	// Poll — should be denied
-	resp3 := httptest.NewRecorder()
-	mux.ServeHTTP(resp3, httptest.NewRequest("POST", "/oauth/device/token",
-		strings.NewReader(url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {cr["device_code"].(string)}}.Encode())))
+	resp3 := post(mux, "/oauth/device/token", url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {cr["device_code"].(string)}}.Encode())
 	var err map[string]string
 	json.NewDecoder(resp3.Body).Decode(&err)
 	if err["error"] != "access_denied" {

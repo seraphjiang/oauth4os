@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	_ "embed"
 	"encoding/json"
 	"encoding/pem"
 	"flag"
@@ -42,9 +43,10 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/tracing"
 )
 
-const version = "0.2.0"
+const version = "0.1.0"
 
-const landingPage = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>oauth4os — OAuth 2.0 Proxy for OpenSearch</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,system-ui,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem}.hero{text-align:center;max-width:700px;margin:3rem 0}.hero h1{font-size:2.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}.hero p{color:#888;font-size:1.1rem;margin-bottom:2rem}.badge{display:inline-block;padding:.3rem .8rem;border-radius:20px;font-size:.8rem;margin:.2rem;background:rgba(99,102,241,.15);color:#818cf8}.endpoints{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;width:100%;max-width:800px;margin:2rem 0}.card{background:#12121a;border:1px solid #1e1e2e;border-radius:10px;padding:1.2rem}.card h3{color:#818cf8;font-size:.9rem;margin-bottom:.5rem}.card code{background:#1a1a2e;padding:.2rem .5rem;border-radius:4px;font-size:.85rem;color:#a5b4fc;word-break:break-all}.card p{color:#666;font-size:.8rem;margin-top:.5rem}a{color:#818cf8;text-decoration:none}a:hover{text-decoration:underline}.footer{margin-top:3rem;color:#444;font-size:.8rem}</style></head><body><div class="hero"><h1>☁️ oauth4os</h1><p>OAuth 2.0 Proxy for OpenSearch — secure machine-to-machine access with scoped tokens</p><span class="badge">Go 1.22</span><span class="badge">Apache 2.0</span><span class="badge">4 OAuth RFCs</span><span class="badge">Cedar Policies</span><span class="badge">340+ Tests</span></div><div class="endpoints"><div class="card"><h3>🔍 OIDC Discovery</h3><code><a href="/.well-known/openid-configuration">/.well-known/openid-configuration</a></code><p>OpenID Connect discovery endpoint</p></div><div class="card"><h3>🔑 JWKS</h3><code><a href="/.well-known/jwks.json">/.well-known/jwks.json</a></code><p>JSON Web Key Set for token verification</p></div><div class="card"><h3>💚 Health</h3><code><a href="/health">/health</a></code><p>Proxy health check + version</p></div><div class="card"><h3>📊 Metrics</h3><code><a href="/metrics">/metrics</a></code><p>Prometheus metrics endpoint</p></div><div class="card"><h3>🎫 Token</h3><code>POST /oauth/token</code><p>Issue scoped access tokens (client_credentials, PKCE, token exchange)</p></div><div class="card"><h3>🔎 Introspect</h3><code>POST /oauth/introspect</code><p>RFC 7662 token introspection</p></div></div><div class="footer"><p>GitHub: <a href="https://github.com/seraphjiang/oauth4os">seraphjiang/oauth4os</a> · RFC: <a href="https://github.com/opensearch-project/.github/issues/491">opensearch-project/.github#491</a></p></div></body></html>`
+//go:embed landing.html
+var landingPage string
 
 // Prometheus-style metrics
 var (

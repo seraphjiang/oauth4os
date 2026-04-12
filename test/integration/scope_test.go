@@ -60,7 +60,10 @@ func TestScopeEnforcement_NoScopeReturns403(t *testing.T) {
 	// The proxy returns 403 when mapper.Map() returns empty roles
 	// But since the token is self-issued (not JWT), the validator path differs
 	// This test verifies the token was issued with the scope stored correctly
-	resp2, _ := http.Get(proxyURL + "/oauth/token/" + token)
+	resp2, err := http.Get(proxyURL + "/oauth/token/" + token)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp2.Body.Close()
 	var tok map[string]interface{}
 	json.NewDecoder(resp2.Body).Decode(&tok)
@@ -74,7 +77,10 @@ func TestScopeEnforcement_AdminScopeGrantsAllAccess(t *testing.T) {
 	waitForProxy(t)
 	token := issueToken(t, "admin-agent", "admin")
 
-	resp, _ := http.Get(proxyURL + "/oauth/token/" + token)
+	resp, err := http.Get(proxyURL + "/oauth/token/" + token)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	var tok map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&tok)
@@ -88,7 +94,10 @@ func TestScopeEnforcement_WriteScopeStored(t *testing.T) {
 	waitForProxy(t)
 	token := issueToken(t, "writer-agent", "write:logs-*")
 
-	resp, _ := http.Get(proxyURL + "/oauth/token/" + token)
+	resp, err := http.Get(proxyURL + "/oauth/token/" + token)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	var tok map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&tok)
@@ -104,7 +113,10 @@ func TestTokenExpiry_FieldPresent(t *testing.T) {
 	waitForProxy(t)
 	token := issueToken(t, "expiry-test", "read:logs-*")
 
-	resp, _ := http.Get(proxyURL + "/oauth/token/" + token)
+	resp, err := http.Get(proxyURL + "/oauth/token/" + token)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 	var tok map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&tok)
@@ -123,7 +135,7 @@ func TestTokenRevoke_DoubleRevoke(t *testing.T) {
 
 	// Revoke once
 	req, _ := http.NewRequest("DELETE", proxyURL+"/oauth/token/"+token, nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	resp.Body.Close()
 
 	// Revoke again — should not error

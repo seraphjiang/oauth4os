@@ -159,7 +159,10 @@ func TestConformance_TokenResponseFields(t *testing.T) {
 		"client_secret": {"test"},
 		"scope":         {"read:logs-*"},
 	}
-	resp, _ := http.PostForm(proxyURL+"/oauth/token", data)
+	resp, err := http.PostForm(proxyURL+"/oauth/token", data)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var tok map[string]interface{}
@@ -179,7 +182,10 @@ func TestConformance_TokenResponseFields(t *testing.T) {
 func TestConformance_ErrorResponseFormat(t *testing.T) {
 	waitForProxy(t)
 	data := url.Values{"grant_type": {"invalid_type"}}
-	resp, _ := http.PostForm(proxyURL+"/oauth/token", data)
+	resp, err := http.PostForm(proxyURL+"/oauth/token", data)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var errResp map[string]interface{}

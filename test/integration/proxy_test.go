@@ -146,7 +146,10 @@ func TestTokenRevocation(t *testing.T) {
 	}
 
 	// Verify token shows as revoked
-	resp2, _ := http.Get(proxyURL + "/oauth/token/" + token)
+	resp2, err2 := http.Get(proxyURL + "/oauth/token/" + token)
+	if err2 != nil {
+		t.Fatalf("get revoked token failed: %v", err2)
+	}
 	defer resp2.Body.Close()
 	var tok map[string]interface{}
 	json.NewDecoder(resp2.Body).Decode(&tok)

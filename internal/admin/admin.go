@@ -148,6 +148,80 @@ func (s *State) removeTenant(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ── Cedar Policy CRUD ─────────────────────────────────────────────────────────
+
+// CedarPolicyInput is the JSON body for adding a Cedar policy.
+type CedarPolicyInput struct {
+	ID     string `json:"id"`
+	Effect string `json:"effect"` // "permit" or "forbid"
+	Resource string `json:"resource,omitempty"` // index pattern to match
+}
+
+func (s *State) listCedarPolicies(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	writeJSON(w, s.cedarEng.ListPolicies())
+}
+
+func (s *State) addCedarPolicy(w http.ResponseWriter, r *http.Request) {
+	var input CedarPolicyInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.ID == "" {
+		writeErr(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	effect := cedar.Permit
+	if input.Effect == "forbid" {
+		effect = cedar.Forbid
+	}
+	p := cedar.Policy{
+		ID:        input.ID,
+		Effect:    effect,
+		Principal: cedar.Match{Any: true},
+		Action:    cedar.Match{Any: true},
+		Resource:  cedar.Match{Any: true},
+	}
+	if input.Resource != "" {
+		p.Resource = cedar.Match{Equals: input.Resource}
+	}
+	s.mu.Lock()
+	s.cedarEng.AddGlobalPolicy(p)
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, map[string]string{"status": "created", "id": input.ID})
+}
+
+func (s *State) removeCedarPolicy(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.mu.Lock()
+	removed := s.cedarEng.RemoveGlobalPolicy(id)
+	s.mu.Unlock()
+	if !removed {
+		writeErr(w, http.StatusNotFound, "policy not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Rate Limit CRUD ───────────────────────────────────────────────────────────
+
+func (s *State) listRateLimits(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	writeJSON(w, s.cfg.RateLimits)
+}
+
+func (s *State) updateRateLimits(w http.ResponseWriter, r *http.Request) {
+	var limits map[string]int
+	if err := json.NewDecoder(r.Body).Decode(&limits); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	s.mu.Lock()
+	s.cfg.RateLimits = limits
+	s.mu.Unlock()
+	writeJSON(w, map[string]string{"status": "updated"})
+}
+
 func (s *State) getConfig(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

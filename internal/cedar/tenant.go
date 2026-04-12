@@ -26,3 +26,21 @@ func (te *TenantEngine) Evaluate(issuer string, req Request) Decision {
 	}
 	return te.global.Evaluate(req)
 }
+
+// ListPolicies returns all global policies.
+func (te *TenantEngine) ListPolicies() []Policy {
+	if te.global == nil {
+		return nil
+	}
+	return te.global.Policies()
+}
+
+// AddGlobalPolicy appends a policy to the global engine.
+func (te *TenantEngine) AddGlobalPolicy(p Policy) {
+	te.global.AddPolicy(p)
+}
+
+// RemoveGlobalPolicy removes a policy by ID. Returns true if found.
+func (te *TenantEngine) RemoveGlobalPolicy(id string) bool {
+	return te.global.RemovePolicy(id)
+}

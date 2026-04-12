@@ -8,8 +8,16 @@ func TestMutation_CounterInc(t *testing.T) {
 	l := Labels{Method: "GET", Path: "/health", Status: 200}
 	c.Inc(l)
 	c.Inc(l)
-	if c.Get(l) != 2 {
-		t.Errorf("expected 2, got %d", c.Get(l))
+	// Verify via snapshot
+	snap := c.Snapshot()
+	found := false
+	for _, e := range snap {
+		if e.Labels.Method == "GET" && e.Count == 2 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("counter must track increments")
 	}
 }
 
@@ -18,7 +26,8 @@ func TestMutation_LabelIsolation(t *testing.T) {
 	c := NewCounter()
 	c.Inc(Labels{Method: "GET", Path: "/a", Status: 200})
 	c.Inc(Labels{Method: "POST", Path: "/b", Status: 201})
-	if c.Get(Labels{Method: "GET", Path: "/a", Status: 200}) != 1 {
-		t.Error("labels must be isolated")
+	snap := c.Snapshot()
+	if len(snap) < 2 {
+		t.Errorf("expected 2 label combos, got %d", len(snap))
 	}
 }

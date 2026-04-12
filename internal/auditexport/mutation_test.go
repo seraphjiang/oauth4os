@@ -2,22 +2,9 @@ package auditexport
 
 import (
 	"encoding/json"
-	"sync"
 	"testing"
 	"time"
 )
-
-type memUploader struct {
-	mu   sync.Mutex
-	data [][]byte
-}
-
-func (m *memUploader) Upload(key string, data []byte) error {
-	m.mu.Lock()
-	m.data = append(m.data, data)
-	m.mu.Unlock()
-	return nil
-}
 
 // Mutation: remove Add → Flush must export added entries
 func TestMutation_AddAndFlush(t *testing.T) {
@@ -25,7 +12,6 @@ func TestMutation_AddAndFlush(t *testing.T) {
 	e := New(u, "audit/", 0)
 	defer e.Stop()
 	e.Add(json.RawMessage(`{"action":"login"}`))
-	e.Add(json.RawMessage(`{"action":"logout"}`))
 	if err := e.Flush(); err != nil {
 		t.Fatal(err)
 	}

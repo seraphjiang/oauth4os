@@ -148,16 +148,24 @@ async function traceLive() {
 }
 
 function buildSpans(totalMs, status, reqId) {
+  const traceId = crypto.randomUUID().replace(/-/g, '');
   // Distribute time realistically across phases
   const t = Math.max(totalMs, 5);
   const ratios = [0.02, 0.08, 0.03, 0.04, 0.02, 0.12, 0.62, 0.07];
   let offset = 0;
+  let parentSpanId = '';
   spans = SPAN_DEFS.map((def, i) => {
     const dur = Math.max(0.1, t * ratios[i] * (0.8 + Math.random() * 0.4));
+    const spanId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
     const span = {
       ...def, start: offset, duration: dur, status: 'ok',
+      traceId, spanId, parentSpanId: parentSpanId || '',
       meta: getSpanMeta(def.phase, reqId, dur, status)
     };
+    span.meta['trace.trace_id'] = traceId;
+    span.meta['trace.span_id'] = spanId;
+    if (parentSpanId) span.meta['trace.parent_span_id'] = parentSpanId;
+    parentSpanId = spanId;
     offset += dur;
     return span;
   });
@@ -169,6 +177,7 @@ function buildSpans(totalMs, status, reqId) {
   spans._total = offset;
   spans._status = status;
   spans._reqId = reqId;
+  spans._traceId = traceId;
 }
 
 function getSpanMeta(phase, reqId, dur, status) {
@@ -192,10 +201,10 @@ function render() {
 
   // Summary
   document.getElementById('summary').innerHTML = `<div class="trace-summary">
+    <div class="ts-item"><div class="label">Trace ID</div><div class="val" style="font-size:11px">${esc((spans._traceId || '').slice(0, 16))}...</div></div>
     <div class="ts-item"><div class="label">Request ID</div><div class="val">${esc(spans._reqId)}</div></div>
     <div class="ts-item"><div class="label">Status</div><div class="val ${spans._status < 400 ? 'status-ok' : 'status-err'}">${spans._status || 'ERR'}</div></div>
-    <div class="ts-item"><div class="label">Total Time</div><div class="val">${total.toFixed(1)}ms</div></div>
-    <div class="ts-item"><div class="label">Spans</div><div class="val">${spans.length}</div></div>
+    <div class="ts-item"><div class="label">Total / Spans</div><div class="val">${total.toFixed(1)}ms / ${spans.length}</div></div>
   </div>`;
 
   // Ticks
@@ -238,6 +247,8 @@ function showDetail(i) {
   let grid = Object.entries(s.meta).map(([k, v]) => `<div class="dk">${esc(k)}</div><div class="dv">${esc(v)}</div>`).join('');
   el.innerHTML = `<h3>${s.icon} ${s.name} <span style="font-size:12px;color:var(--muted)">${s.duration.toFixed(2)}ms</span></h3>
     <div class="detail-grid">
+      <div class="dk">Span ID</div><div class="dv">${esc(s.spanId)}</div>
+      <div class="dk">Parent Span</div><div class="dv">${s.parentSpanId ? esc(s.parentSpanId) : '<span style="color:var(--muted)">— (root)</span>'}</div>
       <div class="dk">Phase</div><div class="dv">${s.phase}</div>
       <div class="dk">Status</div><div class="dv ${s.status === 'ok' ? 'status-ok' : 'status-err'}">${s.status}</div>
       <div class="dk">Start</div><div class="dv">${s.start.toFixed(2)}ms</div>

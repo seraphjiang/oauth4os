@@ -130,6 +130,17 @@ func main() {
 	dashboardsProxy.Transport = transport
 	dashboardsProxy.ErrorHandler = engineProxy.ErrorHandler
 
+	// Multi-cluster federation router
+	var fedRouter *federation.Router
+	if len(cfg.Clusters) > 0 {
+		var clusters []federation.Cluster
+		for name, c := range cfg.Clusters {
+			clusters = append(clusters, federation.Cluster{Name: name, URL: c.Engine, Indices: c.Prefixes})
+		}
+		fedRouter = federation.New(clusters, transport)
+		log.Printf("  Federation: %d clusters", len(cfg.Clusters))
+	}
+
 	mux := http.NewServeMux()
 
 	// Issuer URL for discovery + token exchange
@@ -387,7 +398,13 @@ func main() {
 		// Span: upstream forwarding
 		ctx, upSpan := tracer.StartSpan(r.Context(), string(tracing.SpanUpstream), map[string]string{"target": r.URL.Path})
 		r = r.WithContext(ctx)
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if fedRouter != nil {
+			if proxy := fedRouter.Route(r); proxy != nil {
+				proxy.ServeHTTP(w, r)
+			} else {
+				engineProxy.ServeHTTP(w, r)
+			}
+		} else if strings.HasPrefix(r.URL.Path, "/api/") {
 			dashboardsProxy.ServeHTTP(w, r)
 		} else {
 			engineProxy.ServeHTTP(w, r)

@@ -1,0 +1,31 @@
+{
+  "type": "datasource",
+  "name": "oauth4os OpenSearch",
+  "id": "oauth4os-opensearch-datasource",
+  "info": {
+    "description": "Query OpenSearch via oauth4os with scoped OAuth tokens",
+    "author": { "name": "seraphjiang", "url": "https://github.com/seraphjiang" },
+    "version": "0.1.0",
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      { "name": "GitHub", "url": "https://github.com/seraphjiang/oauth4os" },
+      { "name": "Docs", "url": "https://github.com/seraphjiang/oauth4os/blob/main/docs/api-spec.yaml" }
+    ]
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.0.0",
+    "plugins": []
+  },
+  "routes": [
+    {
+      "path": "proxy",
+      "url": "{{ .JsonData.proxyUrl }}",
+      "headers": [
+        { "name": "Authorization", "content": "Bearer {{ .SecureJsonData.accessToken }}" }
+      ]
+    }
+  ]
+}

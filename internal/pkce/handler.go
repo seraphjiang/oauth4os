@@ -322,7 +322,20 @@ h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;mar
 	}
 	fmt.Fprintf(w, `<form method="POST" action="/oauth/consent"><input type="hidden" name="consent_id" value="%s">`, consentID)
 	fmt.Fprint(w, `<div class="buttons"><button type="submit" name="action" value="deny" class="btn btn-deny">Deny</button><button type="submit" name="action" value="approve" class="btn btn-approve">Approve</button></div></form>`)
-	fmt.Fprint(w, `<div class="footer">Authorizing will redirect you back to the application</div></div></body></html>`)
+	fmt.Fprint(w, `<div class="footer">Authorizing will redirect you back to the application</div></div>
+<script>
+(async()=>{try{const r=await fetch('/i18n/consent.json');if(!r.ok)return;const t=await r.json();const l=navigator.language?.slice(0,2)||'en';const s=t[l]||t.en;if(!s||l==='en')return;
+document.querySelector('.subtitle').textContent=s.subtitle;
+document.querySelector('h3').textContent=s.permissions;
+document.querySelectorAll('.btn-approve').forEach(b=>b.textContent=s.approve);
+document.querySelectorAll('.btn-deny').forEach(b=>b.textContent=s.deny);
+document.querySelector('.footer').textContent=s.footer;
+document.querySelector('.app-label').textContent=s.app_label;
+document.title=s.title;
+}catch{}})();
+</script>
+</body></html>`)
+
 }
 
 func splitScopes(s string) []string {

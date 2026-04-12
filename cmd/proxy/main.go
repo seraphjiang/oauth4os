@@ -817,6 +817,12 @@ func main() {
 				claims, ok := apiKeyStore.Validate(ak)
 				if ok {
 					authSuccess.Add(1)
+					// Rate limit by API key
+					if !limiter.Allow("apikey:"+claims.KeyID, claims.Scopes) {
+						w.Header().Set("Retry-After", fmt.Sprintf("%d", limiter.RetryAfter("apikey:"+claims.KeyID)))
+						writeError(w, http.StatusTooManyRequests, "rate_limit_exceeded")
+						return
+					}
 					r.Header.Set("X-Proxy-User", claims.ClientID)
 					r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))
 					r.Header.Set("X-Proxy-Key-ID", claims.KeyID)

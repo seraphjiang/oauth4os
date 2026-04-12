@@ -57,3 +57,14 @@ ip_filter:
   #   ci-agent:
   #     allow:
   #       - "10.0.0.0/8"   # only from internal network
+
+mtls:
+  enabled: false
+  ca_file: ""  # path to CA cert for client verification
+  # clients:
+  #   "agent.example.com":       # matches cert CN or SAN
+  #     client_id: agent
+  #     scopes: [read:logs-*]
+  #   "ci@example.com":
+  #     client_id: ci-bot
+  #     scopes: [read:logs-*, write:logs-*]

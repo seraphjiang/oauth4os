@@ -15,6 +15,20 @@ type Config struct {
 	TLS          TLSConfig         `yaml:"tls"`
 	RateLimits   map[string]int    `yaml:"rate_limits"`
 	IPFilter     IPFilterConfig    `yaml:"ip_filter"`
+	MTLS         MTLSConfig        `yaml:"mtls"`
+}
+
+// MTLSConfig holds mutual TLS client auth settings.
+type MTLSConfig struct {
+	Enabled  bool                       `yaml:"enabled"`
+	CAFile   string                     `yaml:"ca_file"`
+	Clients  map[string]*MTLSClientEntry `yaml:"clients"`
+}
+
+// MTLSClientEntry maps a cert CN/SAN to identity.
+type MTLSClientEntry struct {
+	ClientID string   `yaml:"client_id"`
+	Scopes   []string `yaml:"scopes"`
 }
 
 // IPFilterConfig holds IP allowlist/denylist rules.

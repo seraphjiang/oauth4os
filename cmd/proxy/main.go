@@ -27,8 +27,10 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/exchange"
 	"github.com/seraphjiang/oauth4os/internal/federation"
 	"github.com/seraphjiang/oauth4os/internal/introspect"
+	"github.com/seraphjiang/oauth4os/internal/ipfilter"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/keyring"
+	"github.com/seraphjiang/oauth4os/internal/logging"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
 	"github.com/seraphjiang/oauth4os/internal/ratelimit"
 	"github.com/seraphjiang/oauth4os/internal/registration"
@@ -72,6 +74,30 @@ func main() {
 	sessionMgr := session.New(map[string]int{"*": 100})
 
 	analyticsTracker := analytics.New()
+
+	// Structured logger — replaces log.Printf
+	logger := logging.New(os.Stdout, "info")
+
+	// IP filter — per-client allowlist/denylist
+	var ipRules *ipfilter.Rules
+	if cfg.IPFilter.Global != nil || len(cfg.IPFilter.Clients) > 0 {
+		ipCfg := ipfilter.Config{}
+		if cfg.IPFilter.Global != nil {
+			ipCfg.Global = &ipfilter.FilterConfig{Allow: cfg.IPFilter.Global.Allow, Deny: cfg.IPFilter.Global.Deny}
+		}
+		if len(cfg.IPFilter.Clients) > 0 {
+			ipCfg.Clients = make(map[string]*ipfilter.FilterConfig)
+			for k, v := range cfg.IPFilter.Clients {
+				ipCfg.Clients[k] = &ipfilter.FilterConfig{Allow: v.Allow, Deny: v.Deny}
+			}
+		}
+		var err error
+		ipRules, err = ipfilter.New(ipCfg)
+		if err != nil {
+			logger.Fatal("invalid ip_filter config", "error", err)
+		}
+		logger.Info("IP filter enabled", "clients", len(cfg.IPFilter.Clients))
+	}
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
@@ -97,7 +123,7 @@ func main() {
 		for i, pText := range t.CedarPolicies {
 			p, err := cedar.ParsePolicy(fmt.Sprintf("%s-policy-%d", issuer, i), pText)
 			if err != nil {
-				log.Printf("Warning: invalid Cedar policy for tenant %s: %v", issuer, err)
+				logger.Warn("Warning: invalid Cedar policy for tenant %s: %v", issuer, err)
 				continue
 			}
 			policies = append(policies, p)
@@ -125,7 +151,7 @@ func main() {
 	engineProxy.Transport = transport
 	engineProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		upstreamErrors.Add(1)
-		log.Printf("upstream error: %v", err) // log internally, don't expose
+		logger.Error("upstream error", "error", err) // log internally, don't expose
 		http.Error(w, `{"error":"upstream_error","message":"upstream unavailable"}`, http.StatusBadGateway)
 	}
 
@@ -141,7 +167,7 @@ func main() {
 			clusters = append(clusters, federation.Cluster{Name: name, URL: c.Engine, Indices: c.Prefixes})
 		}
 		fedRouter = federation.New(clusters, transport)
-		log.Printf("  Federation: %d clusters", len(cfg.Clusters))
+		logger.Info("  Federation: %d clusters", len(cfg.Clusters))
 	}
 
 	mux := http.NewServeMux()
@@ -363,6 +389,15 @@ func main() {
 		tracer.EndSpan(jwtSpan, "ok")
 		authSuccess.Add(1)
 
+		// IP filter check
+		if ipRules != nil {
+			if err := ipRules.Check(claims.ClientID, r.RemoteAddr); err != nil {
+				requestsFailed.Add(1)
+				http.Error(w, `{"error":"ip_denied"}`, http.StatusForbidden)
+				return
+			}
+		}
+
 		// Session tracking — use token ID as session key
 		if !sessionMgr.Create(tokenStr[:16], claims.ClientID, tokenStr[:16], r.RemoteAddr) {
 			requestsFailed.Add(1)
@@ -466,17 +501,17 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigCh
-		log.Printf("Received %v, shutting down gracefully...", sig)
+		logger.Info("shutting down", "signal", sig)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(ctx); err != nil {
-			log.Printf("Shutdown error: %v", err)
+			logger.Error("shutdown error", "error", err)
 		}
 	}()
 
-	log.Printf("oauth4os v%s listening on %s (tls=%v)", version, addr, cfg.TLS.Enabled)
-	log.Printf("  Engine:     %s", cfg.Upstream.Engine)
-	log.Printf("  Dashboards: %s", cfg.Upstream.Dashboards)
+	logger.Info("listening", "version", version, "addr", addr, "tls", cfg.TLS.Enabled)
+	logger.Info("upstream", "engine", cfg.Upstream.Engine)
+	logger.Info("upstream", "dashboards", cfg.Upstream.Dashboards)
 
 	if cfg.TLS.Enabled && cfg.TLS.CertFile != "" && cfg.TLS.KeyFile != "" {
 		err = srv.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile)

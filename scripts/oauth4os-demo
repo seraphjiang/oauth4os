@@ -1630,6 +1630,139 @@ cmd_health() {
   echo "$resp" | jq -r 'to_entries[] | "  \(if .value == "ok" or .value == true then "✅" else "❌" end) \(.key): \(.value)"' 2>/dev/null || echo "$resp" | jq . 2>/dev/null
 }
 
+cmd_shell() {
+  local HISTFILE="${CONFIG_DIR}/shell_history"
+  local SHELL_CMDS="login logout refresh register revoke rotate search sql tail watch stream services indices clients tokens sessions keys stats export dashboard bookmark history config alias completion status token whoami profile ping latency alerts audit diff top env install-man changelog version tutorial policy backup restore metrics inspect replay userinfo health help quit exit"
+
+  # Enable readline if available
+  if [ -t 0 ]; then
+    set -o emacs 2>/dev/null
+    # Load history
+    [ -f "$HISTFILE" ] && history -r "$HISTFILE" 2>/dev/null
+    # Tab completion
+    _shell_complete() {
+      local cur="${COMP_WORDS[COMP_CWORD]}"
+      if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=($(compgen -W "$SHELL_CMDS" -- "$cur"))
+      elif [ "${COMP_WORDS[1]}" = "policy" ] && [ "$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=($(compgen -W "list add remove test" -- "$cur"))
+      elif [ "${COMP_WORDS[1]}" = "config" ] && [ "$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=($(compgen -W "show set get reset" -- "$cur"))
+      elif [ "${COMP_WORDS[1]}" = "alias" ] && [ "$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=($(compgen -W "add rm run list" -- "$cur"))
+      fi
+    }
+    complete -F _shell_complete oauth4os 2>/dev/null
+    bind 'set show-all-if-ambiguous on' 2>/dev/null
+    bind 'TAB:complete' 2>/dev/null
+  fi
+
+  echo -e "${BOLD}🔐 oauth4os interactive shell${NC}"
+  echo -e "  Type commands without 'oauth4os-demo' prefix. Tab to complete. 'quit' to exit.\n"
+
+  # Show connection status
+  local status_code=$(curl -s -o /dev/null -w '%{http_code}' "${PROXY}/ready" 2>/dev/null)
+  if [ "$status_code" = "200" ]; then
+    echo -e "  ${GREEN}● Connected to ${PROXY}${NC}"
+  else
+    echo -e "  ${YELLOW}○ Proxy at ${PROXY} (status: ${status_code:-timeout})${NC}"
+  fi
+
+  # Show auth status
+  local tok=$(get_token 2>/dev/null)
+  if [ -n "$tok" ]; then
+    local sub=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+' | awk '{l=length%4;if(l==2)$0=$0"==";else if(l==3)$0=$0"=";print}' | base64 -d 2>/dev/null | jq -r '.sub // .client_id // "unknown"' 2>/dev/null)
+    echo -e "  ${GREEN}● Authenticated as ${sub}${NC}\n"
+  else
+    echo -e "  ${YELLOW}○ Not authenticated (run: login)${NC}\n"
+  fi
+
+  while true; do
+    local input
+    if ! read -e -p "$(echo -e "${CYAN}oauth4os>${NC} ")" input; then
+      echo; break
+    fi
+    # Skip empty
+    [ -z "$input" ] && continue
+    # Save to history
+    history -s "$input" 2>/dev/null
+    [ -d "$CONFIG_DIR" ] && history -w "$HISTFILE" 2>/dev/null
+
+    # Parse command and args
+    local cmd args
+    cmd=$(echo "$input" | awk '{print $1}')
+    args=$(echo "$input" | sed 's/^[^ ]* *//')
+    [ "$cmd" = "$args" ] && args=""
+
+    case "$cmd" in
+      quit|exit) echo -e "${GREEN}Bye!${NC}"; break ;;
+      clear) clear ;;
+      !*) # Shell escape
+        eval "${input#!}" ;;
+      *)
+        # Re-dispatch through main case
+        if echo "$SHELL_CMDS" | grep -qw "$cmd"; then
+          # Build args array
+          eval "set -- $args" 2>/dev/null
+          CMD="$cmd"
+          case "$CMD" in
+            login)      cmd_login "$@" ;;
+            logout)     cmd_logout ;;
+            refresh)    cmd_refresh ;;
+            search)     cmd_search "$args" ;;
+            sql)        cmd_sql "$args" ;;
+            tail)       cmd_tail "$@" ;;
+            watch)      cmd_watch "$args" ;;
+            stream)     cmd_stream "${1:-*}" ;;
+            services)   cmd_services ;;
+            indices)    cmd_indices ;;
+            clients)    cmd_clients ;;
+            tokens)     cmd_tokens ;;
+            sessions)   cmd_sessions ;;
+            keys)       cmd_keys ;;
+            stats)      cmd_stats ;;
+            export)     cmd_export "$@" ;;
+            dashboard)  cmd_dashboard ;;
+            diff)       cmd_diff "$@" ;;
+            top)        cmd_top ;;
+            config)     cmd_config "$@" ;;
+            alias)      cmd_alias "$@" ;;
+            bookmark)   cmd_bookmark "$@" ;;
+            history)    cmd_history ;;
+            token)      cmd_token ;;
+            whoami)     cmd_whoami ;;
+            profile)    cmd_profile ;;
+            status)     cmd_status ;;
+            ping)       cmd_ping "$@" ;;
+            latency)    cmd_latency ;;
+            alerts)     cmd_alerts ;;
+            audit)      cmd_audit "$@" ;;
+            env)        cmd_env ;;
+            policy)     cmd_policy "$@" ;;
+            backup)     cmd_backup "$@" ;;
+            restore)    cmd_restore "$@" ;;
+            metrics)    cmd_metrics "${1:-}" ;;
+            inspect)    cmd_inspect "${1:-}" ;;
+            replay)     cmd_replay "$@" ;;
+            userinfo)   cmd_userinfo ;;
+            health)     cmd_health ;;
+            register)   cmd_register "$@" ;;
+            revoke)     cmd_revoke "${1:-}" ;;
+            rotate)     cmd_rotate "$@" ;;
+            tutorial)   echo -e "${CYAN}Opening tutorial...${NC}"; _open "${PROXY}/tutorial/" ;;
+            completion) cmd_completion "${1:-bash}" ;;
+            version|changelog) cmd_changelog ;;
+            help)       echo "$SHELL_CMDS" | tr ' ' '\n' | pr -t -4 -w 72 ;;
+            *)          echo -e "${YELLOW}Unknown: $CMD${NC}" ;;
+          esac
+        else
+          echo -e "${YELLOW}Unknown command: $cmd${NC}  (type 'help' for commands)"
+        fi
+        ;;
+    esac
+  done
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1686,6 +1819,7 @@ case "${1:-}" in
   replay)   shift; cmd_replay "$@" ;;
   userinfo) cmd_userinfo ;;
   health)   cmd_health ;;
+  shell|repl) cmd_shell ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

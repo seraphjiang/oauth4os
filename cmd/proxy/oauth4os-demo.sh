@@ -1819,6 +1819,7 @@ case "${1:-}" in
   replay)   shift; cmd_replay "$@" ;;
   userinfo) cmd_userinfo ;;
   health)   cmd_health ;;
+  shell|repl) cmd_shell ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

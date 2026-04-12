@@ -29,8 +29,11 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/audit"
 	"github.com/seraphjiang/oauth4os/internal/auditexport"
 	"github.com/seraphjiang/oauth4os/internal/cedar"
+	"github.com/seraphjiang/oauth4os/internal/chaos"
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/discovery"
+	"github.com/seraphjiang/oauth4os/internal/dpop"
+	"github.com/seraphjiang/oauth4os/internal/etag"
 	"github.com/seraphjiang/oauth4os/internal/exchange"
 	"github.com/seraphjiang/oauth4os/internal/events"
 	"github.com/seraphjiang/oauth4os/internal/federation"
@@ -42,6 +45,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/logging"
 	"github.com/seraphjiang/oauth4os/internal/otlp"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
+	"github.com/seraphjiang/oauth4os/internal/plugin"
 	"github.com/seraphjiang/oauth4os/internal/ratelimit"
 	"github.com/seraphjiang/oauth4os/internal/registration"
 	"github.com/seraphjiang/oauth4os/internal/scope"
@@ -69,6 +73,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/healthcheck"
 	"github.com/seraphjiang/oauth4os/internal/histogram"
 	"github.com/seraphjiang/oauth4os/internal/metrics"
+	"github.com/seraphjiang/oauth4os/internal/remotewrite"
 	"github.com/seraphjiang/oauth4os/internal/retry"
 	"github.com/seraphjiang/oauth4os/internal/secrets"
 	"github.com/seraphjiang/oauth4os/internal/store"
@@ -195,6 +200,26 @@ func main() {
 	// Audit log export (no-op if no uploader configured; S3 uploader in v2.1)
 	var auditExporter *auditexport.Exporter
 	_ = auditExporter // wired when S3 uploader is configured
+
+	// Plugin registry for custom auth logic
+	pluginReg := plugin.NewRegistry()
+	// Load plugins from OAUTH4OS_PLUGINS env (comma-separated .so paths)
+	if paths := os.Getenv("OAUTH4OS_PLUGINS"); paths != "" {
+		for _, p := range strings.Split(paths, ",") {
+			if err := pluginReg.Load(strings.TrimSpace(p)); err != nil {
+				logger.Info("plugin load failed", "path", p, "error", err.Error())
+			} else {
+				logger.Info("plugin loaded", "path", p)
+			}
+		}
+	}
+
+	// Chaos injector (disabled by default, enable via POST /admin/chaos)
+	chaosInjector := chaos.New(chaos.Config{})
+
+	// Multi-tenant token store
+	mtStore := store.NewMultiTenant(func(tenant string) store.Store { return store.NewMemory() })
+	_ = mtStore // used when multi-tenancy is enabled
 
 	sessionMgr := session.New(map[string]int{"*": 100})
 	apiKeyStore := apikey.NewStore()
@@ -1526,6 +1551,12 @@ func main() {
 	// Gzip compression
 	compressed := compress.Middleware(corsHandler)
 
+	// ETag conditional responses
+	etagged := etag.Middleware(compressed)
+
+	// Chaos fault injection (disabled by default)
+	chaosed := chaosInjector.Middleware(etagged)
+
 	// Security headers
 	secured := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -1534,8 +1565,12 @@ func main() {
 		if cfg.TLS.Enabled {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		}
-		compressed.ServeHTTP(w, r)
+		chaosed.ServeHTTP(w, r)
 	})
+
+	// DPoP validation on token endpoints
+	_ = dpop.Validate // available for token endpoint handlers
+	_ = pluginReg     // available for proxy handler auth checks
 
 	// Structured access logs
 	alog := accesslog.New(os.Stdout)

@@ -104,12 +104,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tokenID, expiresIn := h.issuer.IssueExchangeToken(claims.Subject, claims.Issuer, scopes)
 
 	resp := map[string]interface{}{
-		"access_token":       tokenID,
-		"issued_token_type":  AccessTokenType,
-		"token_type":         "Bearer",
-		"expires_in":         expiresIn,
-		"scope":              strings.Join(scopes, " "),
-	})
+		"access_token":      tokenID,
+		"issued_token_type": AccessTokenType,
+		"token_type":        "Bearer",
+		"expires_in":        expiresIn,
+		"scope":             strings.Join(scopes, " "),
+	}
+
+	// RFC 8693 §4.1: include act claim for delegation
+	if actorClaims != nil {
+		resp["act"] = map[string]string{"sub": actorClaims.Subject}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func writeErr(w http.ResponseWriter, status int, code, desc string) {

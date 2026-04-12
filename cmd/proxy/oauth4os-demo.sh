@@ -340,6 +340,66 @@ cmd_tail() {
   done
 }
 
+cmd_stats() {
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in. Run: oauth4os-demo login${NC}"; return 1; }
+  echo -e "${BOLD}📊 Index Stats${NC}\n"
+
+  # Single multi-agg query
+  local body='{
+    "size":0,
+    "aggs":{
+      "by_service":{"terms":{"field":"service.keyword","size":20},"aggs":{
+        "errors":{"filter":{"terms":{"level.keyword":["ERROR","FATAL"]}}},
+        "avg_latency":{"avg":{"field":"latency_ms"}}
+      }},
+      "top_errors":{"filter":{"terms":{"level.keyword":["ERROR","FATAL"]}},"aggs":{
+        "messages":{"terms":{"field":"message.keyword","size":10}}
+      }},
+      "total_errors":{"filter":{"terms":{"level.keyword":["ERROR","FATAL"]}}},
+      "total_docs":{"value_count":{"field":"_index"}}
+    }
+  }'
+  local resp
+  resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    "${PROXY}/logs-*/_search" -d "$body" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$resp" ]; then
+    echo -e "${RED}Query failed${NC}"; return 1
+  fi
+
+  # Summary
+  local total errs
+  total=$(echo "$resp" | jq '.hits.total.value // (.hits.total // 0)' 2>/dev/null)
+  errs=$(echo "$resp" | jq '.aggregations.total_errors.doc_count // 0' 2>/dev/null)
+  echo -e "  Total docs: ${CYAN}${total}${NC}    Errors: ${RED}${errs}${NC}\n"
+
+  # Errors by service
+  echo -e "${BOLD}Errors by Service:${NC}"
+  printf "  ${CYAN}%-20s %8s %8s %12s${NC}\n" "SERVICE" "TOTAL" "ERRORS" "AVG LATENCY"
+  printf "  %-20s %8s %8s %12s\n" "────────────────────" "────────" "────────" "────────────"
+  echo "$resp" | jq -r '.aggregations.by_service.buckets[] | "\(.key) \(.doc_count) \(.errors.doc_count) \(.avg_latency.value // 0)"' 2>/dev/null | while read -r svc total err lat; do
+    lat_fmt=$(printf "%.1fms" "$lat" 2>/dev/null || echo "${lat}ms")
+    if [ "$err" -gt 0 ] 2>/dev/null; then
+      printf "  %-20s %8s ${RED}%8s${NC} %12s\n" "$svc" "$total" "$err" "$lat_fmt"
+    else
+      printf "  %-20s %8s ${GREEN}%8s${NC} %12s\n" "$svc" "$total" "$err" "$lat_fmt"
+    fi
+  done
+
+  # Top error messages
+  echo ""
+  echo -e "${BOLD}Top Error Messages:${NC}"
+  echo "$resp" | jq -r '.aggregations.top_errors.messages.buckets[:10][] | "\(.doc_count) \(.key)"' 2>/dev/null | while read -r cnt msg; do
+    printf "  ${RED}%5s${NC}  %s\n" "$cnt" "$msg"
+  done
+
+  local no_errs
+  no_errs=$(echo "$resp" | jq '.aggregations.top_errors.messages.buckets | length' 2>/dev/null)
+  if [ "${no_errs:-0}" = "0" ]; then
+    echo -e "  ${GREEN}No errors found ✓${NC}"
+  fi
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -352,6 +412,7 @@ case "${1:-}" in
   token)    cmd_token ;;
   whoami)   cmd_whoami ;;
   status)   cmd_status ;;
+  stats)    cmd_stats ;;
   help|-h|--help) usage ;;
   "") usage ;;
   *) echo -e "${RED}Unknown command: $1${NC}"; usage ;;

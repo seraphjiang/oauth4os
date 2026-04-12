@@ -8,8 +8,8 @@ import (
 
 func BenchmarkIdentify(b *testing.B) {
 	m := NewClientMap(map[string]*ClientEntry{
-		"service-a": {CN: "service-a.example.com", Scopes: []string{"read"}},
-		"service-b": {CN: "service-b.example.com", Scopes: []string{"write"}},
+		"service-a.example.com": {ClientID: "service-a", Scopes: []string{"read"}},
+		"service-b.example.com": {ClientID: "service-b", Scopes: []string{"write"}},
 	})
 	cert := &x509.Certificate{Subject: pkix.Name{CommonName: "service-a.example.com"}}
 	b.ResetTimer()

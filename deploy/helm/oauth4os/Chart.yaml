@@ -1,0 +1,6 @@
+apiVersion: v2
+name: oauth4os
+description: OAuth 2.0 proxy for OpenSearch
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

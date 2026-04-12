@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+      - name: go vet
+        run: go vet ./...
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+      - name: Unit tests
+        run: go test -v -race -coverprofile=coverage.out ./internal/...
+      - name: Coverage
+        run: go tool cover -func=coverage.out | tail -1
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+      - name: Build proxy
+        run: CGO_ENABLED=0 go build -o oauth4os ./cmd/proxy
+      - name: Build CLI
+        run: CGO_ENABLED=0 go build -o oauth4os-cli ./cmd/cli
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t oauth4os:test .
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 8443:8443 oauth4os:test
+          sleep 3
+          curl -sf http://localhost:8443/health || true
+          docker stop smoke
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+      - name: Start services
+        run: docker compose up -d
+      - name: Wait for OpenSearch
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9200 && break || sleep 2
+          done
+      - name: Run integration tests
+        run: go test -v -tags=integration ./test/integration/...
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

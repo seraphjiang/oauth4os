@@ -54,6 +54,8 @@ type Manager struct {
 	jwtEnabled  bool
 	issuer      string
 	keyProvider KeyProvider
+	refreshTTL       time.Duration // refresh token lifetime (default 30 days)
+	refreshMaxLife   time.Duration // absolute family lifetime (default 90 days)
 }
 
 // NewManager creates a token manager.

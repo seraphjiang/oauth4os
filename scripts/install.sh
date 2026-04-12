@@ -3,36 +3,57 @@
 # Usage: curl -sL https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh | bash
 set -euo pipefail
 
-PROXY="${OAUTH4OS_URL:-https://f5cmk2hxwx.us-west-2.awsapprunner.com}"
+PROXY="${OAUTH4OS_PROXY:-https://f5cmk2hxwx.us-west-2.awsapprunner.com}"
 INSTALL_DIR="${HOME}/.local/bin"
 SCRIPT_NAME="oauth4os-demo"
 
-echo "🔐 Installing oauth4os-demo CLI..."
+RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
+echo -e "${BOLD}oauth4os-demo installer${NC}"
+echo ""
+
+# Check deps
+for cmd in curl jq openssl; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo -e "${RED}Error: $cmd is required. Install it first.${NC}"
+    exit 1
+  fi
+done
+
+# Detect OS
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+case "$OS" in
+  linux|darwin) ;;
+  *) echo -e "${RED}Unsupported OS: $OS${NC}"; exit 1 ;;
+esac
+
+# Create install dir
 mkdir -p "$INSTALL_DIR"
 
-curl -sf "${PROXY}/scripts/oauth4os-demo" -o "${INSTALL_DIR}/${SCRIPT_NAME}" || {
-  echo "❌ Download failed. Is the proxy running at ${PROXY}?"
-  exit 1
-}
+# Download CLI wrapper
+echo -e "${CYAN}Downloading ${SCRIPT_NAME}...${NC}"
+curl -sfL "${PROXY}/scripts/oauth4os-demo" -o "${INSTALL_DIR}/${SCRIPT_NAME}"
 chmod +x "${INSTALL_DIR}/${SCRIPT_NAME}"
 
 # Check PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
-  echo ""
-  echo "⚠️  Add to your PATH:"
-  echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-  echo ""
-  echo "Or add to your shell profile:"
-  echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ~/.bashrc"
+  SHELL_NAME=$(basename "$SHELL")
+  case "$SHELL_NAME" in
+    zsh)  RC="$HOME/.zshrc" ;;
+    bash) RC="$HOME/.bashrc" ;;
+    *)    RC="$HOME/.profile" ;;
+  esac
+  echo "export PATH=\"${INSTALL_DIR}:\$PATH\"" >> "$RC"
+  echo -e "${CYAN}Added ${INSTALL_DIR} to PATH in ${RC}${NC}"
+  export PATH="${INSTALL_DIR}:$PATH"
 fi
 
 echo ""
-echo "✅ Installed to ${INSTALL_DIR}/${SCRIPT_NAME}"
+echo -e "${GREEN}✅ Installed ${SCRIPT_NAME} to ${INSTALL_DIR}/${SCRIPT_NAME}${NC}"
 echo ""
-echo "Get started:"
-echo "  oauth4os-demo health     # check proxy"
-echo "  oauth4os-demo login      # authenticate"
+echo -e "${BOLD}Quick start:${NC}"
+echo "  oauth4os-demo status    # Check proxy health"
+echo "  oauth4os-demo login     # Authenticate via browser"
 echo "  oauth4os-demo search 'level:ERROR'"
-echo "  oauth4os-demo services   # list services"
-echo "  oauth4os-demo tail       # latest logs"
+echo "  oauth4os-demo services  # List indexed services"
+echo ""

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LogView — Demo App powered by oauth4os</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
+
+/* Layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column}
+.sidebar .brand{font-size:16px;font-weight:700;margin-bottom:24px}.brand span{color:var(--accent)}
+.sidebar nav a{display:block;padding:8px 12px;border-radius:6px;color:var(--muted);font-size:13px;margin-bottom:2px}
+.sidebar nav a:hover,.sidebar nav a.active{background:var(--bg);color:var(--text)}
+.sidebar .spacer{flex:1}
+.sidebar .user{font-size:12px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px}
+.sidebar .user strong{color:var(--text);display:block}
+.main{flex:1;padding:24px;overflow-y:auto}
+
+/* Login page */
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;max-width:400px}
+.login-card h1{font-size:24px;margin-bottom:8px}
+.login-card p{color:var(--muted);font-size:14px;margin-bottom:24px}
+.login-btn{display:inline-block;padding:12px 32px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+.login-btn:hover{opacity:.9}
+.login-card .powered{font-size:11px;color:var(--muted);margin-top:16px}
+
+/* Dashboard */
+.toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-input{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;font-family:'SF Mono',Consolas,monospace}
+.search-input:focus{outline:none;border-color:var(--accent)}
+select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px}
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-sm{padding:4px 10px;font-size:11px}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.stat .label{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600}
+.stat .value{font-size:24px;font-weight:800;margin-top:4px}
+
+/* Log table */
+.log-table{width:100%;border-collapse:collapse;font-size:12px}
+.log-table th{text-align:left;padding:8px;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:600;border-bottom:2px solid var(--border);position:sticky;top:0;background:var(--bg)}
+.log-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.log-table tr:hover{background:var(--surface)}
+.level{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;text-transform:uppercase}
+.level-error{background:#f8514922;color:var(--red)}
+.level-warn{background:#f0883e22;color:var(--orange)}
+.level-info{background:#58a6ff22;color:var(--accent)}
+.level-debug{background:var(--border);color:var(--muted)}
+.svc{padding:1px 8px;border-radius:10px;font-size:10px;background:var(--border)}
+.msg{font-family:'SF Mono',Consolas,monospace;max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ts{color:var(--muted);font-family:'SF Mono',Consolas,monospace;white-space:nowrap}
+
+/* Settings */
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:12px}
+.settings-card h3{font-size:14px;margin-bottom:8px}
+.settings-card .field{margin-bottom:8px}
+.settings-card .field label{font-size:11px;color:var(--muted);display:block;margin-bottom:2px}
+.settings-card .val{font-family:'SF Mono',Consolas,monospace;font-size:12px;background:var(--bg);padding:6px 10px;border-radius:4px;word-break:break-all}
+
+.empty-state{text-align:center;padding:60px;color:var(--muted)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text);z-index:10}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .stats{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+
+<!-- Login Page -->
+<div id="loginPage" class="login-page">
+  <div class="login-card">
+    <div style="font-size:48px;margin-bottom:16px">📊</div>
+    <h1>LogView</h1>
+    <p>A sample log viewer app powered by oauth4os.<br>Click below to authenticate via OAuth 2.0 PKCE flow.</p>
+    <button class="login-btn" id="loginBtn" aria-label="Login with oauth4os">🔐 Login with oauth4os</button>
+    <div class="powered">Powered by <a href="../">oauth4os</a> — OAuth 2.0 Proxy for OpenSearch</div>
+  </div>
+</div>
+
+<!-- App Shell (hidden until logged in) -->
+<div id="appShell" class="app" style="display:none">
+  <div class="sidebar">
+    <div class="brand">📊 Log<span>View</span></div>
+    <nav>
+      <a href="#dashboard" class="active" data-page="dashboard">🔍 Dashboard</a>
+      <a href="#settings" data-page="settings">⚙️ Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <strong id="userName">—</strong>
+      <span id="userScopes">—</span><br>
+      <a href="#" id="logoutBtn" style="font-size:11px;color:var(--red)">Logout</a>
+    </div>
+  </div>
+  <div class="main">
+    <!-- Dashboard -->
+    <div id="dashboardPage">
+      <h2 style="margin-bottom:16px">Log Search</h2>
+      <div class="toolbar">
+        <input type="text" class="search-input" id="searchQuery" placeholder='Search logs... e.g. error OR timeout OR service:payment' aria-label="Search query">
+        <select id="filterService" aria-label="Filter by service"><option value="">All Services</option></select>
+        <select id="filterLevel" aria-label="Filter by level">
+          <option value="">All Levels</option>
+          <option value="ERROR">Error</option>
+          <option value="WARN">Warn</option>
+          <option value="INFO">Info</option>
+          <option value="DEBUG">Debug</option>
+        </select>
+        <button class="btn btn-primary" id="searchBtn" aria-label="Search">Search</button>
+      </div>
+      <div class="stats" id="stats"></div>
+      <table class="log-table">
+        <thead><tr><th>Timestamp</th><th>Level</th><th>Service</th><th>Message</th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div id="logEmpty" class="empty-state" style="display:none"><div class="icon">🔍</div><p>No results. Try a different query.</p></div>
+    </div>
+    <!-- Settings -->
+    <div id="settingsPage" style="display:none">
+      <h2 style="margin-bottom:16px">Settings</h2>
+      <div class="settings-card">
+        <h3>Token Info</h3>
+        <div class="field"><label>Access Token</label><div class="val" id="settingsToken">—</div></div>
+        <div class="field"><label>Scopes</label><div class="val" id="settingsScopes">—</div></div>
+        <div class="field"><label>Expires</label><div class="val" id="settingsExpiry">—</div></div>
+      </div>
+      <div class="settings-card">
+        <h3>Connection</h3>
+        <div class="field"><label>Proxy URL</label><div class="val" id="settingsProxy">—</div></div>
+        <div class="field"><label>Auth Flow</label><div class="val">PKCE (RFC 7636)</div></div>
+      </div>
+      <div class="settings-card">
+        <h3>About</h3>
+        <p style="font-size:13px;color:var(--muted)">LogView is a sample application demonstrating oauth4os PKCE authentication and scoped OpenSearch access. <a href="../">Learn more →</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROXY = window.location.origin;
+const CLIENT_ID = 'logview-demo';
+const REDIRECT_URI = window.location.origin + '/demo/callback';
+const SCOPES = 'read:logs-*';
+
+// PKCE helpers
+function base64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function generatePKCE() {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = base64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  return { verifier, challenge };
+}
+
+// Auth state
+let token = sessionStorage.getItem('oauth4os_token');
+let tokenData = null;
+
+// Login
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const { verifier, challenge } = await generatePKCE();
+  sessionStorage.setItem('pkce_verifier', verifier);
+  const state = base64url(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem('oauth_state', state);
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPES,
+    state: state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256'
+  });
+  window.location.href = PROXY + '/oauth/authorize?' + params;
+});
+
+// Handle callback
+async function handleCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  if (!code) return false;
+
+  const savedState = sessionStorage.getItem('oauth_state');
+  if (state !== savedState) { alert('State mismatch — possible CSRF'); return false; }
+
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  try {
+    const resp = await fetch(PROXY + '/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: REDIRECT_URI,
+        client_id: CLIENT_ID,
+        code_verifier: verifier
+      })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      token = data.access_token;
+      tokenData = data;
+      sessionStorage.setItem('oauth4os_token', token);
+      sessionStorage.setItem('oauth4os_token_data', JSON.stringify(data));
+      window.history.replaceState({}, '', window.location.pathname);
+      return true;
+    }
+  } catch (e) { console.error('Token exchange failed:', e); }
+
+  // Fallback: if /oauth/authorize isn't wired, simulate with client_credentials
+  return await fallbackLogin();
+}
+
+async function fallbackLogin() {
+  try {
+    const resp = await fetch(PROXY + '/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      token = data.access_token;
+      tokenData = data;
+      sessionStorage.setItem('oauth4os_token', token);
+      sessionStorage.setItem('oauth4os_token_data', JSON.stringify(data));
+      window.history.replaceState({}, '', window.location.pathname);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', e => {
+  e.preventDefault();
+  sessionStorage.clear();
+  token = null;
+  tokenData = null;
+  showLogin();
+});
+
+// Pages
+function showLogin() {
+  document.getElementById('loginPage').style.display = '';
+  document.getElementById('appShell').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appShell').style.display = '';
+  tokenData = tokenData || JSON.parse(sessionStorage.getItem('oauth4os_token_data') || '{}');
+  // Decode JWT for display
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    document.getElementById('userName').textContent = payload.sub || payload.client_id || 'demo-user';
+    document.getElementById('userScopes').textContent = payload.scope || tokenData.scope || SCOPES;
+    document.getElementById('settingsScopes').textContent = payload.scope || tokenData.scope || SCOPES;
+    document.getElementById('settingsExpiry').textContent = payload.exp ? new Date(payload.exp * 1000).toLocaleString() : 'N/A';
+  } catch {
+    document.getElementById('userName').textContent = 'demo-user';
+    document.getElementById('userScopes').textContent = SCOPES;
+  }
+  document.getElementById('settingsToken').textContent = token.slice(0, 20) + '...' + token.slice(-10);
+  document.getElementById('settingsProxy').textContent = PROXY;
+  loadServices();
+  doSearch();
+}
+
+// Navigation
+document.querySelectorAll('[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('[data-page]').forEach(n => n.classList.remove('active'));
+    a.classList.add('active');
+    document.getElementById('dashboardPage').style.display = a.dataset.page === 'dashboard' ? '' : 'none';
+    document.getElementById('settingsPage').style.display = a.dataset.page === 'settings' ? '' : 'none';
+  });
+});
+
+// Search
+async function doSearch() {
+  if (!token) return;
+  const q = document.getElementById('searchQuery').value || '*';
+  const svc = document.getElementById('filterService').value;
+  const lvl = document.getElementById('filterLevel').value;
+
+  const must = [{ query_string: { query: q } }];
+  if (svc) must.push({ term: { 'service.keyword': svc } });
+  if (lvl) must.push({ term: { 'level.keyword': lvl } });
+
+  try {
+    const resp = await fetch(PROXY + '/logs-*/_search', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: { bool: { must } }, size: 50, sort: [{ timestamp: 'desc' }] })
+    });
+    const data = await resp.json();
+    const hits = data.hits?.hits || [];
+    const total = data.hits?.total?.value ?? data.hits?.total ?? 0;
+    renderStats(hits, total);
+    renderLogs(hits);
+  } catch (e) {
+    document.getElementById('logBody').innerHTML = `<tr><td colspan="4" style="color:var(--red)">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderStats(hits, total) {
+  const errors = hits.filter(h => (h._source?.level || '').toUpperCase() === 'ERROR').length;
+  const warns = hits.filter(h => (h._source?.level || '').toUpperCase() === 'WARN').length;
+  const services = new Set(hits.map(h => h._source?.service).filter(Boolean)).size;
+  document.getElementById('stats').innerHTML = [
+    { label: 'Total Hits', value: total, icon: '📊' },
+    { label: 'Errors', value: errors, icon: '❌' },
+    { label: 'Warnings', value: warns, icon: '⚠️' },
+    { label: 'Services', value: services, icon: '🔧' },
+  ].map(s => `<div class="stat"><div class="label">${s.icon} ${s.label}</div><div class="value">${s.value}</div></div>`).join('');
+}
+
+function renderLogs(hits) {
+  const body = document.getElementById('logBody');
+  const empty = document.getElementById('logEmpty');
+  if (!hits.length) { body.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  body.innerHTML = hits.map(h => {
+    const s = h._source || {};
+    const lvl = (s.level || 'info').toUpperCase();
+    const cls = lvl === 'ERROR' ? 'error' : lvl === 'WARN' ? 'warn' : lvl === 'DEBUG' ? 'debug' : 'info';
+    return `<tr>
+      <td class="ts">${esc(s.timestamp || '')}</td>
+      <td><span class="level level-${cls}">${lvl}</span></td>
+      <td><span class="svc">${esc(s.service || '—')}</span></td>
+      <td class="msg" title="${esc(s.message || '')}">${esc(s.message || JSON.stringify(s).slice(0, 120))}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadServices() {
+  try {
+    const resp = await fetch(PROXY + '/logs-*/_search', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ size: 0, aggs: { services: { terms: { field: 'service.keyword', size: 20 } } } })
+    });
+    const data = await resp.json();
+    const buckets = data.aggregations?.services?.buckets || [];
+    const sel = document.getElementById('filterService');
+    buckets.forEach(b => { const o = document.createElement('option'); o.value = b.key; o.textContent = `${b.key} (${b.doc_count})`; sel.appendChild(o); });
+  } catch {}
+}
+
+document.getElementById('searchBtn').addEventListener('click', doSearch);
+document.getElementById('searchQuery').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+document.getElementById('filterService').addEventListener('change', doSearch);
+document.getElementById('filterLevel').addEventListener('change', doSearch);
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// Init
+(async () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('code')) {
+    if (await handleCallback()) { showApp(); return; }
+  }
+  if (token) { showApp(); return; }
+  showLogin();
+})();
+</script>
+</body>
+</html>

@@ -56,6 +56,12 @@ var landingPage string
 //go:embed openapi.yaml
 var openapiSpec string
 
+//go:embed install.sh
+var installScript string
+
+//go:embed oauth4os-demo.sh
+var demoCLIScript string
+
 // Prometheus-style metrics
 var (
 	requestsTotal   atomic.Int64
@@ -477,6 +483,11 @@ func main() {
 
 	// Backup endpoints
 	//backupHandler.Register(mux) // handled by admin API
+
+	// Demo web app (log viewer with PKCE login)
+	demoApp := demo.NewHandler(issuerURL, "demo-app")
+	demoApp.Register(mux)
+
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintf(w, "# HELP oauth4os_requests_total Total proxy requests\n")
@@ -570,9 +581,15 @@ func main() {
 		r = r.WithContext(ctx)
 		claims, err := validator.Validate(tokenStr)
 		if err != nil {
-			tracer.EndSpan(jwtSpan, "error")
-			authFailed.Add(1)
-			requestsFailed.Add(1)
+			// Fallback: check self-issued tokens
+			if clientID, scopes, _, expiresAt, revoked, ok := tokenMgr.Lookup(tokenStr); ok && !revoked && time.Now().Before(expiresAt) {
+				tracer.EndSpan(jwtSpan, "ok")
+				authSuccess.Add(1)
+				claims = &jwt.Claims{Subject: clientID, Scopes: scopes, Issuer: "oauth4os"}
+			} else {
+				tracer.EndSpan(jwtSpan, "error")
+				authFailed.Add(1)
+				requestsFailed.Add(1)
 			http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
 			return
 		}

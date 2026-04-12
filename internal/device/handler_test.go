@@ -13,12 +13,10 @@ func testIssuer(clientID string, scopes []string) (string, string) {
 	return "access_" + clientID, "refresh_" + clientID
 }
 
-func post(mux *http.ServeMux, path string, body string) *httptest.ResponseRecorder {
-	r := httptest.NewRequest("POST", path, strings.NewReader(body))
+func formReq(method, path string, vals url.Values) *http.Request {
+	r := httptest.NewRequest(method, path, strings.NewReader(vals.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, r)
-	return w
+	return r
 }
 
 func TestDeviceFlow(t *testing.T) {
@@ -27,7 +25,9 @@ func TestDeviceFlow(t *testing.T) {
 	h.Register(mux)
 
 	// Step 1: Request device code
-	resp := post(mux, "/oauth/device/code", url.Values{"client_id": {"cli-1"}, "scope": {"read:logs-*"}}.Encode())
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/code",
+		url.Values{"client_id": {"cli-1"}, "scope": {"read:logs-*"}}))
 	if resp.Code != 200 {
 		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -40,7 +40,9 @@ func TestDeviceFlow(t *testing.T) {
 	}
 
 	// Step 2: Poll — should be pending
-	resp2 := post(mux, "/oauth/device/token", url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}.Encode())
+	resp2 := httptest.NewRecorder()
+	mux.ServeHTTP(resp2, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}))
 	var pending map[string]string
 	json.NewDecoder(resp2.Body).Decode(&pending)
 	if pending["error"] != "authorization_pending" {
@@ -48,13 +50,17 @@ func TestDeviceFlow(t *testing.T) {
 	}
 
 	// Step 3: User approves
-	resp3 := post(mux, "/oauth/device/approve", url.Values{"user_code": {uc}, "action": {"approve"}}.Encode())
+	resp3 := httptest.NewRecorder()
+	mux.ServeHTTP(resp3, formReq("POST", "/oauth/device/approve",
+		url.Values{"user_code": {uc}, "action": {"approve"}}))
 	if resp3.Code != 200 {
-		t.Fatalf("expected 200, got %d", resp3.Code)
+		t.Fatalf("approve: expected 200, got %d", resp3.Code)
 	}
 
 	// Step 4: Poll again — should get token
-	resp4 := post(mux, "/oauth/device/token", url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}.Encode())
+	resp4 := httptest.NewRecorder()
+	mux.ServeHTTP(resp4, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}))
 	var tokenResp map[string]interface{}
 	json.NewDecoder(resp4.Body).Decode(&tokenResp)
 	if tokenResp["access_token"] != "access_cli-1" {
@@ -67,21 +73,23 @@ func TestDeviceFlowDeny(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	// Request code
-	resp := post(mux, "/oauth/device/code", url.Values{"client_id": {"cli-1"}}.Encode())
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/code",
+		url.Values{"client_id": {"cli-1"}}))
 	var cr map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&cr)
 
-	// Deny
-	resp2 := post(mux, "/oauth/device/approve", url.Values{"user_code": {cr["user_code"].(string)}, "action": {"deny"}}.Encode())
-	_ = resp2
+	resp2 := httptest.NewRecorder()
+	mux.ServeHTTP(resp2, formReq("POST", "/oauth/device/approve",
+		url.Values{"user_code": {cr["user_code"].(string)}, "action": {"deny"}}))
 
-	// Poll — should be denied
-	resp3 := post(mux, "/oauth/device/token", url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {cr["device_code"].(string)}}.Encode())
-	var err map[string]string
-	json.NewDecoder(resp3.Body).Decode(&err)
-	if err["error"] != "access_denied" {
-		t.Fatalf("expected access_denied, got %s", err["error"])
+	resp3 := httptest.NewRecorder()
+	mux.ServeHTTP(resp3, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {cr["device_code"].(string)}}))
+	var errResp map[string]string
+	json.NewDecoder(resp3.Body).Decode(&errResp)
+	if errResp["error"] != "access_denied" {
+		t.Fatalf("expected access_denied, got %s", errResp["error"])
 	}
 }
 
@@ -90,13 +98,8 @@ func TestMissingClientID(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 	resp := httptest.NewRecorder()
-	mux.ServeHTTP(resp, httptest.NewRequest("POST", "/oauth/device/code", strings.NewReader("")))
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/code", url.Values{}))
 	if resp.Code != 400 {
 		t.Fatalf("expected 400, got %d", resp.Code)
 	}
-}
-
-func init() {
-	// Set content type for form posts
-	http.DefaultTransport = nil
 }

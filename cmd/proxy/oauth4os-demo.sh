@@ -550,6 +550,105 @@ cmd_bookmark() {
   esac
 }
 
+cmd_dashboard() {
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}"; return 1; }
+  local prev_total=0 prev_time=$(date +%s)
+
+  trap 'tput cnorm; echo; exit 0' INT
+  tput civis  # hide cursor
+
+  while true; do
+    local now=$(date +%s)
+    # Fetch stats in one multi-agg query
+    local body='{
+      "size":5,"sort":[{"@timestamp":"desc"}],
+      "query":{"match_all":{}},
+      "aggs":{
+        "errors":{"filter":{"terms":{"level.keyword":["ERROR","FATAL"]}}},
+        "by_service":{"terms":{"field":"service.keyword","size":10}},
+        "by_level":{"terms":{"field":"level.keyword","size":5}},
+        "recent_errors":{"filter":{"terms":{"level.keyword":["ERROR","FATAL"]}},"aggs":{
+          "top":{"top_hits":{"size":5,"sort":[{"@timestamp":"desc"}],"_source":["@timestamp","service","message"]}}
+        }}
+      }
+    }'
+    local resp
+    resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+      "${PROXY}/logs-*/_search" -d "$body" 2>/dev/null)
+    [ $? -ne 0 ] && { sleep 3; continue; }
+
+    local total errs
+    total=$(echo "$resp" | jq '.hits.total.value // 0' 2>/dev/null)
+    errs=$(echo "$resp" | jq '.aggregations.errors.doc_count // 0' 2>/dev/null)
+
+    # Request rate
+    local elapsed=$(( now - prev_time ))
+    local rate=0
+    [ $elapsed -gt 0 ] && [ $prev_total -gt 0 ] && rate=$(( (total - prev_total) / elapsed ))
+    prev_total=$total; prev_time=$now
+
+    # Clear screen and draw
+    tput clear
+    local ts=$(date '+%H:%M:%S')
+    echo -e "${BOLD}🔐 oauth4os Dashboard${NC}                                    ${CYAN}${ts}${NC}  (q=quit)"
+    echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    # Summary row
+    local err_pct=0
+    [ "$total" -gt 0 ] 2>/dev/null && err_pct=$(( errs * 100 / total ))
+    printf "  ${BOLD}Total Docs${NC}  %-12s" "$total"
+    printf "${BOLD}Errors${NC}  ${RED}%-8s${NC}" "$errs"
+    printf "${BOLD}Error Rate${NC}  "
+    [ "$err_pct" -gt 10 ] && printf "${RED}%s%%${NC}" "$err_pct" || printf "${GREEN}%s%%${NC}" "$err_pct"
+    printf "    ${BOLD}Rate${NC}  ${CYAN}%s/s${NC}\n" "$rate"
+    echo ""
+
+    # Level distribution bar
+    echo -e "  ${BOLD}Levels:${NC}"
+    echo "$resp" | jq -r '.aggregations.by_level.buckets[] | "\(.key) \(.doc_count)"' 2>/dev/null | while read -r lvl cnt; do
+      local bar_len=$(( cnt * 40 / (total > 0 ? total : 1) ))
+      [ $bar_len -lt 1 ] && bar_len=1
+      local bar=$(printf '%*s' "$bar_len" '' | tr ' ' '█')
+      case "$lvl" in
+        ERROR|FATAL) printf "  ${RED}%-8s %6s ${NC}${RED}%s${NC}\n" "$lvl" "$cnt" "$bar" ;;
+        WARN)        printf "  ${YELLOW}%-8s %6s ${NC}${YELLOW}%s${NC}\n" "$lvl" "$cnt" "$bar" ;;
+        *)           printf "  ${GREEN}%-8s %6s ${NC}${GREEN}%s${NC}\n" "$lvl" "$cnt" "$bar" ;;
+      esac
+    done
+    echo ""
+
+    # Top services
+    echo -e "  ${BOLD}Top Services:${NC}"
+    printf "  ${CYAN}%-20s %8s${NC}\n" "SERVICE" "DOCS"
+    echo "$resp" | jq -r '.aggregations.by_service.buckets[] | "\(.key) \(.doc_count)"' 2>/dev/null | while read -r svc cnt; do
+      local bar_len=$(( cnt * 30 / (total > 0 ? total : 1) ))
+      [ $bar_len -lt 1 ] && bar_len=1
+      local bar=$(printf '%*s' "$bar_len" '' | tr ' ' '▓')
+      printf "  %-20s %8s  ${CYAN}%s${NC}\n" "$svc" "$cnt" "$bar"
+    done
+    echo ""
+
+    # Latest errors
+    echo -e "  ${BOLD}Latest Errors:${NC}"
+    local err_lines
+    err_lines=$(echo "$resp" | jq -r '.aggregations.recent_errors.top.hits.hits[]._source | "\(.["@timestamp"] // "?") \(.service // "?"): \(.message // "")"' 2>/dev/null)
+    if [ -n "$err_lines" ]; then
+      echo "$err_lines" | head -5 | while IFS= read -r line; do
+        echo -e "  ${RED}${line}${NC}"
+      done
+    else
+      echo -e "  ${GREEN}No recent errors ✓${NC}"
+    fi
+
+    echo -e "\n  ${CYAN}Refreshing in 3s...${NC}"
+
+    # Check for 'q' keypress (non-blocking)
+    read -t 3 -n 1 key 2>/dev/null && [ "$key" = "q" ] && { tput cnorm; echo; break; }
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in

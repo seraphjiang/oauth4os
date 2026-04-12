@@ -1073,6 +1073,43 @@ func main() {
 	// Serve feedback.js widget
 	mux.HandleFunc("GET /web/feedback.js", serveWebFile("feedback.js", "application/javascript"))
 
+	// SSE endpoint — push metrics every second
+	mux.HandleFunc("GET /sse/metrics", func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				data := map[string]any{
+					"requests_total":  requestsTotal.Load(),
+					"requests_failed": requestsFailed.Load(),
+					"auth_success":    authSuccess.Load(),
+					"auth_failed":     authFailed.Load(),
+					"rate_limited":    rateLimited.Load(),
+					"cedar_denied":    cedarDenied.Load(),
+					"uptime_seconds":  int(time.Since(startTime).Seconds()),
+					"active_requests": requestsActive.Load(),
+				}
+				jsonBytes, _ := json.Marshal(data)
+				fmt.Fprintf(w, "data: %s\n\n", jsonBytes)
+				flusher.Flush()
+			}
+		}
+	})
+
 	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sessionMgr.Remove(r.PathValue("id"))
 		w.WriteHeader(http.StatusNoContent)

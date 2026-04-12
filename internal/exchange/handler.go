@@ -55,6 +55,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	subjectToken := r.FormValue("subject_token")
 	subjectTokenType := r.FormValue("subject_token_type")
+	actorToken := r.FormValue("actor_token")
+	actorTokenType := r.FormValue("actor_token_type")
 	requestedScope := r.FormValue("scope")
 
 	if subjectToken == "" {
@@ -69,14 +71,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the external token
+	// Validate the subject token
 	claims, err := h.validator.ValidateSubject(subjectToken)
 	if err != nil {
 		writeErr(w, 401, "invalid_grant", "subject_token validation failed: "+err.Error())
 		return
 	}
 
-	// Determine scopes: use requested if provided, else use subject's scopes
+	// Validate actor token if provided (delegation flow per RFC 8693 §2.1)
+	var actorClaims *SubjectClaims
+	if actorToken != "" {
+		if actorTokenType == "" {
+			actorTokenType = AccessTokenType
+		}
+		ac, err := h.validator.ValidateSubject(actorToken)
+		if err != nil {
+			writeErr(w, 401, "invalid_grant", "actor_token validation failed: "+err.Error())
+			return
+		}
+		actorClaims = ac
+	}
+
+	// Determine scopes
 	var scopes []string
 	if requestedScope != "" {
 		scopes = strings.Fields(requestedScope)
@@ -87,8 +103,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Issue oauth4os token
 	tokenID, expiresIn := h.issuer.IssueExchangeToken(claims.Subject, claims.Issuer, scopes)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	resp := map[string]interface{}{
 		"access_token":       tokenID,
 		"issued_token_type":  AccessTokenType,
 		"token_type":         "Bearer",

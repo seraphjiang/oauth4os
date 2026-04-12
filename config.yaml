@@ -1,0 +1,24 @@
+upstream:
+  engine: https://localhost:9200
+  dashboards: https://localhost:5601
+
+providers:
+  - name: keycloak
+    issuer: https://keycloak.example.com/realms/opensearch
+    jwks_uri: auto
+
+scope_mapping:
+  "read:logs-*":
+    backend_user: agent-logs-reader
+    backend_roles: [logs_read_access]
+  "write:logs-*":
+    backend_user: agent-logs-writer
+    backend_roles: [logs_write_access]
+  "write:dashboards":
+    backend_user: agent-dashboard-writer
+    backend_roles: [dashboard_write_access]
+  "admin":
+    backend_user: agent-admin
+    backend_roles: [all_access]
+
+listen: :8443

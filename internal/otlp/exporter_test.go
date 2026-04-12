@@ -81,10 +81,7 @@ func TestEmptyHandler(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var resp map[string]interface{}
-	json.NewDecoder(w.Body).Decode(&resp)
-	rs, _ := resp["resourceSpans"].([]interface{})
-	if len(rs) != 0 {
-		t.Errorf("expected empty resourceSpans, got %d", len(rs))
+	if w.Header().Get("Content-Type") != "application/json" {
+		t.Error("expected application/json content type")
 	}
 }

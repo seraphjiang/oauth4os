@@ -143,6 +143,14 @@ func (m *Manager) handleClientCredentials(w http.ResponseWriter, r *http.Request
 
 	// Validate requested scopes
 	scopes := strings.Fields(scopeStr)
+	if len(scopes) == 0 {
+		// Default to client's full registered scopes per OAuth 2.0 §3.3
+		m.mu.RLock()
+		if c, ok := m.clients[clientID]; ok && len(c.Scopes) > 0 {
+			scopes = c.Scopes
+		}
+		m.mu.RUnlock()
+	}
 	if err := m.validateScopes(clientID, scopes); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_scope", "requested scope exceeds client allowance")
 		return
@@ -156,7 +164,7 @@ func (m *Manager) handleClientCredentials(w http.ResponseWriter, r *http.Request
 		"token_type":    "Bearer",
 		"expires_in":    3600,
 		"refresh_token": refreshTok,
-		"scope":         scopeStr,
+		"scope":         strings.Join(scopes, " "),
 	})
 }
 

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os API request builder">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — API Explorer</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}.container{max-width:800px;margin:0 auto;padding:20px}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}header nav a{color:var(--muted);font-size:13px}
+h1{font-size:20px;margin-bottom:4px}.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.form{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:12px}
+.row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+select,input{padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px;font-family:inherit}
+select{width:90px}input{flex:1;min-width:200px}
+textarea{width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:'SF Mono',Consolas,monospace;font-size:12px;height:80px;resize:vertical}
+label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.presets{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.preset{padding:4px 10px;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--muted)}
+.preset:hover{border-color:var(--accent);color:var(--accent)}
+.response{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:none}
+.response.show{display:block}
+.resp-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;display:flex;gap:12px;align-items:center}
+.resp-status{font-weight:700;font-size:14px}
+.resp-body{padding:12px 16px;font-family:'SF Mono',Consolas,monospace;font-size:11px;max-height:400px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.s2{color:var(--green)}.s3{color:var(--accent)}.s4{color:var(--orange)}.s5{color:var(--red)}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:375px){.row{flex-direction:column}select{width:100%}input{min-width:0}.presets{gap:4px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🔬 <span>API Explorer</span></div>
+  <nav><a href="admin/">Admin</a><a href="dashboard/">Dashboard</a><a href="./">← oauth4os</a><button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button></nav>
+</header>
+<div class="container" id="main">
+  <h1>API Explorer</h1>
+  <p class="sub">Test any oauth4os endpoint interactively</p>
+
+  <div class="presets">
+    <span class="preset" onclick="preset('GET','/health','')">Health</span>
+    <span class="preset" onclick="preset('GET','/.well-known/openid-configuration','')">Discovery</span>
+    <span class="preset" onclick="preset('GET','/.well-known/jwks.json','')">JWKS</span>
+    <span class="preset" onclick="preset('POST','/oauth/token','grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*')">Get Token</span>
+    <span class="preset" onclick="preset('GET','/oauth/userinfo','')">UserInfo</span>
+    <span class="preset" onclick="preset('GET','/oauth/register','')">List Clients</span>
+    <span class="preset" onclick="preset('GET','/metrics','')">Metrics</span>
+    <span class="preset" onclick="preset('POST','/logs-*/_search','{&quot;query&quot;:{&quot;match_all&quot;:{}},&quot;size&quot;:5}')">Search</span>
+  </div>
+
+  <div class="form">
+    <div class="row">
+      <select id="method" aria-label="HTTP method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+      <input id="path" placeholder="/health" value="/health" aria-label="Request path">
+      <button class="btn btn-primary" onclick="send()" aria-label="Send request">▶ Send</button>
+    </div>
+    <label>Body (JSON or form-encoded)</label>
+    <textarea id="body" placeholder="Optional request body"></textarea>
+    <div style="margin-top:6px;font-size:11px;color:var(--muted)">
+      <label><input type="checkbox" id="useToken" checked> Attach Bearer token (auto-fetched)</label>
+    </div>
+  </div>
+
+  <div class="response" id="resp">
+    <div class="resp-header">
+      <span class="resp-status" id="respStatus"></span>
+      <span id="respTime" style="color:var(--muted);font-size:11px"></span>
+      <span id="respType" style="color:var(--muted);font-size:11px"></span>
+    </div>
+    <div class="resp-body" id="respBody"></div>
+  </div>
+</div>
+<script>
+const API=window.location.origin;
+let token='';
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+function preset(m,p,b){
+  document.getElementById('method').value=m;
+  document.getElementById('path').value=p;
+  document.getElementById('body').value=b;
+}
+
+async function getToken(){
+  if(token)return token;
+  try{
+    const r=await fetch(API+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'});
+    if(r.ok){const d=await r.json();token=d.access_token;return token}
+  }catch{}
+  return '';
+}
+
+async function send(){
+  const method=document.getElementById('method').value;
+  const path=document.getElementById('path').value.trim();
+  const body=document.getElementById('body').value.trim();
+  const useAuth=document.getElementById('useToken').checked;
+  if(!path)return;
+
+  const headers={};
+  if(useAuth){const t=await getToken();if(t)headers['Authorization']='Bearer '+t}
+  if(body){
+    try{JSON.parse(body);headers['Content-Type']='application/json'}
+    catch{headers['Content-Type']='application/x-www-form-urlencoded'}
+  }
+
+  const opts={method,headers};
+  if(body&&method!=='GET')opts.body=body;
+
+  const start=performance.now();
+  try{
+    const r=await fetch(API+path,opts);
+    const ms=performance.now()-start;
+    const ct=r.headers.get('content-type')||'';
+    const text=await r.text();
+    const sc=String(r.status)[0];
+
+    document.getElementById('respStatus').className='resp-status s'+sc;
+    document.getElementById('respStatus').textContent=r.status+' '+r.statusText;
+    document.getElementById('respTime').textContent=ms.toFixed(0)+'ms';
+    document.getElementById('respType').textContent=ct.split(';')[0];
+
+    let formatted=text;
+    try{formatted=JSON.stringify(JSON.parse(text),null,2)}catch{}
+    document.getElementById('respBody').textContent=formatted;
+    document.getElementById('resp').classList.add('show');
+  }catch(e){
+    document.getElementById('respStatus').className='resp-status s5';
+    document.getElementById('respStatus').textContent='Error';
+    document.getElementById('respTime').textContent='';
+    document.getElementById('respType').textContent='';
+    document.getElementById('respBody').textContent=e.message;
+    document.getElementById('resp').classList.add('show');
+  }
+}
+
+document.getElementById('path').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+<script src="/web/feedback.js"></script>
+</body>
+</html>

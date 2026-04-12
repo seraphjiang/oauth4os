@@ -129,6 +129,8 @@ func (e *Engine) AddPolicy(p Policy) {
 
 // RemovePolicy removes a policy by ID. Returns true if found.
 func (e *Engine) RemovePolicy(id string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	for i, p := range e.policies {
 		if p.ID == id {
 			e.policies = append(e.policies[:i], e.policies[i+1:]...)

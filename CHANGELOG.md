@@ -3,6 +3,41 @@
 All notable changes to oauth4os are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [v0.7.0] — 2026-04-12
+
+### Added
+- Docker Hub publishing: `docker run -p 8443:8443 jianghuan/oauth4os:latest`
+- /ready readiness probe with shutdown flag for graceful deploys
+- /version endpoint with build metadata
+- Mutation testing: 51 mutations killed across Cedar, JWT, loadshed, idempotency, DPoP, PAR
+- DPoP + PAR mutation tests
+- CSV audit export + WCAG skip-to-content accessibility
+- Keyboard shortcuts modal + favicon across all pages
+- 558 tests across 46 packages
+
+### Fixed
+- Token binding was hashing ephemeral port — completely ineffective (fixed)
+- JWT test discovery response missing issuer field
+- Retry transport vet warning
+
+## [v0.6.0] — 2026-04-12
+
+### Added
+- CIBA (Client-Initiated Backchannel Authentication) flow
+- PAR (Pushed Authorization Requests) endpoint
+- Config UI page (/admin/config) — edit config from browser
+- Comprehensive CLI guide (23 commands)
+- OAuth flows documentation with Mermaid diagrams (8 flows)
+- Frontend contributing guide
+- Consistent navigation across all demo pages
+- Cedar CRUD tests (coverage 78% → 87%)
+- SigV4 regression tests for 3 bugs fixed earlier
+- 514 tests, 22 fuzz targets
+
+### Fixed
+- Duplicate route crash: /admin/config and /admin/backup conflicted with admin API
+- backupHandler.Register and configUI.Register removed from main.go (crash fix)
+
 ## [v0.5.0] — 2026-04-12
 
 ### Added

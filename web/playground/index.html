@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Cedar Policy Playground</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149;--purple:#bc8cff}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e;--purple:#8250df}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent)}
+code{font-family:'SF Mono',Consolas,monospace}
+
+header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px;text-decoration:none}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+
+.layout{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr auto;height:calc(100vh - 49px)}
+.panel{border-right:1px solid var(--border);display:flex;flex-direction:column}
+.panel:last-child{border-right:none}
+.panel-header{padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.panel-body{flex:1;overflow:auto}
+
+textarea{width:100%;height:100%;background:var(--bg);color:var(--text);border:none;padding:12px;font-family:'SF Mono',Consolas,monospace;font-size:13px;line-height:1.6;resize:none;outline:none}
+textarea::placeholder{color:var(--muted)}
+
+.request-panel{border-top:1px solid var(--border);grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr auto;gap:0}
+.request-panel .field{padding:8px 12px;border-right:1px solid var(--border)}
+.request-panel .field:last-child{border-right:none}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+.field input,.field select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-size:13px;font-family:'SF Mono',Consolas,monospace}
+.field select{cursor:pointer}
+
+.eval-btn{background:var(--accent);color:#fff;border:none;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center}
+.eval-btn:hover{opacity:.85}
+
+.result{grid-column:1/-1;padding:12px 16px;border-top:1px solid var(--border);font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;min-height:44px}
+.result.permit{background:#3fb95015;color:var(--green)}
+.result.forbid{background:#f8514915;color:var(--red)}
+.result.error{background:#f0883e15;color:var(--orange)}
+.result .detail{font-weight:400;font-size:12px;color:var(--muted)}
+
+.presets{display:flex;gap:4px;flex-wrap:wrap}
+.preset-btn{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--muted);transition:all .15s}
+.preset-btn:hover{border-color:var(--accent);color:var(--text)}
+
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr;grid-template-rows:1fr 1fr auto}
+  .request-panel{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌲 Cedar Policy <span>Playground</span></div>
+  <nav>
+    <a href="../">← oauth4os</a>
+    <a href="https://github.com/seraphjiang/oauth4os/blob/main/docs/user-manual.md#cedar-policies">Docs</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Policies</span>
+      <div class="presets">
+        <button class="preset-btn" data-preset="default" aria-label="Load default preset">Default</button>
+        <button class="preset-btn" data-preset="readonly" aria-label="Load read-only preset">Read-Only</button>
+        <button class="preset-btn" data-preset="multitenant" aria-label="Load multi-tenant preset">Multi-Tenant</button>
+        <button class="preset-btn" data-preset="strict" aria-label="Load strict preset">Strict</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <textarea id="policies" placeholder="Enter Cedar policies..." aria-label="Cedar policies"></textarea>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header">Evaluation Trace</div>
+    <div class="panel-body" id="trace" style="padding:12px;font-family:'SF Mono',Consolas,monospace;font-size:12px;white-space:pre-wrap;color:var(--muted)">Click "Evaluate" to test your policies against the request below.</div>
+  </div>
+
+  <div class="request-panel">
+    <div class="field">
+      <label>Principal (client_id)</label>
+      <input type="text" id="principal" value="log-reader" aria-label="Principal">
+    </div>
+    <div class="field">
+      <label>Scope</label>
+      <input type="text" id="scope" value="read:logs-*" aria-label="Scope">
+    </div>
+    <div class="field">
+      <label>Action (HTTP method)</label>
+      <select id="action" aria-label="Action">
+        <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>HEAD</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Resource (index)</label>
+      <input type="text" id="resource" value="logs-2025-04" aria-label="Resource index">
+    </div>
+    <div class="field">
+      <label>Path</label>
+      <input type="text" id="path" value="/logs-2025-04/_search" aria-label="Request path">
+    </div>
+    <button class="eval-btn" id="evalBtn" aria-label="Evaluate policies">▶ Evaluate</button>
+  </div>
+
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+const PRESETS = {
+  default: `# Default: allow all, block security index
+permit(*, *, *);
+forbid(*, *, .opendistro_security);`,
+
+  readonly: `# Read-only: only GET allowed
+permit(*, GET, *);
+forbid(*, POST, *);
+forbid(*, PUT, *);
+forbid(*, DELETE, *);
+forbid(*, *, .opendistro_security);`,
+
+  multitenant: `# Multi-tenant: team-a can only access team-a indices
+permit(*, GET, team-a-*);
+permit(*, POST, team-a-*);
+forbid(*, *, team-b-*);
+forbid(*, DELETE, *);
+forbid(*, *, .opendistro_security);`,
+
+  strict: `# Strict: explicit allow per scope, deny everything else
+permit(*, GET, logs-*) when { principal.scope contains "read:logs" };
+permit(*, POST, logs-*) when { principal.scope contains "write:logs" };
+permit(*, *, *) when { principal.scope contains "admin" };
+forbid(*, *, .opendistro_security);`,
+};
+
+document.getElementById('policies').value = PRESETS.default;
+
+// Presets
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('policies').value = PRESETS[btn.dataset.preset] || '';
+  });
+});
+
+// Evaluate
+document.getElementById('evalBtn').addEventListener('click', evaluate);
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') evaluate(); });
+
+function evaluate() {
+  const policiesText = document.getElementById('policies').value;
+  const principal = document.getElementById('principal').value;
+  const scope = document.getElementById('scope').value;
+  const action = document.getElementById('action').value;
+  const resource = document.getElementById('resource').value;
+  const path = document.getElementById('path').value;
+
+  const request = { principal, scope, action, resource, path };
+  const policies = parsePolicies(policiesText);
+  const trace = [];
+  let decision = 'no-match';
+  let matchedPolicy = null;
+
+  trace.push(`Request: ${action} ${path}`);
+  trace.push(`Principal: ${principal} (scope: ${scope})`);
+  trace.push(`Resource: ${resource}`);
+  trace.push('');
+  trace.push(`Evaluating ${policies.length} policies...`);
+  trace.push('');
+
+  // Phase 1: check all forbid rules
+  trace.push('── Phase 1: Forbid rules ──');
+  for (const p of policies.filter(p => p.effect === 'forbid')) {
+    const match = matchPolicy(p, request);
+    const icon = match ? '🔴 MATCH → DENY' : '⚪ no match';
+    trace.push(`  ${icon}  ${p.raw}`);
+    if (match && decision !== 'forbid') {
+      decision = 'forbid';
+      matchedPolicy = p;
+    }
+  }
+
+  // Phase 2: check permit rules (only if no forbid matched)
+  trace.push('');
+  trace.push('── Phase 2: Permit rules ──');
+  if (decision === 'forbid') {
+    trace.push('  ⏭ Skipped — forbid already matched');
+  } else {
+    for (const p of policies.filter(p => p.effect === 'permit')) {
+      const match = matchPolicy(p, request);
+      const icon = match ? '🟢 MATCH → ALLOW' : '⚪ no match';
+      trace.push(`  ${icon}  ${p.raw}`);
+      if (match && decision !== 'permit') {
+        decision = 'permit';
+        matchedPolicy = p;
+      }
+    }
+  }
+
+  trace.push('');
+  if (decision === 'forbid') trace.push(`✗ DENIED by: ${matchedPolicy.raw}`);
+  else if (decision === 'permit') trace.push(`✓ ALLOWED by: ${matchedPolicy.raw}`);
+  else trace.push('✗ DENIED (default deny — no permit rule matched)');
+
+  document.getElementById('trace').textContent = trace.join('\n');
+
+  const resultEl = document.getElementById('result');
+  if (decision === 'permit') {
+    resultEl.className = 'result permit';
+    resultEl.innerHTML = `✅ PERMIT <span class="detail">— matched: ${esc(matchedPolicy.raw)}</span>`;
+  } else if (decision === 'forbid') {
+    resultEl.className = 'result forbid';
+    resultEl.innerHTML = `🚫 FORBID <span class="detail">— matched: ${esc(matchedPolicy.raw)}</span>`;
+  } else {
+    resultEl.className = 'result forbid';
+    resultEl.innerHTML = `🚫 DENY <span class="detail">— default deny (no permit rule matched)</span>`;
+  }
+}
+
+function parsePolicies(text) {
+  return text.split('\n')
+    .map(l => l.replace(/#.*$/, '').trim())
+    .filter(l => l && (l.startsWith('permit') || l.startsWith('forbid')))
+    .map(raw => {
+      const effect = raw.startsWith('permit') ? 'permit' : 'forbid';
+      const inner = raw.match(/\(([^)]*)\)/)?.[1] || '';
+      const parts = inner.split(',').map(s => s.trim());
+      const condition = raw.match(/when\s*\{([^}]*)\}/)?.[1]?.trim() || null;
+      return { effect, principal: parts[0] || '*', action: parts[1] || '*', resource: parts[2] || '*', condition, raw };
+    });
+}
+
+function matchPolicy(policy, req) {
+  if (!matchField(policy.principal, req.principal)) return false;
+  if (!matchField(policy.action, req.action)) return false;
+  if (!matchResource(policy.resource, req.resource)) return false;
+  if (policy.condition) return matchCondition(policy.condition, req);
+  return true;
+}
+
+function matchField(pattern, value) {
+  if (pattern === '*') return true;
+  return pattern === value;
+}
+
+function matchResource(pattern, value) {
+  if (pattern === '*') return true;
+  if (pattern.endsWith('*')) return value.startsWith(pattern.slice(0, -1));
+  return pattern === value;
+}
+
+function matchCondition(cond, req) {
+  if (cond.includes('principal.scope contains')) {
+    const match = cond.match(/"([^"]*)"/);
+    return match && req.scope.includes(match[1]);
+  }
+  if (cond.includes('principal.role ==')) {
+    const match = cond.match(/"([^"]*)"/);
+    return match && req.principal === match[1];
+  }
+  return true;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+</script>
+</body>
+</html>

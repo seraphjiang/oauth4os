@@ -175,9 +175,12 @@ func main() {
 	}
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
-	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
+	// Tracing — OTLP if endpoint set, stdout in dev, noop if off
 	var tracer tracing.TracerIface
-	if os.Getenv("OAUTH4OS_TRACING") == "off" {
+	if ep := os.Getenv("OAUTH4OS_OTLP_ENDPOINT"); ep != "" {
+		tracer = otlp.New(ep)
+		logger.Info("OTLP tracing enabled", "endpoint", ep)
+	} else if os.Getenv("OAUTH4OS_TRACING") == "off" {
 		tracer = tracing.NoopTracer{}
 	} else {
 		tracer = tracing.NewStdoutTracer(os.Stderr)

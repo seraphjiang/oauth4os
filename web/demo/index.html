@@ -274,7 +274,7 @@ async function handleCallback() {
   if (!code) return false;
 
   const savedState = sessionStorage.getItem('oauth_state');
-  if (state !== savedState) { alert('State mismatch — possible CSRF'); return false; }
+  if (state !== savedState) { toast('State mismatch — possible CSRF', 'error'); return false; }
 
   const verifier = sessionStorage.getItem('pkce_verifier');
   try {
@@ -546,6 +546,15 @@ const saved = localStorage.getItem('oauth4os_theme');
 if (saved) document.documentElement.dataset.theme = saved;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function toast(msg, type='info') {
+  let c = document.getElementById('toasts');
+  if (!c) { c = document.createElement('div'); c.id = 'toasts'; c.className = 'toast-container'; document.body.appendChild(c); }
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
 
 // Loading skeletons
 function showSkeletons() {
@@ -655,6 +664,8 @@ function exportPNG() {
 // Service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
+window.addEventListener('online', () => { toast('Back online', 'success'); document.getElementById('connStatus').innerHTML = '<span style="color:var(--green)">● Online</span>'; });
+window.addEventListener('offline', () => { toast('You are offline', 'warn'); document.getElementById('connStatus').innerHTML = '<span style="color:var(--orange)">● Offline</span>'; });
 }
 
 // Init

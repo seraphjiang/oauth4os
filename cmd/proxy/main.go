@@ -45,6 +45,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/backup"
 	"github.com/seraphjiang/oauth4os/internal/demo"
 	"github.com/seraphjiang/oauth4os/internal/tokenui"
+	corsmw "github.com/seraphjiang/oauth4os/internal/cors"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 )
@@ -208,7 +209,7 @@ func main() {
 	engineProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		upstreamErrors.Add(1)
 		logger.Error("upstream error", "error", err) // log internally, don't expose
-		http.Error(w, `{"error":"upstream_error","message":"upstream unavailable"}`, http.StatusBadGateway)
+		writeError(w, http.StatusBadGateway, "upstream_error")
 	}
 
 	dashboardsProxy := httputil.NewSingleHostReverseProxy(dashboardsURL)
@@ -623,7 +624,7 @@ func main() {
 				tracer.EndSpan(jwtSpan, "error")
 				authFailed.Add(1)
 				requestsFailed.Add(1)
-				http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
+				writeError(w, http.StatusUnauthorized, "invalid_token")
 				return
 			}
 		} else {
@@ -635,7 +636,7 @@ func main() {
 		if ipRules != nil {
 			if err := ipRules.Check(claims.ClientID, r.RemoteAddr); err != nil {
 				requestsFailed.Add(1)
-				http.Error(w, `{"error":"ip_denied"}`, http.StatusForbidden)
+				writeError(w, http.StatusForbidden, "ip_denied")
 				return
 			}
 		}
@@ -643,7 +644,7 @@ func main() {
 		// Session tracking — use token ID as session key
 		if !sessionMgr.Create(tokenStr[:16], claims.ClientID, tokenStr[:16], r.RemoteAddr) {
 			requestsFailed.Add(1)
-			http.Error(w, `{"error":"session_limit_exceeded"}`, http.StatusTooManyRequests)
+			writeError(w, http.StatusTooManyRequests, "session_limit_exceeded")
 			return
 		}
 		sessionMgr.Touch(tokenStr[:16])
@@ -656,7 +657,7 @@ func main() {
 		if len(roles) == 0 {
 			tracer.EndSpan(scopeSpan, "error")
 			requestsFailed.Add(1)
-			http.Error(w, `{"error":"insufficient_scope"}`, http.StatusForbidden)
+			writeError(w, http.StatusForbidden, "insufficient_scope")
 			return
 		}
 		tracer.EndSpan(scopeSpan, "ok")
@@ -674,7 +675,7 @@ func main() {
 			tracer.EndSpan(cedarSpan, "error")
 			cedarDenied.Add(1)
 			requestsFailed.Add(1)
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			writeError(w, http.StatusForbidden, "forbidden")
 			return
 		}
 		tracer.EndSpan(cedarSpan, "ok")
@@ -690,7 +691,7 @@ func main() {
 				IP:       r.RemoteAddr,
 			}); err != nil {
 				requestsFailed.Add(1)
-				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				writeError(w, http.StatusForbidden, "forbidden")
 				return
 			}
 		}

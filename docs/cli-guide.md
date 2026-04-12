@@ -68,6 +68,7 @@ oauth4os-demo watch 'level:FATAL'
 | `top` | Real-time top consumers (requests, clients, scopes) |
 | `diff <r1> <r2>` | Compare time ranges (today/yesterday/1h/24h/7d) |
 | `latency` | Upstream latency, throughput, error rate |
+| `ping [n]` | Measure round-trip latency (default 5 pings) |
 | `alerts` | Alert status from proxy metrics |
 | `audit [n]` | Show last n admin audit events |
 | `services` | List indexed services |

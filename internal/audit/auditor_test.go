@@ -85,7 +85,7 @@ func TestWithStore(t *testing.T) {
 	if a2 == nil {
 		t.Fatal("WithStore returned nil")
 	}
-	a2.Log("client1", "GET", "/test", []string{"read:*"}, []string{"reader"}, "10.0.0.1")
+	a2.Log("client1", []string{"read:*"}, "GET", "/test")
 	if s.Len() != 1 {
 		t.Errorf("store should have 1 entry, got %d", s.Len())
 	}
@@ -110,8 +110,8 @@ func TestAuditorQuery(t *testing.T) {
 	a := NewAuditor(&buf)
 	s, _ := NewMemoryStore(100, "")
 	a = a.WithStore(s)
-	a.Log("c1", "GET", "/a", nil, nil, "1.2.3.4")
-	a.Log("c2", "POST", "/b", nil, nil, "5.6.7.8")
+	a.Log("c1", nil, "GET", "/a")
+	a.Log("c2", nil, "POST", "/b")
 	entries, err := a.Query(QueryFilter{Limit: 10})
 	if err != nil {
 		t.Fatal(err)

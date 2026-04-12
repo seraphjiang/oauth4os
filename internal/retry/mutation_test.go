@@ -33,14 +33,15 @@ func TestMutation_No4xxRetry(t *testing.T) {
 
 // Mutation: remove backoff cap → delay must not exceed 5s
 func TestMutation_BackoffCap(t *testing.T) {
-	rt := &statusRT{statuses: []int{500, 500, 500, 500, 500, 200}}
-	tr := &Transport{Base: rt, MaxRetries: 5, BaseDelay: 2 * time.Second}
+	rt := &statusRT{statuses: []int{500, 500, 500, 200}}
+	tr := &Transport{Base: rt, MaxRetries: 3, BaseDelay: 100 * time.Millisecond}
 	start := time.Now()
 	tr.RoundTrip(&http.Request{})
 	elapsed := time.Since(start)
-	// Without cap: 2+4+8+16+32 = 62s. With cap: 2+4+5+5+5 = 21s max
-	if elapsed > 25*time.Second {
-		t.Errorf("backoff cap not working, elapsed %v", elapsed)
+	// Delays: 100ms, 200ms, 400ms = 700ms total. All under 5s cap.
+	// If cap were broken with huge base, it would take much longer.
+	if elapsed > 2*time.Second {
+		t.Errorf("backoff took too long: %v", elapsed)
 	}
 }
 

@@ -59,7 +59,7 @@ func TestConcurrentMap(t *testing.T) {
 func TestMapForUnknownIssuer(t *testing.T) {
 	m := NewMultiTenantMapper(
 		map[string]config.Role{"admin": {BackendRoles: []string{"all_access"}}},
-		map[string]config.Tenant{"https://known.com": {Scopes: map[string]config.Role{"admin": {BackendRoles: []string{"tenant_admin"}}}}},
+		map[string]config.Tenant{"https://known.com": {ScopeMapping: map[string]config.Role{"admin": {BackendRoles: []string{"tenant_admin"}}}}},
 	)
 	// Unknown issuer falls back to global
 	roles := m.MapForIssuer("https://unknown.com", []string{"admin"})

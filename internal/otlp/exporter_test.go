@@ -50,3 +50,41 @@ func TestErrorSpan(t *testing.T) {
 		t.Error("expected error status code 2")
 	}
 }
+
+func TestConcurrentRecord(t *testing.T) {
+	e := New(100)
+	now := time.Now()
+	done := make(chan struct{})
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 50; j++ {
+				e.Record("span", now, now.Add(time.Millisecond), nil, "")
+			}
+			done <- struct{}{}
+		}()
+	}
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+	e.mu.Lock()
+	count := len(e.spans)
+	e.mu.Unlock()
+	if count != 100 {
+		t.Errorf("expected 100 spans, got %d", count)
+	}
+}
+
+func TestEmptyHandler(t *testing.T) {
+	e := New(10)
+	w := httptest.NewRecorder()
+	e.Handler()(w, httptest.NewRequest("GET", "/v1/traces", nil))
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	rs, _ := resp["resourceSpans"].([]interface{})
+	if len(rs) != 0 {
+		t.Errorf("expected empty resourceSpans, got %d", len(rs))
+	}
+}

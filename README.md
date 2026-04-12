@@ -357,6 +357,7 @@ listen: :8443
 | [docs/opentelemetry.md](docs/opentelemetry.md) | OTLP tracing integration |
 | [docs/runbook.md](docs/runbook.md) | Operator runbook — incidents, scaling |
 | [docs/quickstart.md](docs/quickstart.md) | 5-minute setup guide |
+| [docs/getting-started.md](docs/getting-started.md) | Hands-on tutorial — 7 steps |
 | [docs/testing.md](docs/testing.md) | Test strategy and coverage |
 | [docs/benchmarks.md](docs/benchmarks.md) | Performance benchmarks |
 | [docs/comparison.md](docs/comparison.md) | oauth4os vs alternatives |

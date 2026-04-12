@@ -56,6 +56,12 @@ func (n *Notifier) Stop() {
 	<-n.done
 }
 
+// SetSigningKey enables HMAC-SHA256 signature on outgoing webhooks.
+// The signature is sent in the X-Webhook-Signature header.
+func (n *Notifier) SetSigningKey(key []byte) {
+	n.signKey = key
+}
+
 // Emit queues an event for delivery. Non-blocking; drops if buffer full.
 func (n *Notifier) Emit(e Event) {
 	if len(n.urls) == 0 {

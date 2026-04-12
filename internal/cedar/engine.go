@@ -75,6 +75,8 @@ func NewEngine(policies []Policy) *Engine {
 
 // Evaluate runs all policies against a request. Forbid-overrides: any forbid wins.
 func (e *Engine) Evaluate(req Request) Decision {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	var permitMatch *Policy
 
 	for i := range e.policies {
@@ -111,6 +113,8 @@ func (e *Engine) Evaluate(req Request) Decision {
 
 // Policies returns a copy of all policies.
 func (e *Engine) Policies() []Policy {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	out := make([]Policy, len(e.policies))
 	copy(out, e.policies)
 	return out
@@ -118,6 +122,8 @@ func (e *Engine) Policies() []Policy {
 
 // AddPolicy appends a policy.
 func (e *Engine) AddPolicy(p Policy) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.policies = append(e.policies, p)
 }
 

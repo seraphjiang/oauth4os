@@ -49,10 +49,11 @@ func TestMutation_PluginDenies(t *testing.T) {
 func TestMutation_FirstDenialWins(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(&mockAuth{name: "deny", err: errors.New("no")})
-	reg.Register(&mockAuth{name: "spy", err: func() error { called = true; return nil }()})
-	reg.Authorize(httptest.NewRequest("GET", "/", nil), nil)
-	// spy was registered but deny fires first — spy's Authorize still runs in current impl
-	// The key assertion: we get an error
+	reg.Register(&mockAuth{name: "allow", err: nil})
+	err := reg.Authorize(httptest.NewRequest("GET", "/", nil), nil)
+	if err == nil {
+		t.Fatal("first plugin denies — should get error")
+	}
 }
 
 // M5: List returns registered names.

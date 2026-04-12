@@ -37,7 +37,7 @@ func TestShedOverCapacity(t *testing.T) {
 	}()
 
 	// Wait for first request to be inflight
-	for s.inflight.Load() == 0 {
+	for s.active.Load() == 0 {
 	}
 
 	// Second request should be shed

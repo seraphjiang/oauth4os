@@ -1,93 +1,99 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>oauth4os — OAuth 2.0 Proxy for OpenSearch</title>
 <meta name="description" content="Secure machine-to-machine access for OpenSearch. OAuth 2.0 proxy with JWT validation, scope-to-role mapping, and zero breaking changes.">
 <style>
-:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#ffffff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:0.9em;font-family:'SF Mono',Consolas,monospace}
-pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-size:13px;line-height:1.5}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-size:13px;line-height:1.5;position:relative}
 pre code{background:none;padding:0}
 
-/* Layout */
 .container{max-width:960px;margin:0 auto;padding:0 24px}
-header{padding:16px 0;border-bottom:1px solid var(--border)}
+header{padding:16px 0;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
 header .container{display:flex;justify-content:space-between;align-items:center}
 .logo{font-size:18px;font-weight:700;color:var(--text)}
 .logo span{color:var(--accent)}
-nav a{margin-left:20px;color:var(--muted);font-size:14px}
+nav{display:flex;align-items:center;gap:20px}
+nav a{color:var(--muted);font-size:14px}
 nav a:hover{color:var(--text)}
+.theme-toggle{background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--text)}
 
 /* Hero */
 .hero{padding:80px 0 60px;text-align:center}
 .hero h1{font-size:42px;font-weight:800;margin-bottom:16px;letter-spacing:-0.5px}
 .hero h1 span{color:var(--accent)}
 .hero p{font-size:18px;color:var(--muted);max-width:600px;margin:0 auto 32px}
-.hero-badges{display:flex;gap:8px;justify-content:center;margin-bottom:32px}
+.hero-badges{display:flex;gap:8px;justify-content:center;margin-bottom:32px;flex-wrap:wrap}
 .hero-badges img{height:20px}
-.cta-row{display:flex;gap:12px;justify-content:center}
-.btn{display:inline-block;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}
+.cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:all .15s}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
-.btn:hover{opacity:.85;text-decoration:none}
+.btn:hover{opacity:.85;text-decoration:none;transform:translateY(-1px)}
+.btn-gh{background:#24292f;color:#fff}
 
 /* Comparison */
 .compare{padding:60px 0}
-.compare h2{text-align:center;font-size:24px;margin-bottom:24px}
+.section-title{text-align:center;font-size:24px;margin-bottom:8px}
+.section-sub{text-align:center;color:var(--muted);margin-bottom:24px;font-size:14px}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+th,td{padding:10px 12px;text-align:center;border-bottom:1px solid var(--border)}
 th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase}
-td:first-child{font-weight:600}
+td:first-child{font-weight:600;text-align:left}
 
-/* Architecture */
+/* Architecture SVG */
 .arch{padding:60px 0;text-align:center}
-.arch h2{font-size:24px;margin-bottom:24px}
-.arch-diagram{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:700px;margin:0 auto;font-family:'SF Mono',Consolas,monospace;font-size:13px;line-height:1.8;text-align:left;white-space:pre}
+.arch svg{max-width:100%;height:auto}
 
-/* Try it */
-.try{padding:60px 0}
-.try h2{text-align:center;font-size:24px;margin-bottom:8px}
-.try p{text-align:center;color:var(--muted);margin-bottom:24px}
-.try-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.try-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px}
-.try-step h3{font-size:14px;margin-bottom:8px;color:var(--accent)}
-.try-step pre{font-size:12px;margin:0}
+/* Interactive demo */
+.demo{padding:60px 0;background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.demo-tabs{display:flex;gap:4px;margin-bottom:16px;justify-content:center}
+.demo-tab{padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg);border:1px solid var(--border);color:var(--muted);transition:all .15s}
+.demo-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.demo-panel{display:none}
+.demo-panel.active{display:block}
+.copy-btn{position:absolute;top:8px;right:8px;background:var(--border);border:none;color:var(--muted);border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;transition:all .15s}
+.copy-btn:hover{background:var(--accent);color:#fff}
+.copy-btn.copied{background:var(--green);color:#fff}
+.demo-response{margin-top:12px;border-left:3px solid var(--green);padding-left:12px}
+.demo-response pre{border:none;background:transparent;padding:8px 0;font-size:12px}
 
 /* Features */
 .features{padding:60px 0}
-.features h2{text-align:center;font-size:24px;margin-bottom:24px}
 .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px}
+.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;transition:border-color .15s}
+.feat-card:hover{border-color:var(--accent)}
 .feat-card .icon{font-size:24px;margin-bottom:8px}
 .feat-card h3{font-size:14px;margin-bottom:4px}
 .feat-card p{font-size:12px;color:var(--muted)}
 
 /* Phases */
 .phases{padding:60px 0}
-.phases h2{text-align:center;font-size:24px;margin-bottom:24px}
 .phase-row{display:flex;gap:16px;justify-content:center}
 .phase-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;flex:1;max-width:280px}
 .phase-card h3{font-size:14px;margin-bottom:4px}
 .phase-card .status{font-size:11px;padding:2px 8px;border-radius:10px;display:inline-block;margin-bottom:8px}
 .phase-card .building{background:#d2992233;color:var(--orange)}
-.phase-card .planned{background:#30363d;color:var(--muted)}
+.phase-card .planned{background:var(--border);color:var(--muted)}
 .phase-card p{font-size:12px;color:var(--muted)}
 
-/* Footer */
 footer{padding:32px 0;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:12px}
 footer a{color:var(--muted)}
 
-/* Responsive */
 @media(max-width:640px){
   .hero h1{font-size:28px}
-  .try-grid,.feat-grid{grid-template-columns:1fr}
+  .feat-grid{grid-template-columns:1fr}
   .phase-row{flex-direction:column;align-items:center}
+  nav{gap:10px}
+  nav a{font-size:12px}
 }
 </style>
 </head>
@@ -98,9 +104,10 @@ footer a{color:var(--muted)}
     <div class="logo">🔐 oauth<span>4os</span></div>
     <nav>
       <a href="#architecture">Architecture</a>
-      <a href="#try">Try It</a>
+      <a href="#demo">Demo</a>
       <a href="#features">Features</a>
-      <a href="https://github.com/opensearch-project/.github/issues/491">RFC</a>
+      <a href="https://github.com/seraphjiang/oauth4os" aria-label="GitHub repository">GitHub</a>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark/light mode">🌓</button>
     </nav>
   </div>
 </header>
@@ -115,7 +122,8 @@ footer a{color:var(--muted)}
     <h1>OAuth 2.0 Proxy for <span>OpenSearch</span></h1>
     <p>Secure machine-to-machine access with scoped tokens, OIDC federation, and zero breaking changes to your existing cluster.</p>
     <div class="cta-row">
-      <a href="#try" class="btn btn-primary">Try It Now</a>
+      <a href="#demo" class="btn btn-primary">Try It Now</a>
+      <a href="https://github.com/seraphjiang/oauth4os" class="btn btn-gh">⭐ Star on GitHub</a>
       <a href="https://github.com/opensearch-project/.github/issues/491" class="btn btn-secondary">Read the RFC</a>
     </div>
   </div>
@@ -123,15 +131,16 @@ footer a{color:var(--muted)}
 
 <section class="compare">
   <div class="container">
-    <h2>The Gap oauth4os Fills</h2>
+    <h2 class="section-title">The Gap oauth4os Fills</h2>
+    <p class="section-sub">OpenSearch has strong auth primitives — but lacks the developer experience layer for machine-to-machine access.</p>
     <table>
-      <thead><tr><th>Capability</th><th>Grafana</th><th>Datadog</th><th>Elastic</th><th>OpenSearch</th><th>+ oauth4os</th></tr></thead>
+      <thead><tr><th style="text-align:left">Capability</th><th>Grafana</th><th>Datadog</th><th>Elastic</th><th>OpenSearch</th><th>+ oauth4os</th></tr></thead>
       <tbody>
         <tr><td>OIDC / SSO</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
         <tr><td>API Keys</td><td>✅</td><td>✅</td><td>✅</td><td>🔄 3.7</td><td>✅</td></tr>
-        <tr><td>OAuth Apps / Scoped Tokens</td><td>✅</td><td>✅</td><td>✅</td><td style="color:var(--orange)">❌</td><td style="color:var(--green)">✅</td></tr>
-        <tr><td>Token Governance UI</td><td>✅</td><td>✅</td><td>✅</td><td style="color:var(--orange)">❌</td><td style="color:var(--green)">✅</td></tr>
-        <tr><td>Cedar Fine-Grained Policies</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td style="color:var(--green)">✅</td></tr>
+        <tr><td>OAuth Apps / Scoped Tokens</td><td>✅</td><td>✅</td><td>✅</td><td style="color:var(--orange)">❌</td><td style="color:var(--green);font-weight:700">✅</td></tr>
+        <tr><td>Token Governance UI</td><td>✅</td><td>✅</td><td>✅</td><td style="color:var(--orange)">❌</td><td style="color:var(--green);font-weight:700">✅</td></tr>
+        <tr><td>Cedar Fine-Grained Policies</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td style="color:var(--green);font-weight:700">✅</td></tr>
       </tbody>
     </table>
   </div>
@@ -139,49 +148,125 @@ footer a{color:var(--muted)}
 
 <section class="arch" id="architecture">
   <div class="container">
-    <h2>Architecture</h2>
-    <div class="arch-diagram">┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│  AI Agent   │────▶│  OAuth Proxy │────▶│   OpenSearch     │
-│  CI/CD      │     │  (Go, :8443) │     │   Engine (:9200) │
-│  Slack Bot  │     │              │────▶│   Dashboards     │
-│  CLI        │     │  JWT + JWKS  │     │   (:5601)        │
-└─────────────┘     └──────┬───────┘     └─────────────────┘
-                           │
-                    ┌──────▼───────┐
-                    │ OIDC Provider│
-                    │ Keycloak     │
-                    │ Auth0 / Okta │
-                    └──────────────┘</div>
+    <h2 class="section-title">Architecture</h2>
+    <p class="section-sub">oauth4os sits between your clients and OpenSearch — validating tokens, mapping scopes, forwarding requests.</p>
+    <svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg" style="max-width:700px">
+      <!-- Clients -->
+      <rect x="20" y="40" width="160" height="160" rx="12" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="100" y="75" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="600">Clients</text>
+      <text x="100" y="100" text-anchor="middle" fill="var(--muted)" font-size="11">🤖 AI Agent</text>
+      <text x="100" y="120" text-anchor="middle" fill="var(--muted)" font-size="11">🔧 CI/CD</text>
+      <text x="100" y="140" text-anchor="middle" fill="var(--muted)" font-size="11">💬 Slack Bot</text>
+      <text x="100" y="160" text-anchor="middle" fill="var(--muted)" font-size="11">⌨️ CLI</text>
+      <text x="100" y="180" text-anchor="middle" fill="var(--muted)" font-size="11">🌐 MCP Server</text>
+      <!-- Arrow 1 -->
+      <line x1="180" y1="120" x2="280" y2="120" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)"/>
+      <text x="230" y="112" text-anchor="middle" fill="var(--accent)" font-size="10">Bearer token</text>
+      <!-- Proxy -->
+      <rect x="280" y="30" width="200" height="180" rx="12" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="380" y="60" text-anchor="middle" fill="var(--accent)" font-size="14" font-weight="700">oauth4os</text>
+      <text x="380" y="82" text-anchor="middle" fill="var(--muted)" font-size="10">Go · :8443</text>
+      <line x1="300" y1="92" x2="460" y2="92" stroke="var(--border)" stroke-width="1"/>
+      <text x="380" y="112" text-anchor="middle" fill="var(--text)" font-size="11">🔑 JWT Validation</text>
+      <text x="380" y="132" text-anchor="middle" fill="var(--text)" font-size="11">🎯 Scope → Role</text>
+      <text x="380" y="152" text-anchor="middle" fill="var(--text)" font-size="11">🌲 Cedar Policies</text>
+      <text x="380" y="172" text-anchor="middle" fill="var(--text)" font-size="11">📋 Audit Log</text>
+      <text x="380" y="192" text-anchor="middle" fill="var(--text)" font-size="11">📊 Metrics</text>
+      <!-- Arrow 2 -->
+      <line x1="480" y1="100" x2="580" y2="100" stroke="var(--green)" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <text x="530" y="92" text-anchor="middle" fill="var(--green)" font-size="10">Mapped role</text>
+      <line x1="480" y1="140" x2="580" y2="140" stroke="var(--green)" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <!-- OpenSearch -->
+      <rect x="580" y="40" width="190" height="160" rx="12" fill="var(--surface)" stroke="var(--orange)" stroke-width="1.5"/>
+      <text x="675" y="75" text-anchor="middle" fill="var(--orange)" font-size="13" font-weight="600">OpenSearch</text>
+      <text x="675" y="105" text-anchor="middle" fill="var(--text)" font-size="11">🔍 Engine :9200</text>
+      <text x="675" y="130" text-anchor="middle" fill="var(--text)" font-size="11">📊 Dashboards :5601</text>
+      <text x="675" y="160" text-anchor="middle" fill="var(--muted)" font-size="10">Security plugin</text>
+      <text x="675" y="178" text-anchor="middle" fill="var(--muted)" font-size="10">unchanged</text>
+      <!-- OIDC -->
+      <line x1="380" y1="210" x2="380" y2="270" stroke="var(--purple)" stroke-width="2" marker-end="url(#arrow-purple)"/>
+      <text x="380" y="255" text-anchor="middle" fill="var(--purple)" font-size="10">JWKS</text>
+      <rect x="290" y="270" width="180" height="55" rx="10" fill="var(--surface)" stroke="var(--purple)" stroke-width="1.5"/>
+      <text x="380" y="295" text-anchor="middle" fill="var(--purple)" font-size="12" font-weight="600">OIDC Provider</text>
+      <text x="380" y="313" text-anchor="middle" fill="var(--muted)" font-size="10">Keycloak · Auth0 · Okta · Dex</text>
+      <!-- Arrow markers -->
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/></marker>
+        <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--green)"/></marker>
+        <marker id="arrow-purple" viewBox="0 0 10 10" refX="5" refY="9" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--purple)"/></marker>
+      </defs>
+    </svg>
   </div>
 </section>
 
-<section class="try" id="try">
+<section class="demo" id="demo">
   <div class="container">
-    <h2>Try It Now</h2>
-    <p>Get a scoped token and query OpenSearch in 30 seconds.</p>
-    <div class="try-grid">
-      <div class="try-step">
-        <h3>1. Start the proxy</h3>
-        <pre><code>docker compose up</code></pre>
+    <h2 class="section-title">Interactive Demo</h2>
+    <p class="section-sub">Click each step to see the request and response. Copy commands with one click.</p>
+    <div class="demo-tabs">
+      <div class="demo-tab active" data-tab="start">1. Start</div>
+      <div class="demo-tab" data-tab="token">2. Get Token</div>
+      <div class="demo-tab" data-tab="query">3. Query</div>
+      <div class="demo-tab" data-tab="revoke">4. Revoke</div>
+    </div>
+
+    <div class="demo-panel active" id="tab-start">
+      <pre><button class="copy-btn" data-copy="docker compose up" aria-label="Copy command">📋 Copy</button><code>docker compose up</code></pre>
+      <div class="demo-response">
+        <p style="font-size:12px;color:var(--green);margin-bottom:4px">✅ Expected output:</p>
+        <pre><code>oauth4os-proxy     | listening on :8443
+oauth4os-opensearch | OpenSearch Security initialized
+oauth4os-keycloak  | Keycloak started in 4.2s</code></pre>
       </div>
-      <div class="try-step">
-        <h3>2. Get a scoped token</h3>
-        <pre><code>curl -X POST http://localhost:8443/oauth/token \
+    </div>
+
+    <div class="demo-panel" id="tab-token">
+      <pre><button class="copy-btn" data-copy='curl -s -X POST http://localhost:8443/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=my-agent" \
+  -d "client_secret=secret" \
+  -d "scope=read:logs-*"' aria-label="Copy command">📋 Copy</button><code>curl -s -X POST http://localhost:8443/oauth/token \
   -d "grant_type=client_credentials" \
   -d "client_id=my-agent" \
   -d "client_secret=secret" \
   -d "scope=read:logs-*"</code></pre>
+      <div class="demo-response">
+        <p style="font-size:12px;color:var(--green);margin-bottom:4px">✅ Response:</p>
+        <pre><code>{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "read:logs-*"
+}</code></pre>
       </div>
-      <div class="try-step">
-        <h3>3. Query with the token</h3>
-        <pre><code>curl -H "Authorization: Bearer &lt;token&gt;" \
+    </div>
+
+    <div class="demo-panel" id="tab-query">
+      <pre><button class="copy-btn" data-copy='curl -s -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8443/logs-*/_search \
+  -d &apos;{"query":{"match":{"level":"error"}}}&apos;' aria-label="Copy command">📋 Copy</button><code>curl -s -H "Authorization: Bearer $TOKEN" \
   http://localhost:8443/logs-*/_search \
   -d '{"query":{"match":{"level":"error"}}}'</code></pre>
+      <div class="demo-response">
+        <p style="font-size:12px;color:var(--green);margin-bottom:4px">✅ Response (proxied to OpenSearch):</p>
+        <pre><code>{
+  "hits": {
+    "total": { "value": 42 },
+    "hits": [
+      { "_source": { "level": "error", "message": "connection timeout", "service": "payment" } }
+    ]
+  }
+}</code></pre>
       </div>
-      <div class="try-step">
-        <h3>4. Revoke when done</h3>
-        <pre><code>curl -X POST http://localhost:8443/oauth/revoke \
-  -d "token=&lt;token&gt;"</code></pre>
+    </div>
+
+    <div class="demo-panel" id="tab-revoke">
+      <pre><button class="copy-btn" data-copy='curl -s -X POST http://localhost:8443/oauth/revoke \
+  -d "token=$TOKEN"' aria-label="Copy command">📋 Copy</button><code>curl -s -X POST http://localhost:8443/oauth/revoke \
+  -d "token=$TOKEN"</code></pre>
+      <div class="demo-response">
+        <p style="font-size:12px;color:var(--green);margin-bottom:4px">✅ Response:</p>
+        <pre><code>{ "revoked": true }</code></pre>
       </div>
     </div>
   </div>
@@ -189,10 +274,10 @@ footer a{color:var(--muted)}
 
 <section class="features" id="features">
   <div class="container">
-    <h2>Features</h2>
+    <h2 class="section-title">Features</h2>
     <div class="feat-grid">
       <div class="feat-card"><div class="icon">🔑</div><h3>JWT Validation</h3><p>JWKS auto-discovery, RS256/ES256. Validates tokens from any OIDC provider.</p></div>
-      <div class="feat-card"><div class="icon">🎯</div><h3>Scope-to-Role Mapping</h3><p><code>read:logs-*</code> → OpenSearch <code>logs_reader</code> role. Configurable in YAML.</p></div>
+      <div class="feat-card"><div class="icon">🎯</div><h3>Scope → Role Mapping</h3><p><code>read:logs-*</code> → OpenSearch <code>logs_reader</code> role. Configurable in YAML.</p></div>
       <div class="feat-card"><div class="icon">🔄</div><h3>Unified Auth</h3><p>Single entry point for Engine + Dashboards APIs. Zero changes to existing components.</p></div>
       <div class="feat-card"><div class="icon">📋</div><h3>Token Lifecycle</h3><p>Issue, revoke, list, inspect tokens via REST API. Full audit trail.</p></div>
       <div class="feat-card"><div class="icon">🌲</div><h3>Cedar Policies</h3><p>Fine-grained access control with Cedar policy language. Evaluate locally, no network calls.</p></div>
@@ -203,7 +288,7 @@ footer a{color:var(--muted)}
 
 <section class="phases">
   <div class="container">
-    <h2>Roadmap</h2>
+    <h2 class="section-title">Roadmap</h2>
     <div class="phase-row">
       <div class="phase-card">
         <span class="status building">🔨 Building</span>
@@ -226,9 +311,39 @@ footer a{color:var(--muted)}
 
 <footer>
   <div class="container">
-    <p>oauth4os — Apache 2.0 · <a href="https://github.com/opensearch-project/.github/issues/491">RFC #491</a> · Built for the OpenSearch community</p>
+    <p>oauth4os — Apache 2.0 · <a href="https://github.com/opensearch-project/.github/issues/491">RFC #491</a> · <a href="https://github.com/seraphjiang/oauth4os">GitHub</a> · Built for the OpenSearch community</p>
   </div>
 </footer>
 
+<script>
+// Theme toggle
+function toggleTheme() {
+  const html = document.documentElement;
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('oauth4os_theme', html.dataset.theme);
+}
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+// Demo tabs
+document.querySelectorAll('.demo-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.demo-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Copy buttons
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    navigator.clipboard.writeText(btn.dataset.copy);
+    btn.textContent = '✅ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+});
+</script>
 </body>
 </html>

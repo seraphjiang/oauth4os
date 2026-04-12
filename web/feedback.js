@@ -59,6 +59,7 @@ overlay.innerHTML=`<div class="fb-modal">
 <div class="fb-type" data-t="feature"><span class="icon">✨</span>Feature</div>
 </div>
 <label>Title *</label><input id="fb-title" placeholder="Brief summary" required>
+<label>Your name or email</label><input id="fb-who" placeholder="Optional — helps us follow up">
 <label>Description</label><textarea id="fb-desc" placeholder="Details..."></textarea>
 <label>Screenshot <button class="fb-btn-s" id="fb-rmshot" style="font-size:10px;padding:2px 6px;margin-left:4px;display:none">✕ Remove</button></label>
 <img id="fb-shot" class="fb-screenshot" style="display:none">
@@ -117,7 +118,8 @@ overlay.querySelector('#fb-submit').addEventListener('click',async()=>{
   if(!title){overlay.querySelector('#fb-title').focus();return}
   const sub=overlay.querySelector('#fb-submit');
   sub.disabled=true;sub.textContent='Sending...';
-  const body={type:fbType,title,description:overlay.querySelector('#fb-desc').value,screenshot,debug:collectDebug()};
+  const body={type:fbType,title,description:overlay.querySelector('#fb-desc').value,screenshot,debug:collectDebug(),
+    submitter:overlay.querySelector('#fb-who').value.trim()||sessionStorage.getItem('oauth4os_submitter')||sessionStorage.getItem('oauth4os_token_data')&&JSON.parse(sessionStorage.getItem('oauth4os_token_data')||'{}').client_id||'anonymous'};
   try{
     await fetch(API+'/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     overlay.classList.remove('open');

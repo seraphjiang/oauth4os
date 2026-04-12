@@ -924,17 +924,56 @@ func main() {
 	mux.HandleFunc("GET /dashboard/", serveWebFile("dashboard/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /logs/", serveWebFile("logs/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/feedback", serveWebFile("admin/feedback.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /my-feedback", serveWebFile("feedback/index.html", "text/html; charset=utf-8"))
 
-	// Feedback API — in-memory store
+	// Feedback API — structured in-memory store
+	type FeedbackItem struct {
+		ID          string          `json:"id"`
+		Type        string          `json:"type"`
+		Title       string          `json:"title"`
+		Description string          `json:"description"`
+		Screenshot  string          `json:"screenshot,omitempty"`
+		Debug       json.RawMessage `json:"debug,omitempty"`
+		Submitter   string          `json:"submitter"`
+		Status      string          `json:"status"`
+		AdminReply  string          `json:"admin_reply,omitempty"`
+		CreatedAt   string          `json:"created_at"`
+		UpdatedAt   string          `json:"updated_at"`
+	}
 	var feedbackMu sync.Mutex
-	var feedbackItems []json.RawMessage
+	var feedbackItems []FeedbackItem
+	var feedbackSeq int
+
 	mux.HandleFunc("POST /feedback", func(w http.ResponseWriter, r *http.Request) {
-		var item json.RawMessage
-		if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+		var raw struct {
+			Type        string          `json:"type"`
+			Title       string          `json:"title"`
+			Description string          `json:"description"`
+			Screenshot  string          `json:"screenshot"`
+			Debug       json.RawMessage `json:"debug"`
+			Submitter   string          `json:"submitter"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 			http.Error(w, `{"error":"invalid json"}`, 400)
 			return
 		}
+		if raw.Submitter == "" {
+			// Try to get from auth
+			if auth := r.Header.Get("Authorization"); auth != "" {
+				// Extract client_id from token if possible
+				raw.Submitter = "authenticated-user"
+			} else {
+				raw.Submitter = "anonymous"
+			}
+		}
 		feedbackMu.Lock()
+		feedbackSeq++
+		item := FeedbackItem{
+			ID: fmt.Sprintf("fb-%d", feedbackSeq), Type: raw.Type, Title: raw.Title,
+			Description: raw.Description, Screenshot: raw.Screenshot, Debug: raw.Debug,
+			Submitter: raw.Submitter, Status: "pending",
+			CreatedAt: time.Now().UTC().Format(time.RFC3339), UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+		}
 		feedbackItems = append(feedbackItems, item)
 		if len(feedbackItems) > 1000 {
 			feedbackItems = feedbackItems[len(feedbackItems)-500:]
@@ -942,13 +981,54 @@ func main() {
 		feedbackMu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(201)
-		fmt.Fprint(w, `{"status":"ok"}`)
+		json.NewEncoder(w).Encode(item)
 	})
+
 	mux.HandleFunc("GET /feedback", func(w http.ResponseWriter, r *http.Request) {
+		sub := r.URL.Query().Get("submitter")
 		feedbackMu.Lock()
 		defer feedbackMu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if sub != "" {
+			var filtered []FeedbackItem
+			for _, f := range feedbackItems {
+				if f.Submitter == sub {
+					filtered = append(filtered, f)
+				}
+			}
+			json.NewEncoder(w).Encode(filtered)
+			return
+		}
 		json.NewEncoder(w).Encode(feedbackItems)
+	})
+
+	mux.HandleFunc("PUT /feedback/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		var update struct {
+			Status     string `json:"status"`
+			AdminReply string `json:"admin_reply"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+			http.Error(w, `{"error":"invalid json"}`, 400)
+			return
+		}
+		feedbackMu.Lock()
+		defer feedbackMu.Unlock()
+		for i := range feedbackItems {
+			if feedbackItems[i].ID == id {
+				if update.Status != "" {
+					feedbackItems[i].Status = update.Status
+				}
+				if update.AdminReply != "" {
+					feedbackItems[i].AdminReply = update.AdminReply
+				}
+				feedbackItems[i].UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(feedbackItems[i])
+				return
+			}
+		}
+		http.NotFound(w, r)
 	})
 
 	// Serve feedback.js widget

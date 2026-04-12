@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="Your feedback submissions">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — My Feedback</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149;--yellow:#e3b341}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e;--yellow:#9a6700}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}.container{max-width:600px;margin:0 auto;padding:20px}
+h1{font-size:20px;margin-bottom:4px}.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.lookup{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;display:flex;gap:8px}
+.lookup input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px}
+.btn{padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px}
+.item h3{font-size:14px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.meta{font-size:11px;color:var(--muted);margin-bottom:6px}
+.desc{font-size:12px;margin-bottom:6px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.s-pending{background:#e3b34120;color:var(--yellow)}.s-reviewed{background:#58a6ff20;color:var(--accent)}
+.s-replied{background:#3fb95020;color:var(--green)}.s-closed{background:#8b949e20;color:var(--muted)}
+.admin-reply{margin-top:6px;padding:8px;background:#3fb95010;border-left:3px solid var(--green);border-radius:4px;font-size:12px}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+<div class="container">
+  <h1>💬 My Feedback</h1>
+  <p class="sub">View your submissions and admin replies. <a href="/">← oauth4os</a></p>
+  <div class="lookup">
+    <input id="who" placeholder="Your name or email" aria-label="Your name or email">
+    <button class="btn btn-primary" onclick="load()" aria-label="Look up">Look up</button>
+  </div>
+  <div id="list"><div class="empty">Enter your name or email to see your feedback</div></div>
+</div>
+<script>
+const API=window.location.origin;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+async function load(){
+  const who=document.getElementById('who').value.trim();
+  if(!who){document.getElementById('list').innerHTML='<div class="empty">Enter your name or email</div>';return}
+  localStorage.setItem('fb_submitter',who);
+  try{
+    const r=await fetch(API+'/feedback?submitter='+encodeURIComponent(who));
+    const items=(await r.json())||[];
+    if(!items.length){document.getElementById('list').innerHTML='<div class="empty">No feedback found for "'+esc(who)+'"</div>';return}
+    document.getElementById('list').innerHTML=items.slice().reverse().map(i=>`
+      <div class="item">
+        <h3>${esc(i.type==='bug'?'🐛':i.type==='feature'?'✨':'💡')} ${esc(i.title)} <span class="badge s-${esc(i.status)}">${esc(i.status)}</span></h3>
+        <div class="meta">${esc(i.created_at||'')}</div>
+        ${i.description?'<div class="desc">'+esc(i.description)+'</div>':''}
+        ${i.admin_reply?'<div class="admin-reply"><strong>Admin reply:</strong> '+esc(i.admin_reply)+'</div>':''}
+      </div>`).join('');
+  }catch(e){document.getElementById('list').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>'}
+}
+
+const saved=localStorage.getItem('fb_submitter');
+if(saved){document.getElementById('who').value=saved;load()}
+document.getElementById('who').addEventListener('keydown',e=>{if(e.key==='Enter')load()});
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

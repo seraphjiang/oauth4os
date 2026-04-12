@@ -182,14 +182,13 @@ func TestMutation_ValidateRedirectURI(t *testing.T) {
 func TestMutation_TouchToken(t *testing.T) {
 	m := NewManager()
 	m.RegisterClient("app", "secret", []string{"read"}, nil)
-	tok, raw := m.CreateTokenForClient("app", []string{"read"})
+	tok, _ := m.CreateTokenForClient("app", []string{"read"})
 	if !m.TouchToken(tok.ID, 10*time.Minute) {
 		t.Error("TouchToken must return true for valid token")
 	}
 	if m.TouchToken("nonexistent", 10*time.Minute) {
 		t.Error("TouchToken must return false for unknown token")
 	}
-	_ = raw
 }
 
 // Mutation: remove Lookup → must return token metadata

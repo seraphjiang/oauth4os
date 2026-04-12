@@ -9,18 +9,19 @@ import (
 )
 
 type Config struct {
-	Upstream     Upstream          `yaml:"upstream"`
-	Clusters     map[string]Cluster `yaml:"clusters"`
-	Providers    []Provider        `yaml:"providers"`
-	ScopeMapping map[string]Role   `yaml:"scope_mapping"`
-	Tenants      map[string]Tenant `yaml:"tenants"`
-	Listen       string            `yaml:"listen"`
-	TLS          TLSConfig         `yaml:"tls"`
-	RateLimits   map[string]int    `yaml:"rate_limits"`
-	IPFilter     IPFilterConfig    `yaml:"ip_filter"`
-	MTLS         MTLSConfig        `yaml:"mtls"`
-	Webhook      WebhookConfig     `yaml:"webhook"`
-	CORS         CORSConfig        `yaml:"cors"`
+	Upstream       Upstream          `yaml:"upstream"`
+	Clusters       map[string]Cluster `yaml:"clusters"`
+	Providers      []Provider        `yaml:"providers"`
+	ScopeMapping   map[string]Role   `yaml:"scope_mapping"`
+	Tenants        map[string]Tenant `yaml:"tenants"`
+	Listen         string            `yaml:"listen"`
+	TLS            TLSConfig         `yaml:"tls"`
+	RateLimits     map[string]int    `yaml:"rate_limits"`
+	IPFilter       IPFilterConfig    `yaml:"ip_filter"`
+	MTLS           MTLSConfig        `yaml:"mtls"`
+	Webhook        WebhookConfig     `yaml:"webhook"`
+	CORS           CORSConfig        `yaml:"cors"`
+	SecretsBackend string            `yaml:"secrets_backend"` // env (default), file
 }
 
 // CORSConfig holds CORS settings.

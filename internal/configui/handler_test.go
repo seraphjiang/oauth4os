@@ -51,3 +51,22 @@ func TestRegister(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }
+
+func TestJSONContentType(t *testing.T) {
+	h := New(testCfg)
+	w := httptest.NewRecorder()
+	h.JSON(w, httptest.NewRequest("GET", "/admin/config/json", nil))
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("expected application/json, got %s", ct)
+	}
+}
+
+func TestPageContainsConfig(t *testing.T) {
+	h := New(testCfg)
+	w := httptest.NewRecorder()
+	h.Page(w, httptest.NewRequest("GET", "/admin/config", nil))
+	body := w.Body.String()
+	if !strings.Contains(body, "localhost:9200") && !strings.Contains(body, "config") {
+		t.Error("expected page to contain config data")
+	}
+}

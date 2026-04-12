@@ -214,6 +214,9 @@ Visit [f5cmk2hxwx.us-west-2.awsapprunner.com](https://f5cmk2hxwx.us-west-2.awsap
 | [/.well-known/openid-configuration](https://f5cmk2hxwx.us-west-2.awsapprunner.com/.well-known/openid-configuration) | OIDC Discovery |
 | [/.well-known/jwks.json](https://f5cmk2hxwx.us-west-2.awsapprunner.com/.well-known/jwks.json) | JWKS |
 | [/developer/docs](https://f5cmk2hxwx.us-west-2.awsapprunner.com/developer/docs) | OpenAPI documentation |
+| [/playground](https://f5cmk2hxwx.us-west-2.awsapprunner.com/playground) | Interactive OAuth playground |
+| [/analytics](https://f5cmk2hxwx.us-west-2.awsapprunner.com/analytics) | Token analytics dashboard |
+| [/version](https://f5cmk2hxwx.us-west-2.awsapprunner.com/version) | Version info (JSON) |
 | [/install.sh](https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh) | CLI installer script |
 
 ## Project Structure

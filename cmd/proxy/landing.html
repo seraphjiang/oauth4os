@@ -95,6 +95,17 @@ footer a{color:var(--muted)}
   nav{gap:10px}
   nav a{font-size:12px}
 }
+/* Demo cards */
+.demo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+.demo-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center;transition:all .15s;text-decoration:none;color:var(--text)}
+.demo-card:hover{border-color:var(--accent);transform:translateY(-2px);text-decoration:none}
+.demo-card .dc-icon{font-size:28px;margin-bottom:8px}
+.demo-card h3{font-size:13px;margin-bottom:4px}
+.demo-card p{font-size:11px;color:var(--muted)}
+.demo-card .dc-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600;margin-top:6px}
+.dc-live{background:#3fb95022;color:var(--green)}
+.dc-new{background:#58a6ff22;color:var(--accent)}
+@media(max-width:768px){.demo-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -121,15 +132,72 @@ footer a{color:var(--muted)}
       <img src="https://img.shields.io/badge/Go-1.22-00ADD8" alt="Go 1.22">
       <img src="https://github.com/seraphjiang/oauth4os/actions/workflows/ci.yml/badge.svg" alt="CI">
       <img src="https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange" alt="OpenSearch">
-      <img src="https://img.shields.io/badge/tests-220%20passed-brightgreen" alt="220 tests">
+      <img src="https://img.shields.io/badge/tests-371%20passed-brightgreen" alt="371 tests">
       <img src="https://img.shields.io/badge/packages-23-blue" alt="23 packages">
     </div>
     <h1>OAuth 2.0 Proxy for <span>OpenSearch</span></h1>
     <p>Secure machine-to-machine access with scoped tokens, OIDC federation, and zero breaking changes to your existing cluster.</p>
     <div class="cta-row">
-      <a href="#demo" class="btn btn-primary">Try It Now</a>
+      <a href="#try-demo" class="btn btn-primary">Try the Demo</a>
       <a href="https://github.com/seraphjiang/oauth4os" class="btn btn-gh">⭐ Star on GitHub</a>
       <a href="https://github.com/opensearch-project/.github/issues/491" class="btn btn-secondary">Read the RFC</a>
+    </div>
+  </div>
+</section>
+
+<section id="try-demo" style="padding:48px 0">
+  <div class="container">
+    <h2 class="section-title" style="text-align:center">🚀 Try the Demo</h2>
+    <p style="text-align:center;color:var(--muted);font-size:14px;margin-bottom:4px">Explore the full oauth4os experience — all pages are live.</p>
+    <div class="demo-grid">
+      <a href="/demo/" class="demo-card">
+        <div class="dc-icon">🔍</div>
+        <h3>Log Dashboard</h3>
+        <p>Search logs, filter by service and level, auto-refresh</p>
+        <span class="dc-badge dc-live">● LIVE</span>
+      </a>
+      <a href="/demo/services.html" class="demo-card">
+        <div class="dc-icon">🗺️</div>
+        <h3>Service Map</h3>
+        <p>Animated topology with health rings and live stats</p>
+        <span class="dc-badge dc-live">● LIVE</span>
+      </a>
+      <a href="/demo/alerts.html" class="demo-card">
+        <div class="dc-icon">🚨</div>
+        <h3>Alerts</h3>
+        <p>Anomaly detection — error spikes, latency, patterns</p>
+        <span class="dc-badge dc-live">● LIVE</span>
+      </a>
+      <a href="/demo/playground.html" class="demo-card">
+        <div class="dc-icon">🎓</div>
+        <h3>PKCE Playground</h3>
+        <p>Step through the OAuth PKCE flow interactively</p>
+        <span class="dc-badge dc-new">INTERACTIVE</span>
+      </a>
+      <a href="/developer/" class="demo-card">
+        <div class="dc-icon">👩‍💻</div>
+        <h3>Developer Portal</h3>
+        <p>Create OAuth apps, manage secrets, configure scopes</p>
+        <span class="dc-badge dc-live">● LIVE</span>
+      </a>
+      <a href="/analytics/" class="demo-card">
+        <div class="dc-icon">📊</div>
+        <h3>Token Analytics</h3>
+        <p>Usage charts, top clients, scope distribution</p>
+        <span class="dc-badge dc-live">● LIVE</span>
+      </a>
+      <a href="/playground/" class="demo-card">
+        <div class="dc-icon">🌲</div>
+        <h3>Cedar Policies</h3>
+        <p>Test fine-grained access policies in the browser</p>
+        <span class="dc-badge dc-new">INTERACTIVE</span>
+      </a>
+      <a href="/swagger/" class="demo-card">
+        <div class="dc-icon">📖</div>
+        <h3>API Docs</h3>
+        <p>OpenAPI spec — all 15 endpoints documented</p>
+        <span class="dc-badge dc-new">SWAGGER</span>
+      </a>
     </div>
   </div>
 </section>

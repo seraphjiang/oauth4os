@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -78,4 +79,41 @@ func (a *ManagerAdapter) Introspect(tokenStr string) *Response {
 		Iat:       createdAt.Unix(),
 		TokenType: "Bearer",
 	}
+}
+
+// CachedLookup wraps a TokenLookup with a TTL cache.
+type CachedLookup struct {
+	inner TokenLookup
+	ttl   time.Duration
+	mu    sync.RWMutex
+	cache map[string]*cacheEntry
+}
+
+type cacheEntry struct {
+	resp *Response
+	at   time.Time
+}
+
+// NewCachedLookup wraps a lookup with caching. TTL of 0 defaults to 30s.
+func NewCachedLookup(inner TokenLookup, ttl time.Duration) *CachedLookup {
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	return &CachedLookup{inner: inner, ttl: ttl, cache: make(map[string]*cacheEntry)}
+}
+
+func (c *CachedLookup) Introspect(token string) *Response {
+	c.mu.RLock()
+	if e, ok := c.cache[token]; ok && time.Since(e.at) < c.ttl {
+		c.mu.RUnlock()
+		return e.resp
+	}
+	c.mu.RUnlock()
+
+	resp := c.inner.Introspect(token)
+
+	c.mu.Lock()
+	c.cache[token] = &cacheEntry{resp: resp, at: time.Now()}
+	c.mu.Unlock()
+	return resp
 }

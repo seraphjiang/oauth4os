@@ -63,6 +63,7 @@ ${BOLD}COMMANDS:${NC}
   completion <shell>   Generate bash/zsh completions
   profile              Formatted token claims, scopes, expiry
   top                  Real-time top consumers (like Unix top)
+  env                  Show config, paths, connectivity diagnostic
   install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}
@@ -1019,6 +1020,27 @@ cmd_top() {
   done
 }
 
+cmd_env() {
+  echo -e "${BOLD}🔧 Environment${NC}\n"
+  echo -e "  ${BOLD}Proxy:${NC}     ${PROXY}"
+  echo -e "  ${BOLD}Index:${NC}     ${DEFAULT_INDEX}"
+  echo -e "  ${BOLD}Format:${NC}    ${DEFAULT_FORMAT}"
+  echo -e "  ${BOLD}Config:${NC}    ${CONFIG_FILE} $([ -f "$CONFIG_FILE" ] && echo "${GREEN}✓${NC}" || echo "${YELLOW}(not created)${NC}")"
+  echo -e "  ${BOLD}Token:${NC}     ${TOKEN_FILE} $([ -f "$TOKEN_FILE" ] && echo "${GREEN}✓${NC}" || echo "${YELLOW}(no token)${NC}")"
+  echo -e "  ${BOLD}History:${NC}   ${HISTORY_FILE:-~/.oauth4os-history} $([ -f "${HISTORY_FILE:-$HOME/.oauth4os-history}" ] && echo "$(wc -l < "${HISTORY_FILE:-$HOME/.oauth4os-history}") entries" || echo "(empty)")"
+  echo -e "  ${BOLD}Bookmarks:${NC} ${BOOKMARKS_FILE:-~/.oauth4os-bookmarks} $([ -f "${BOOKMARKS_FILE:-$HOME/.oauth4os-bookmarks}" ] && echo "$(wc -l < "${BOOKMARKS_FILE:-$HOME/.oauth4os-bookmarks}") saved" || echo "(empty)")"
+  echo -e "  ${BOLD}Aliases:${NC}   ${ALIAS_FILE} $([ -f "$ALIAS_FILE" ] && echo "$(wc -l < "$ALIAS_FILE") defined" || echo "(empty)")"
+  echo -e "  ${BOLD}TTY:${NC}       $IS_TTY"
+  echo -e "  ${BOLD}Deps:${NC}      curl=$(command -v curl >/dev/null && curl --version | head -1 | awk '{print $2}' || echo 'MISSING') jq=$(command -v jq >/dev/null && jq --version 2>/dev/null || echo 'MISSING')"
+  echo ""
+  echo -ne "  ${BOLD}Proxy:${NC}     "
+  if curl -sf --max-time 3 "${PROXY}/health" >/dev/null 2>&1; then
+    echo -e "${GREEN}reachable ✓${NC}"
+  else
+    echo -e "${RED}unreachable ✗${NC}"
+  fi
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -1041,6 +1063,7 @@ case "${1:-}" in
   diff)     shift; cmd_diff "${1:-today}" "${2:-yesterday}" ;;
   profile)  cmd_profile ;;
   top)      cmd_top ;;
+  env)      cmd_env ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

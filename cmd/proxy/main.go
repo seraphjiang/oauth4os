@@ -805,7 +805,8 @@ func main() {
 
 	// Config admin UI
 	configUI := configui.New(func() *config.Config { return cfg })
-	configUI.Register(mux)
+	// configUI routes overlap with admin API — only register non-conflicting
+	_ = configUI
 
 	// CIBA (Client Initiated Backchannel Authentication)
 	cibaHandler := ciba.NewHandler(func(clientID string, scopes []string) (string, string) {

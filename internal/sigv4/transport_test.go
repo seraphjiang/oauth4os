@@ -196,3 +196,47 @@ func TestJsonVal(t *testing.T) {
 		t.Errorf("Missing = %q, want empty", v)
 	}
 }
+
+func TestNew_WithEnvVars(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "SECRET")
+	t.Setenv("AWS_SESSION_TOKEN", "TOK")
+	tr := New(nil, "us-west-2", "es")
+	if tr.AccessKey != "AKID" {
+		t.Errorf("AccessKey = %q", tr.AccessKey)
+	}
+	if tr.SecretKey != "SECRET" {
+		t.Errorf("SecretKey = %q", tr.SecretKey)
+	}
+	if tr.Token != "TOK" {
+		t.Errorf("Token = %q", tr.Token)
+	}
+	if tr.Region != "us-west-2" {
+		t.Errorf("Region = %q", tr.Region)
+	}
+}
+
+func TestNew_FallbackToContainerCreds(t *testing.T) {
+	// Clear env vars so it tries container creds
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	// No container URI set — should still return a transport
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "")
+	tr := New(nil, "us-east-1", "aoss")
+	if tr == nil {
+		t.Fatal("New returned nil")
+	}
+	if tr.Region != "us-east-1" {
+		t.Errorf("Region = %q", tr.Region)
+	}
+}
+
+func TestCanonicalHeaderStr_MultiValue(t *testing.T) {
+	req, _ := http.NewRequest("GET", "https://search.us-west-2.es.amazonaws.com/", nil)
+	req.Header.Set("X-Amz-Date", "20260412T190000Z")
+	req.Header.Set("Host", "search.us-west-2.es.amazonaws.com")
+	signed, canonical := canonicalHeaderStr(req)
+	if signed == "" || canonical == "" {
+		t.Error("expected non-empty canonical headers")
+	}
+}

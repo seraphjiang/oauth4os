@@ -109,6 +109,21 @@ ensure_deps() {
   done
 }
 
+# Retry wrapper — retries curl on 5xx or network error with exponential backoff
+curl_retry() {
+  local attempt=0 max=3 delay=1
+  while [ $attempt -lt $max ]; do
+    local out code
+    out=$(curl -sf --max-time 10 "$@" 2>/dev/null; echo "::$?")
+    code="${out##*::}"
+    out="${out%::*}"
+    if [ "$code" = "0" ] && [ -n "$out" ]; then echo "$out"; return 0; fi
+    attempt=$(( attempt + 1 ))
+    [ $attempt -lt $max ] && sleep $delay && delay=$(( delay * 2 ))
+  done
+  return 1
+}
+
 get_token() {
   if [ -f "$TOKEN_FILE" ]; then
     cat "$TOKEN_FILE"
@@ -353,7 +368,7 @@ cmd_whoami() {
 
 cmd_status() {
   local resp
-  resp=$(curl -sf "${PROXY}/health" 2>/dev/null)
+  resp=$(curl_retry "${PROXY}/health")
   if [ $? -eq 0 ]; then
     if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
     echo -e "${GREEN}✅ Proxy is healthy${NC}"

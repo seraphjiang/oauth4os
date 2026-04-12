@@ -272,3 +272,34 @@ func TestRestoreMissingVersion(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }
+
+func TestListProviders(t *testing.T) {
+	s, mux := setup()
+	s.cfg.Providers = []config.Provider{{Name: "keycloak", Issuer: "https://kc.example.com"}}
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/admin/providers", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var providers []config.Provider
+	json.NewDecoder(rec.Body).Decode(&providers)
+	if len(providers) != 1 || providers[0].Name != "keycloak" {
+		t.Errorf("unexpected providers: %+v", providers)
+	}
+}
+
+func TestGetConfig(t *testing.T) {
+	s, mux := setup()
+	s.cfg.Listen = ":8443"
+	s.cfg.Upstream = "https://opensearch:9200"
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/admin/config", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var cfg map[string]interface{}
+	json.NewDecoder(rec.Body).Decode(&cfg)
+	if cfg["listen"] != ":8443" {
+		t.Errorf("listen = %v", cfg["listen"])
+	}
+}

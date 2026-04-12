@@ -128,6 +128,8 @@ select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;backgro
 </style>
 </head>
 <body>
+<a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#fff;font-size:13px;text-decoration:none">Skip to content</a>
+<style>.skip-link:focus{left:0}</style>
 
 <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
 
@@ -178,6 +180,7 @@ select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;backgro
         <button class="btn btn-primary" id="searchBtn" aria-label="Search">Search</button>
         <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--muted)"><input type="checkbox" id="autoRefresh"> Auto-refresh</label>
         <button class="btn btn-sm" id="exportBtn" aria-label="Export as PNG" title="Export as PNG (Ctrl+Shift+E)">📸 Export</button>
+        <button class="btn btn-sm" id="csvBtn" aria-label="Export logs as CSV" title="Export logs as CSV">📋 CSV</button>
       </div>
       <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center">
         <span id="tokenCountdown" style="font-size:12px;color:var(--muted)"></span>
@@ -590,6 +593,23 @@ document.addEventListener('keydown', e => {
   if (e.key === 'k') { const rows = document.querySelectorAll('.log-table tbody tr'); const active = document.querySelector('.log-table tbody tr.active'); let idx = active ? [...rows].indexOf(active) - 1 : rows.length - 1; if (idx >= 0) { rows.forEach(r => r.classList.remove('active')); rows[idx].classList.add('active'); rows[idx].scrollIntoView({ block: 'nearest' }); } }
   if (e.key === '?' && !e.ctrlKey) { showShortcutsModal(); }
   if (e.key === 'E' && (e.ctrlKey || e.metaKey) && e.shiftKey) { e.preventDefault(); exportPNG(); }
+});
+
+// Export as CSV
+document.getElementById('csvBtn').addEventListener('click', () => {
+  const rows = document.querySelectorAll('.log-table tbody tr');
+  if (!rows.length) return;
+  const headers = [...document.querySelectorAll('.log-table thead th')].map(h => h.textContent);
+  const csv = [headers.join(',')];
+  rows.forEach(r => {
+    csv.push([...r.querySelectorAll('td')].map(c => '"' + c.textContent.replace(/"/g, '""') + '"').join(','));
+  });
+  const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'oauth4os-logs-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
 // Export as PNG

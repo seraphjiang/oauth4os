@@ -1,6 +1,8 @@
 package circuit
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -60,5 +62,38 @@ func TestMutation_RetryAfterZeroWhenOpen(t *testing.T) {
 	ra := b.RetryAfter()
 	if ra == 0 {
 		t.Error("MUTATION SURVIVED: RetryAfter should be >0 when open")
+	}
+}
+
+// Mutation: remove circuit breaker middleware → must reject when open
+func TestMutation_MiddlewareRejectsWhenOpen(t *testing.T) {
+	b := New(2, 50*time.Millisecond)
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	})
+	handler := b.Middleware(inner)
+
+	// Trip the breaker
+	b.Record(500)
+	b.Record(500)
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != 503 {
+		t.Errorf("open breaker should return 503, got %d", w.Code)
+	}
+}
+
+// Mutation: remove passthrough when closed → must forward when healthy
+func TestMutation_MiddlewareForwardsWhenClosed(t *testing.T) {
+	b := New(10, time.Second)
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(201)
+	})
+	handler := b.Middleware(inner)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != 201 {
+		t.Errorf("closed breaker should forward, got %d", w.Code)
 	}
 }

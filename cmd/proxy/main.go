@@ -66,6 +66,8 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/healthcheck"
 	"github.com/seraphjiang/oauth4os/internal/histogram"
 	"github.com/seraphjiang/oauth4os/internal/retry"
+	"github.com/seraphjiang/oauth4os/internal/secrets"
+	"github.com/seraphjiang/oauth4os/internal/store"
 	"github.com/seraphjiang/oauth4os/internal/timeout"
 )
 
@@ -129,6 +131,28 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("Invalid config: %v", err)
 	}
+
+	// Resolve secret references in config (env:VAR, file:/path)
+	secretResolver := secrets.New()
+	if cfg.Webhook.URL != "" {
+		if resolved, err := secretResolver.Resolve(cfg.Webhook.URL); err == nil {
+			cfg.Webhook.URL = resolved
+		}
+	}
+
+	// Initialize token store (memory default, file:/path for persistence)
+	var tokenStore store.Store
+	if strings.HasPrefix(cfg.TokenStore, "file:") {
+		path := strings.TrimPrefix(cfg.TokenStore, "file:")
+		var err error
+		tokenStore, err = store.NewFile(path)
+		if err != nil {
+			log.Fatalf("Failed to open token store: %v", err)
+		}
+	} else {
+		tokenStore = store.NewMemory()
+	}
+	_ = tokenStore // used by token manager when persistence is wired
 
 	validator := jwt.NewValidator(cfg.Providers)
 	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)

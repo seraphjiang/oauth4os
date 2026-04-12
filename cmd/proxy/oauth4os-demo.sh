@@ -1274,6 +1274,17 @@ cmd_refresh() {
   echo -e "${GREEN}✅ Token refreshed${NC}"
 }
 
+cmd_sessions() {
+  local resp
+  resp=$(authed_curl "${PROXY}/admin/sessions")
+  if [ -z "$resp" ]; then echo -e "${RED}Failed to fetch sessions${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🔑 Active Sessions${NC}\n"
+  local count=$(echo "$resp" | jq 'length' 2>/dev/null)
+  echo -e "  ${CYAN}${count:-0} active session(s)${NC}\n"
+  echo "$resp" | jq -r '.[]? | "  \(.client_id // .id)  \(.created_at // .issued // "—")  \(.scopes // .scope // "—")"' 2>/dev/null
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1313,6 +1324,7 @@ case "${1:-}" in
   latency)  cmd_latency ;;
   ping)     shift; cmd_ping "${1:-5}" ;;
   changelog|version) cmd_changelog ;;
+  sessions) cmd_sessions ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

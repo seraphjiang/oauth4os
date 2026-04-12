@@ -61,3 +61,21 @@ func TestMutation_UniqueKIDs(t *testing.T) {
 		t.Error("rotated keys must have different KIDs")
 	}
 }
+
+// Mutation: remove Stop → rotation goroutine must terminate
+func TestMutation_StopTerminates(t *testing.T) {
+	r, err := New(2048, 100*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		r.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop must terminate the rotation goroutine")
+	}
+}

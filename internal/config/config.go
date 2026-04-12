@@ -22,6 +22,7 @@ type Config struct {
 	Webhook        WebhookConfig     `yaml:"webhook"`
 	CORS           CORSConfig        `yaml:"cors"`
 	SecretsBackend string            `yaml:"secrets_backend"` // env (default), file
+	TokenStore     string            `yaml:"token_store"`     // memory (default), file:/path
 	JWTAccessToken bool              `yaml:"jwt_access_token"` // issue signed JWTs instead of opaque tokens
 	Issuer         string            `yaml:"issuer"` // JWT issuer URL (required if jwt_access_token is true)
 }

@@ -61,12 +61,20 @@ type Manager struct {
 // NewManager creates a token manager.
 func NewManager() *Manager {
 	return &Manager{
-		tokens:      make(map[string]*Token),
-		refresh:     make(map[string]string),
-		usedRefresh: make(map[string]string),
-		families:    make(map[string][]string),
-		clients:     make(map[string]*Client),
+		tokens:         make(map[string]*Token),
+		refresh:        make(map[string]string),
+		usedRefresh:    make(map[string]string),
+		families:       make(map[string][]string),
+		clients:        make(map[string]*Client),
+		refreshTTL:     30 * 24 * time.Hour,
+		refreshMaxLife: 90 * 24 * time.Hour,
 	}
+}
+
+// SetRefreshTTL configures refresh token lifetime and absolute max lifetime.
+func (m *Manager) SetRefreshTTL(ttl, maxLife time.Duration) {
+	m.refreshTTL = ttl
+	m.refreshMaxLife = maxLife
 }
 
 // EnableJWT configures the manager to issue signed JWT access tokens.

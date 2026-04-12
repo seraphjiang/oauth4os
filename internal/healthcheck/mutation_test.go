@@ -71,3 +71,22 @@ func TestMutation_LastCheck(t *testing.T) {
 		t.Error("LastCheck must be after checker creation")
 	}
 }
+
+// Mutation: remove Stop → checker goroutine must terminate
+func TestMutation_StopTerminates(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	c := New(srv.URL, 50*time.Millisecond, nil)
+	done := make(chan struct{})
+	go func() {
+		c.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop must terminate the checker goroutine")
+	}
+}

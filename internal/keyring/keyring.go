@@ -67,6 +67,10 @@ func (r *Ring) rotate() error {
 	return nil
 }
 
+// Rotate forces an immediate key rotation. The previous key remains
+// available in JWKS for tokens signed before the rotation.
+func (r *Ring) Rotate() error { return r.rotate() }
+
 func (r *Ring) rotateLoop() {
 	if r.interval <= 0 {
 		return

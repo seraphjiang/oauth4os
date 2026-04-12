@@ -216,6 +216,14 @@ print(code[0] or '')
 
   echo "$ACCESS_TOKEN" > "$TOKEN_FILE"
   chmod 600 "$TOKEN_FILE"
+
+  # Save refresh token if present
+  local REFRESH_TOKEN=$(echo "$RESPONSE" | jq -r '.refresh_token // empty')
+  if [ -n "$REFRESH_TOKEN" ]; then
+    echo "$REFRESH_TOKEN" > "${TOKEN_FILE}.refresh"
+    chmod 600 "${TOKEN_FILE}.refresh"
+  fi
+
   echo -e "${GREEN}✅ Logged in successfully${NC}"
   echo -e "Token saved to ${TOKEN_FILE}"
 }
@@ -1218,6 +1226,34 @@ cmd_changelog() {
   if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
   echo -e "${BOLD}📋 oauth4os${NC}\n"
   echo "$resp" | jq -r '"  Version: \(.version // "unknown")\n  Commit:  \(.commit // "unknown")\n  Built:   \(.built // "unknown")"' 2>/dev/null || echo "$resp"
+}
+
+cmd_refresh() {
+  local refresh_file="${TOKEN_FILE}.refresh"
+  if [ ! -f "$refresh_file" ]; then
+    echo -e "${RED}No refresh token. Run: oauth4os-demo login${NC}" >&2; return 1
+  fi
+  local refresh_tok=$(cat "$refresh_file")
+  local resp
+  resp=$(curl -sf -X POST "${PROXY}/oauth/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=refresh_token&refresh_token=${refresh_tok}&client_id=${CLIENT_ID}" 2>/dev/null)
+  local new_tok=$(echo "$resp" | jq -r '.access_token // empty')
+  if [ -z "$new_tok" ]; then
+    echo -e "${RED}Refresh failed: ${resp}${NC}" >&2
+    echo -e "${YELLOW}Try: oauth4os-demo login${NC}" >&2
+    return 1
+  fi
+  echo "$new_tok" > "$TOKEN_FILE"
+  chmod 600 "$TOKEN_FILE"
+  # Update refresh token if rotated
+  local new_refresh=$(echo "$resp" | jq -r '.refresh_token // empty')
+  if [ -n "$new_refresh" ]; then
+    echo "$new_refresh" > "$refresh_file"
+    chmod 600 "$refresh_file"
+  fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${GREEN}✅ Token refreshed${NC}"
 }
 
 # Main

@@ -271,8 +271,6 @@ cmd_search() {
   local dsl
   dsl=$(kql_to_dsl "$query")
   save_history "$query"
-  echo -e "${CYAN}Query:${NC} $query"
-  echo -e "${CYAN}DSL:${NC}   $dsl\n"
   local body="{\"query\":${dsl},\"size\":20,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
   local resp
   resp=$(curl -sf -H "$(auth_header)" \
@@ -280,9 +278,15 @@ cmd_search() {
     -H "Content-Type: application/json" \
     -d "$body" 2>/dev/null)
   if [ $? -ne 0 ] || [ -z "$resp" ]; then
-    echo -e "${RED}Search failed. Are you logged in?${NC}"
+    echo -e "${RED}Search failed. Are you logged in?${NC}" >&2
     return 1
   fi
+  # Pipe mode: output raw JSON array of _source docs
+  if ! $IS_TTY; then
+    echo "$resp" | jq '[.hits.hits[]._source]' 2>/dev/null
+    return
+  fi
+  echo -e "${CYAN}Query:${NC} $query"
   local total
   total=$(echo "$resp" | jq '.hits.total.value // (.hits.total // 0)' 2>/dev/null)
   echo -e "${GREEN}${total} hits${NC}\n"

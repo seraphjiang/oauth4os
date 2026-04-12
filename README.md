@@ -1,6 +1,6 @@
 # oauth4os — OAuth 2.0 Proxy for OpenSearch
 
-**Secure machine-to-machine access for OpenSearch.** OAuth 2.0 proxy that validates JWT tokens, maps scopes to OpenSearch security roles, and forwards requests to both Engine and Dashboards — with zero changes to existing components.
+**Secure machine-to-machine access for OpenSearch.** OAuth 2.0 proxy that validates JWT tokens, maps scopes to OpenSearch security roles, and forwards requests — with zero changes to OpenSearch itself.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go 1.22](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)](https://go.dev)
@@ -11,17 +11,41 @@
 
 > 🔗 **RFC**: [opensearch-project/.github#491](https://github.com/opensearch-project/.github/issues/491)
 > · 🎯 **Live Demo**: [f5cmk2hxwx.us-west-2.awsapprunner.com](https://f5cmk2hxwx.us-west-2.awsapprunner.com)
+> · 🔍 **Demo App**: [/demo](https://f5cmk2hxwx.us-west-2.awsapprunner.com/demo) (interactive PKCE flow)
 > · 📖 **Docs**: [docs/](docs/)
 
-**Try it now:**
+**Try it now — no setup required:**
 ```bash
-# Health check
-curl https://f5cmk2hxwx.us-west-2.awsapprunner.com/health
-
 # Get a scoped token
-curl -X POST https://f5cmk2hxwx.us-west-2.awsapprunner.com/oauth/token \
-  -d "grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*"
+TOKEN=$(curl -sf -X POST https://f5cmk2hxwx.us-west-2.awsapprunner.com/oauth/token \
+  -d "grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*" \
+  | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+
+# Search real logs through the proxy (backed by OpenSearch Serverless)
+curl -sf -H "Authorization: Bearer $TOKEN" \
+  "https://f5cmk2hxwx.us-west-2.awsapprunner.com/logs-demo/_search?q=level:ERROR" | python3 -m json.tool
+
+# Or install the CLI
+curl -sL https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh | bash
+oauth4os-demo login
+oauth4os-demo search 'level:ERROR'
 ```
+
+---
+
+## Project Stats
+
+| Metric | Value |
+|--------|-------|
+| Commits | 218 |
+| Files | 255 |
+| Go source (non-test) | 6,500 lines |
+| Test code | 7,000 lines |
+| Test functions | 371 |
+| Test packages passing | 25/25 |
+| Internal packages | 25 |
+| OAuth RFCs implemented | 4 (7636, 7662, 8693, 7591) |
+| External dependencies | 2 (jwt, yaml) |
 
 ---
 
@@ -49,18 +73,12 @@ docker compose up
 
 # Get a scoped token
 curl -X POST http://localhost:8443/oauth/token \
-  -d "grant_type=client_credentials" \
-  -d "client_id=my-agent" \
-  -d "client_secret=secret" \
-  -d "scope=read:logs-*"
+  -d "grant_type=client_credentials&client_id=my-agent&client_secret=secret&scope=read:logs-*"
 
 # Query OpenSearch through the proxy
 curl -H "Authorization: Bearer <token>" \
   http://localhost:8443/logs-*/_search \
   -d '{"query": {"match": {"level": "error"}}}'
-
-# Revoke when done
-curl -X DELETE http://localhost:8443/oauth/token/<token-id>
 ```
 
 Or use the CLI:
@@ -78,18 +96,18 @@ oauth4os revoke <token-id>
 ┌─────────────┐     ┌──────────────────────────┐     ┌─────────────────┐
 │  Clients    │     │      oauth4os proxy       │     │   OpenSearch    │
 │             │     │      (Go, :8443)          │     │                 │
-│  AI Agent   │────▶│  ┌─────────────────────┐  │────▶│  Engine :9200   │
-│  CI/CD      │     │  │ JWT Validation      │  │     │                 │
-│  Slack Bot  │     │  │ Scope → Role Mapping│  │────▶│  Dashboards     │
-│  CLI        │     │  │ Cedar Policies      │  │     │  :5601          │
-│  MCP Server │     │  │ Rate Limiting       │  │     │                 │
-│  Browser    │     │  │ Audit Logging       │  │     │  Security plugin│
-│             │     │  │ Token Introspection │  │     │  unchanged      │
-└─────────────┘     │  └─────────────────────┘  │     └─────────────────┘
+│  AI Agent   │────▶│  Tracing                  │────▶│  Engine :9200   │
+│  CI/CD      │     │  Rate Limiting            │     │                 │
+│  Slack Bot  │     │  JWT Validation           │────▶│  Dashboards     │
+│  CLI        │     │  Scope → Role Mapping     │     │  :5601          │
+│  MCP Server │     │  Cedar Policies           │     │                 │
+│  Browser    │     │  IP Filter / mTLS         │────▶│  AOSS (SigV4)  │
+│  Demo App   │     │  Audit Logging            │     │                 │
+└─────────────┘     │  Multi-cluster Routing    │     └─────────────────┘
                     └────────────┬───────────────┘
                                 │
                     ┌───────────▼────────────┐
-                    │    OIDC Provider       │
+                    │    OIDC Providers      │
                     │  Keycloak · Auth0      │
                     │  Okta · Dex · Google   │
                     └────────────────────────┘
@@ -97,93 +115,132 @@ oauth4os revoke <token-id>
 
 ## Features
 
-### Core Proxy
+### Authentication (4 OAuth RFCs)
 - **JWT validation** — JWKS auto-discovery, RS256/ES256, configurable clock skew
-- **Scope-to-role mapping** — `read:logs-*` → OpenSearch `logs_reader` role
-- **Unified auth** — single entry point for Engine + Dashboards APIs
-- **Rate limiting** — per-client token bucket, configurable RPM per scope, `429 + Retry-After`
-- **Request tracing** — `X-Request-ID` on every proxied request
-- **Connection pooling** — configurable idle connections, timeouts
-- **Graceful shutdown** — drain in-flight requests on SIGTERM
-- **Prometheus metrics** — `/metrics` endpoint (requests, auth, Cedar, upstream errors)
-- **Health check** — `/health` with version and uptime
+- **PKCE authorization code flow** with consent screen (RFC 7636)
+- **Token introspection** (RFC 7662)
+- **Token exchange** — swap external IdP tokens for scoped proxy tokens (RFC 8693)
+- **Dynamic client registration** with secret rotation (RFC 7591)
+- **Refresh token rotation** with reuse detection and sliding window expiry
+- **OIDC Discovery** (`/.well-known/openid-configuration`)
+- **RSA key rotation** with JWKS endpoint (`/.well-known/jwks.json`)
 
-### Auth & Security
-- **Token lifecycle** — issue, refresh, revoke, list, inspect via REST API
-- **Token introspection** — RFC 7662 compliant endpoint
-- **PKCE flow** — secure browser-based auth (RFC 7636)
-- **Cedar policies** — fine-grained access control, index-level deny rules
-- **Multi-tenancy** — per-OIDC-provider scope mapping and Cedar policies
-- **Audit logging** — structured JSON logs for every proxied request
-- **Any OIDC provider** — Keycloak, Auth0, Okta, Dex, Google
+### Authorization
+- **Scope-to-role mapping** — `read:logs-*` → OpenSearch `logs_reader` role
+- **Cedar policy engine** — permit/forbid rules, deny-overrides, multi-tenant
+- **Per-client rate limiting** — token bucket, scope-aware RPM, `429 + Retry-After`
+- **Per-client IP allowlist/denylist** — CIDR-based filtering
+- **Mutual TLS** — client certificate authentication
+
+### Operations
+- **Prometheus metrics** — `/metrics` (requests, auth, Cedar, upstream errors)
+- **Distributed tracing** — OpenTelemetry-style, X-Trace-ID, span per stage
+- **Structured JSON audit logging** with query support
+- **Token analytics dashboard** — top clients, scope distribution, error rates
+- **Session management** — list active sessions, revoke, force logout
+- **Admin REST API** — live config changes (scopes, policies, rate limits)
+- **Config backup/restore** bundles
+
+### Enterprise
+- **Multi-cluster federation** — route to N OpenSearch clusters by index pattern
+- **AWS SigV4 signing** for OpenSearch Serverless (AOSS)
+- **Multi-tenant** by OIDC issuer — each provider gets its own scope mappings and policies
+- **Client CRUD** — create, list, update, delete clients with secret rotation
 
 ### Developer Experience
+- **Developer portal** — `/developer/docs` (OpenAPI), `/developer/analytics`
+- **Demo web app** — `/demo` — log viewer with PKCE login, search, scope enforcement demo
+- **CLI installer** — `curl -sL <proxy>/install.sh | bash` → `oauth4os-demo login/search/services`
 - **CLI tool** — `oauth4os login`, `create-token`, `revoke`, `status`
-- **OSD plugin** — token management UI in OpenSearch Dashboards (list, create, revoke)
-- **MCP server** — reference integration for AI agents (search, create index, mappings, aggregations)
-- **Zero breaking changes** — existing auth methods continue to work
+- **MCP server** — reference integration for AI agents (7 tools)
+- **OSD plugin** — token management UI in OpenSearch Dashboards
+- **Consent screen** — shows app name, requested scopes, approve/deny
 
-## OSD Plugin — Token Management
+### Deployment
+- **Docker** + docker-compose
+- **Helm chart**
+- **AWS CDK stack**
+- **AWS App Runner** with auto-deploy on ECR push
+- **GitHub Actions CI** — build, test, vet, Docker build on push; release on tag
+- **Single binary** — zero external dependencies (stdlib + 2 libraries)
 
-The OpenSearch Dashboards plugin provides a UI for managing OAuth tokens:
+## Demo Screenshots
 
-| Feature | Description |
-|---------|-------------|
-| **List tokens** | Table with status badges, scope tags, time-ago, copy-to-clipboard |
-| **Create token** | Client credentials form with scope help text |
-| **Revoke token** | Confirmation dialog, immediate invalidation |
-| **Token result** | Copy buttons for access + refresh tokens |
+### Landing Page
+Visit [f5cmk2hxwx.us-west-2.awsapprunner.com](https://f5cmk2hxwx.us-west-2.awsapprunner.com) — dark/light theme, feature comparison, architecture diagram, interactive try-it-now section.
 
-Located at `plugins/oauth4os-dashboards/`. Uses EUI components (EuiBasicTable, EuiModal, EuiConfirmModal, EuiCopy, EuiBadge).
+### Consent Screen
+`GET /oauth/authorize` → shows app name, requested scopes with descriptions, approve/deny buttons. Write scopes trigger a warning banner.
 
-## MCP Server — AI Agent Integration
+### Demo Log Viewer
+`GET /demo` → login with PKCE → search logs by service/level, scope enforcement demo (read ✅ vs write ❌).
 
-Reference MCP server for AI agents to query OpenSearch securely:
+### Analytics Dashboard
+`GET /developer/analytics` — top clients, scope distribution, request timeline, error rates. Auto-refreshes every 5s.
 
-```bash
-cd examples/mcp-server
-pip install -r requirements.txt
-python server.py
-```
+## Live Demo URLs
 
-Tools: `search_logs`, `create_index`, `delete_docs`, `get_mappings`, `aggregate`.
+| URL | Description |
+|-----|-------------|
+| [/](https://f5cmk2hxwx.us-west-2.awsapprunner.com) | Landing page |
+| [/demo](https://f5cmk2hxwx.us-west-2.awsapprunner.com/demo) | Log viewer demo app (PKCE flow) |
+| [/health](https://f5cmk2hxwx.us-west-2.awsapprunner.com/health) | Health check + version |
+| [/metrics](https://f5cmk2hxwx.us-west-2.awsapprunner.com/metrics) | Prometheus metrics |
+| [/.well-known/openid-configuration](https://f5cmk2hxwx.us-west-2.awsapprunner.com/.well-known/openid-configuration) | OIDC Discovery |
+| [/.well-known/jwks.json](https://f5cmk2hxwx.us-west-2.awsapprunner.com/.well-known/jwks.json) | JWKS |
+| [/developer/docs](https://f5cmk2hxwx.us-west-2.awsapprunner.com/developer/docs) | OpenAPI documentation |
+| [/install.sh](https://f5cmk2hxwx.us-west-2.awsapprunner.com/install.sh) | CLI installer script |
 
 ## Project Structure
 
 ```
 cmd/
-  proxy/              — Main proxy binary
+  proxy/              — Main proxy binary (with embedded landing page)
   cli/                — CLI tool (login, create-token, revoke, status)
 internal/
-  jwt/                — JWT validation + JWKS cache
-  scope/              — Scope-to-role mapping engine
-  cedar/              — Cedar policy evaluation + multi-tenant
-  token/              — Token lifecycle (issue/refresh/revoke/list)
-  introspect/         — RFC 7662 token introspection
-  pkce/               — PKCE authorization flow
-  ratelimit/          — Per-client token bucket rate limiter
+  admin/              — Admin REST API (config CRUD, backup/restore)
+  analytics/          — Token usage analytics tracker
+  audit/              — Structured JSON audit logging
+  backup/             — Config backup/restore bundles
+  cedar/              — Cedar policy engine (multi-tenant)
   config/             — YAML config loader
-  audit/              — Structured request audit logging
+  demo/               — Demo web app backend (PKCE callback)
+  discovery/          — OIDC Discovery endpoint
+  exchange/           — RFC 8693 token exchange
+  federation/         — Multi-cluster routing
+  introspect/         — RFC 7662 token introspection
+  ipfilter/           — Per-client IP allowlist/denylist
+  jwt/                — JWT validation + JWKS cache
+  keyring/            — RSA key rotation + JWKS
+  logging/            — Structured logging
+  mtls/               — Mutual TLS client auth
+  pkce/               — PKCE authorization + consent screen
+  ratelimit/          — Per-client token bucket
+  registration/       — Dynamic client registration (RFC 7591)
+  scope/              — Scope-to-role mapping engine
+  session/            — Session management
+  sigv4/              — AWS SigV4 signing for AOSS
+  token/              — Token lifecycle (issue/refresh/revoke)
+  tracing/            — OpenTelemetry-style distributed tracing
+  webhook/            — Webhook notifications
 plugins/
   oauth4os-dashboards/ — OSD plugin (TypeScript/React)
 examples/
-  mcp-server/         — MCP server reference (Python)
+  mcp-server/         — MCP server reference (Python, 7 tools)
+scripts/
+  seed-demo.sh        — Seed 500 sample log entries
+web/
+  index.html          — Landing page
+  analytics.html      — Analytics dashboard
 deploy/
   cdk/                — AWS CDK stack
-  helm/               — Helm chart (oauth4os/)
-  keycloak/           — Keycloak realm export for dev
-web/                  — Landing page (demo site)
-bench/                — Go benchmarks
-test/
-  integration/        — Integration tests (proxy, scope, Cedar)
-  e2e/                — End-to-end tests (Docker-based)
-docs/                 — Architecture, security, benchmarks, testing
+  helm/               — Helm chart
+docs/                 — Architecture, security, ADRs, RFC response
 ```
 
 ## Configuration
 
 ```yaml
-# config.yaml
 upstream:
   engine: https://opensearch:9200
   dashboards: https://opensearch-dashboards:5601
@@ -201,83 +258,59 @@ scope_mapping:
   "admin":
     backend_roles: [all_access]
 
-rate_limit:
+rate_limits:
   default_rpm: 60
   per_scope:
     "read:logs-*": 120
     "admin": 30
 
-listen: :8443
+ip_filter:
+  clients:
+    my-agent:
+      allow: ["10.0.0.0/8"]
 
-tls:
+mtls:
   enabled: false
-  cert_file: /etc/oauth4os/tls.crt
-  key_file: /etc/oauth4os/tls.key
-```
+  ca_file: /etc/oauth4os/ca.pem
 
-## Deployment
-
-### Docker
-
-```bash
-docker compose up                    # Dev: proxy + OpenSearch + Keycloak
-docker compose -f docker-compose.demo.yml up  # Demo mode
-```
-
-### Helm
-
-```bash
-helm install oauth4os deploy/helm/oauth4os/ \
-  --set config.upstream.engine=https://opensearch:9200
-```
-
-### AWS CDK
-
-```bash
-cd deploy/cdk && pip install -r requirements.txt
-cdk deploy
-```
-
-### Binary
-
-Download from [Releases](https://github.com/seraphjiang/oauth4os/releases) — linux/mac/windows, amd64/arm64.
-
-```bash
-oauth4os-proxy --config config.yaml
+listen: :8443
 ```
 
 ## API Reference
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `POST /oauth/token` | POST | Issue token (client_credentials or refresh_token grant) |
-| `GET /oauth/tokens` | GET | List active tokens |
-| `GET /oauth/token/{id}` | GET | Get token details |
-| `DELETE /oauth/token/{id}` | DELETE | Revoke token |
-| `POST /oauth/introspect` | POST | Token introspection (RFC 7662) |
-| `GET /oauth/authorize` | GET | PKCE authorization (browser flow) |
-| `GET /health` | GET | Health check + version |
-| `GET /metrics` | GET | Prometheus metrics |
+| `/oauth/token` | POST | Issue token (client_credentials, refresh_token, authorization_code) |
+| `/oauth/tokens` | GET | List active tokens |
+| `/oauth/token/{id}` | GET/DELETE | Get or revoke token |
+| `/oauth/introspect` | POST | Token introspection (RFC 7662) |
+| `/oauth/authorize` | GET | PKCE authorization (consent screen) |
+| `/oauth/consent` | POST | Approve/deny consent |
+| `/oauth/register` | POST/GET | Dynamic client registration (RFC 7591) |
+| `/oauth/register/{id}` | GET/PUT/DELETE | Client CRUD |
+| `/oauth/register/{id}/rotate` | POST | Rotate client secret |
+| `/admin/analytics` | GET | Token usage analytics |
+| `/admin/audit` | GET | Audit log query |
+| `/admin/sessions` | GET | List active sessions |
+| `/admin/clusters` | GET | Multi-cluster status |
+| `/health` | GET | Health check + version |
+| `/health/deep` | GET | Deep health (upstream, JWKS, TLS) |
+| `/metrics` | GET | Prometheus metrics |
+| `/.well-known/openid-configuration` | GET | OIDC Discovery |
+| `/.well-known/jwks.json` | GET | JWKS endpoint |
 | `/*` | ANY | Reverse proxy to OpenSearch (with auth) |
-
-## Roadmap
-
-| Phase | Scope | Status |
-|-------|-------|--------|
-| Phase 1 | OAuth proxy MVP — JWT, scope mapping, token lifecycle, CLI, Docker | ✅ Shipped |
-| Phase 2 | OSD plugin, rate limiting, introspection, PKCE, multi-tenancy, MCP server | ✅ Shipped |
-| Phase 3 | Production polish — docs, benchmarks, CI/CD, security hardening | 🔨 Building |
 
 ## Documentation
 
 | Doc | Description |
 |-----|-------------|
-| [docs/architecture.md](docs/architecture.md) | Architecture, data flow, component descriptions |
+| [docs/architecture.md](docs/architecture.md) | Architecture, data flow, component diagrams |
 | [docs/security.md](docs/security.md) | Threat model, auth flows, JWT validation |
-| [docs/quickstart.md](docs/quickstart.md) | Step-by-step setup guide |
 | [docs/user-manual.md](docs/user-manual.md) | Complete user manual |
-| [docs/benchmarks.md](docs/benchmarks.md) | Performance numbers, scaling guidance |
-| [docs/testing.md](docs/testing.md) | How to run tests, coverage targets |
+| [docs/rfc-response.md](docs/rfc-response.md) | RFC comment for opensearch-project/.github#491 |
+| [docs/blog-post.md](docs/blog-post.md) | "Building an OAuth 2.0 Proxy for OpenSearch" |
+| [docs/adr/](docs/adr/) | 10 Architecture Decision Records |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ## Contributing
 
@@ -285,7 +318,7 @@ Pull requests welcome. Please open an issue first to discuss major changes.
 
 1. Fork the repo
 2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Run tests: `make test` or `go test ./...`
+3. Run tests: `go test ./...`
 4. Commit following [Conventional Commits](https://www.conventionalcommits.org/)
 5. Open a pull request
 

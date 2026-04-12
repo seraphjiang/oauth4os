@@ -54,6 +54,7 @@ func main() {
 	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)
 	tokenMgr := token.NewManager()
 	auditor := audit.NewAuditor(os.Stdout)
+	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Cedar policy engine (multi-tenant)
 	defaultPolicies := []cedar.Policy{

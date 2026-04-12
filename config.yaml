@@ -23,6 +23,21 @@ scope_mapping:
 
 listen: :8443
 
+# Per-tenant isolation: each OIDC provider gets its own scope mapping and Cedar policies.
+# Tokens from a tenant issuer use that tenant's config; others fall back to global scope_mapping.
+tenants:
+  "https://keycloak.example.com/realms/opensearch":
+    scope_mapping:
+      "read:logs-*":
+        backend_user: keycloak-logs-reader
+        backend_roles: [logs_read_access]
+      "admin":
+        backend_user: keycloak-admin
+        backend_roles: [all_access]
+    cedar_policies:
+      - 'forbid(*, PUT, .internal*)'
+      - 'forbid(*, DELETE, .internal*)'
+
 tls:
   enabled: false
   cert_file: ""

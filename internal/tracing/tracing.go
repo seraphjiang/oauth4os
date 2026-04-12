@@ -110,3 +110,15 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
+
+// TracerIface is an alias for backward compatibility.
+type TracerIface = Tracer
+
+// Span kind constants for proxy stages.
+const (
+	SpanRequest  = "request"
+	SpanJWT      = "jwt.validate"
+	SpanScope    = "scope.map"
+	SpanCedar    = "cedar.evaluate"
+	SpanUpstream = "upstream.forward"
+)

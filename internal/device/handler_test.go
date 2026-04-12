@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testIssuer(clientID string, scopes []string) (string, string) {
@@ -101,5 +102,121 @@ func TestMissingClientID(t *testing.T) {
 	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/code", url.Values{}))
 	if resp.Code != 400 {
 		t.Fatalf("expected 400, got %d", resp.Code)
+	}
+}
+
+func TestDeviceCodeExpiry(t *testing.T) {
+	h := NewHandler(testIssuer)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/code",
+		url.Values{"client_id": {"cli-1"}, "scope": {"read:logs-*"}}))
+	var cr map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&cr)
+	dc := cr["device_code"].(string)
+
+	// Expire the code manually
+	h.mu.Lock()
+	if c, ok := h.codes[dc]; ok {
+		c.ExpiresAt = c.ExpiresAt.Add(-20 * time.Minute)
+	}
+	h.mu.Unlock()
+
+	// Poll should return expired_token
+	resp2 := httptest.NewRecorder()
+	mux.ServeHTTP(resp2, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}))
+	var errResp map[string]string
+	json.NewDecoder(resp2.Body).Decode(&errResp)
+	if errResp["error"] != "expired_token" {
+		t.Fatalf("expected expired_token, got %s", errResp["error"])
+	}
+}
+
+func TestDeviceInvalidCode(t *testing.T) {
+	h := NewHandler(testIssuer)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {"nonexistent"}}))
+	if resp.Code != 400 {
+		t.Fatalf("expected 400, got %d", resp.Code)
+	}
+}
+
+func TestDeviceUserPage(t *testing.T) {
+	h := NewHandler(testIssuer)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest("GET", "/oauth/device", nil))
+	if resp.Code != 200 {
+		t.Fatalf("expected 200, got %d", resp.Code)
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, "user_code") && !strings.Contains(body, "device") {
+		t.Fatal("user page should contain device code form")
+	}
+}
+
+func TestDeviceDoubleApprove(t *testing.T) {
+	h := NewHandler(testIssuer)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/code",
+		url.Values{"client_id": {"cli-1"}}))
+	var cr map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&cr)
+	uc := cr["user_code"].(string)
+	dc := cr["device_code"].(string)
+
+	// First approve
+	resp2 := httptest.NewRecorder()
+	mux.ServeHTTP(resp2, formReq("POST", "/oauth/device/approve",
+		url.Values{"user_code": {uc}, "action": {"approve"}}))
+
+	// Get token
+	resp3 := httptest.NewRecorder()
+	mux.ServeHTTP(resp3, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}))
+	var tok map[string]interface{}
+	json.NewDecoder(resp3.Body).Decode(&tok)
+	if tok["access_token"] == nil {
+		t.Fatal("should get token after approve")
+	}
+
+	// Second poll should fail (code consumed)
+	resp4 := httptest.NewRecorder()
+	mux.ServeHTTP(resp4, formReq("POST", "/oauth/device/token",
+		url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}))
+	if resp4.Code == 200 {
+		var tok2 map[string]interface{}
+		json.NewDecoder(resp4.Body).Decode(&tok2)
+		if tok2["access_token"] != nil {
+			t.Fatal("should not issue token twice for same device code")
+		}
+	}
+}
+
+func TestDeviceInvalidUserCode(t *testing.T) {
+	h := NewHandler(testIssuer)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, formReq("POST", "/oauth/device/approve",
+		url.Values{"user_code": {"INVALID"}, "action": {"approve"}}))
+	if resp.Code == 200 {
+		body := resp.Body.String()
+		if strings.Contains(body, "access_token") {
+			t.Fatal("should not approve invalid user code")
+		}
 	}
 }

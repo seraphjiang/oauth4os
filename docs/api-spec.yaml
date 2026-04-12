@@ -615,3 +615,266 @@ components:
         jwks_uri:
           type: string
           format: uri
+
+  # --- v0.5.0 Endpoints ---
+
+  /oauth/revoke:
+    post:
+      tags: [OAuth]
+      summary: Revoke a token (RFC 7009)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                token_type_hint:
+                  type: string
+                  enum: [access_token, refresh_token]
+      responses:
+        '200':
+          description: Token revoked (or already invalid)
+
+  /oauth/consent:
+    post:
+      tags: [OAuth]
+      summary: Approve or deny PKCE consent
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                consent_id:
+                  type: string
+                action:
+                  type: string
+                  enum: [approve, deny]
+      responses:
+        '302':
+          description: Redirect to client with authorization code
+
+  /health/deep:
+    get:
+      tags: [Operations]
+      summary: Deep health check — upstream, JWKS, TLS, circuit breaker
+      responses:
+        '200':
+          description: All subsystems healthy
+          content:
+            application/json:
+              schema:
+                type: object
+        '503':
+          description: One or more subsystems degraded
+
+  /admin/apikeys:
+    post:
+      tags: [Admin]
+      summary: Create an API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: API key created
+
+  /admin/apikeys/{client_id}:
+    get:
+      tags: [Admin]
+      summary: List API keys for a client
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: API keys list
+
+  /admin/apikeys/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: API key deleted
+
+  /admin/sessions:
+    get:
+      tags: [Admin]
+      summary: List active sessions
+      responses:
+        '200':
+          description: Active sessions
+
+  /admin/sessions/{id}:
+    delete:
+      tags: [Admin]
+      summary: Revoke a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Session revoked
+
+  /admin/sessions/logout:
+    post:
+      tags: [Admin]
+      summary: Force logout all sessions for a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+      responses:
+        '200':
+          description: Sessions cleared
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Query audit log entries
+      parameters:
+        - name: client_id
+          in: query
+          schema:
+            type: string
+        - name: method
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Audit log entries
+
+  /admin/audit/export:
+    get:
+      tags: [Admin]
+      summary: Export audit logs as CSV
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+      responses:
+        '200':
+          description: Audit log export
+
+  /admin/analytics:
+    get:
+      tags: [Admin]
+      summary: Token analytics — top clients, scopes, indices
+      responses:
+        '200':
+          description: Analytics data
+
+  /admin/health:
+    get:
+      tags: [Admin]
+      summary: Admin health dashboard — all subsystem statuses
+      responses:
+        '200':
+          description: Subsystem health overview
+
+  /admin/clusters:
+    get:
+      tags: [Admin]
+      summary: List federated clusters
+      responses:
+        '200':
+          description: Cluster list with routing info
+
+  /install.sh:
+    get:
+      tags: [Demo]
+      summary: CLI installer script
+      responses:
+        '200':
+          description: Bash install script
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /demo/app:
+    get:
+      tags: [Demo]
+      summary: Log viewer demo web app
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /i18n/consent.json:
+    get:
+      tags: [Demo]
+      summary: Consent screen translations (6 languages)
+      responses:
+        '200':
+          description: Translation map
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/traces:
+    get:
+      tags: [Operations]
+      summary: OTLP trace export — recent spans
+      responses:
+        '200':
+          description: Span data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /version:
+    get:
+      tags: [Operations]
+      summary: Proxy version info
+      responses:
+        '200':
+          description: Version string

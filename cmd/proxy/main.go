@@ -317,6 +317,9 @@ func main() {
 		func(c *config.Config) { *cfg = *c },
 	)
 
+	// Load shedding — reject when over 500 concurrent requests
+	shedder := loadshed.New(500)
+
 	mux := http.NewServeMux()
 
 	// Register backup routes
@@ -715,6 +718,29 @@ func main() {
 		fmt.Fprint(w, developerAnalyticsHTML)
 	})
 
+	// Vanity URL aliases
+	analyticsHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, developerAnalyticsHTML)
+	}
+	mux.HandleFunc("GET /analytics", analyticsHandler)
+	mux.HandleFunc("GET /analytics/", analyticsHandler)
+
+	playgroundHTML, _ := os.ReadFile("web/demo/playground.html")
+	if len(playgroundHTML) == 0 {
+		playgroundHTML, _ = os.ReadFile("web/playground.html")
+	}
+	playgroundHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if len(playgroundHTML) > 0 {
+			w.Write(playgroundHTML)
+		} else {
+			fmt.Fprint(w, `<html><body><h1>Playground</h1><p>Not found — place playground.html in web/</p></body></html>`)
+		}
+	}
+	mux.HandleFunc("GET /playground", playgroundHandler)
+	mux.HandleFunc("GET /playground/", playgroundHandler)
+
 	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sessionMgr.Remove(r.PathValue("id"))
 		w.WriteHeader(http.StatusNoContent)
@@ -823,6 +849,13 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_circuit_opens Circuit breaker open events\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_circuit_opens counter\n")
 		fmt.Fprintf(w, "oauth4os_circuit_opens %d\n", circuitOpens.Load())
+		inflight, shed := shedder.Stats()
+		fmt.Fprintf(w, "# HELP oauth4os_loadshed_inflight Current inflight requests\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_loadshed_inflight gauge\n")
+		fmt.Fprintf(w, "oauth4os_loadshed_inflight %d\n", inflight)
+		fmt.Fprintf(w, "# HELP oauth4os_loadshed_total Total load-shed rejections\n")
+		fmt.Fprintf(w, "# TYPE oauth4os_loadshed_total counter\n")
+		fmt.Fprintf(w, "oauth4os_loadshed_total %d\n", shed)
 		hs := upstreamChecker.Status()
 		fmt.Fprintf(w, "# HELP oauth4os_upstream_latency_ms Last upstream health check latency\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_upstream_latency_ms gauge\n")
@@ -1115,7 +1148,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      logged,
+		Handler:      shedder.Middleware(logged),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

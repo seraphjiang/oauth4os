@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Developer Portal</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
+
+header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+
+.container{max-width:900px;margin:0 auto;padding:24px 20px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.toolbar h1{font-size:20px}
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-danger{color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:4px 10px;font-size:11px}
+
+/* App list */
+.app-list{display:flex;flex-direction:column;gap:12px}
+.app-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.app-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.app-name{font-size:16px;font-weight:600}
+.app-meta{font-size:11px;color:var(--muted)}
+.app-field{margin-bottom:8px}
+.app-field label{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:2px}
+.app-field .val{font-family:'SF Mono',Consolas,monospace;font-size:13px;display:flex;align-items:center;gap:6px}
+.copy-btn{background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted);padding:2px}
+.copy-btn:hover{color:var(--accent)}
+.scope-badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:var(--border);color:var(--text);margin-right:4px}
+.uri-list{font-size:12px;color:var(--muted);font-family:'SF Mono',Consolas,monospace}
+.app-actions{display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty .icon{font-size:48px;margin-bottom:12px}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:90vw;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:18px;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--muted)}
+.form-group input,.form-group textarea{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:60px;font-family:'SF Mono',Consolas,monospace}
+.form-group input:focus,.form-group textarea:focus{outline:none;border-color:var(--accent)}
+.form-group .hint{font-size:11px;color:var(--muted);margin-top:2px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* Secret reveal */
+.secret-banner{background:var(--surface);border:2px solid var(--green);border-radius:8px;padding:16px;margin-bottom:16px}
+.secret-banner h3{color:var(--green);font-size:14px;margin-bottom:8px}
+.secret-banner .warn{font-size:11px;color:var(--orange);margin-top:8px}
+.secret-val{font-family:'SF Mono',Consolas,monospace;font-size:14px;background:var(--bg);padding:8px 12px;border-radius:6px;word-break:break-all;display:flex;align-items:center;gap:8px}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:13px;z-index:200;opacity:0;transition:opacity .2s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🔐 Developer <span>Portal</span></div>
+  <nav>
+    <a href="../">← oauth4os</a>
+    <a href="../playground/">Playground</a>
+    <a href="../analytics/">Analytics</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+
+<div class="container">
+  <div id="secretBanner"></div>
+  <div class="toolbar">
+    <h1>Your OAuth Apps</h1>
+    <button class="btn btn-primary" id="createBtn" aria-label="Create new OAuth app">+ New App</button>
+  </div>
+  <div class="app-list" id="appList"></div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" role="dialog" aria-label="Create OAuth App">
+    <h2 id="modalTitle">New OAuth App</h2>
+    <div class="form-group">
+      <label for="appName">Application Name *</label>
+      <input id="appName" placeholder="my-service" required>
+    </div>
+    <div class="form-group">
+      <label for="appScopes">Scopes</label>
+      <input id="appScopes" placeholder="read:logs-* write:metrics-*">
+      <div class="hint">Space-separated. e.g. <code>read:logs-*</code> <code>write:metrics-*</code></div>
+    </div>
+    <div class="form-group">
+      <label for="appRedirects">Redirect URIs</label>
+      <textarea id="appRedirects" placeholder="https://myapp.example.com/callback&#10;http://localhost:3000/callback"></textarea>
+      <div class="hint">One per line. Required for authorization_code grant.</div>
+    </div>
+    <div class="form-group">
+      <label for="appGrants">Grant Types</label>
+      <input id="appGrants" placeholder="client_credentials authorization_code">
+      <div class="hint">Space-separated. Default: <code>client_credentials</code></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn">Create App</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" role="dialog" aria-label="Confirm action">
+    <h2 id="confirmTitle">Confirm</h2>
+    <p id="confirmMsg"></p>
+    <div class="modal-actions">
+      <button class="btn" id="confirmNo">Cancel</button>
+      <button class="btn btn-danger" id="confirmYes">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = window.location.origin;
+
+// State
+let apps = [];
+
+async function loadApps() {
+  try {
+    const r = await fetch(API + '/oauth/register');
+    if (r.ok) apps = await r.json();
+    else apps = [];
+  } catch { apps = []; }
+  if (!Array.isArray(apps)) apps = Object.values(apps);
+  render();
+}
+
+function render() {
+  const el = document.getElementById('appList');
+  if (!apps.length) {
+    el.innerHTML = '<div class="empty"><div class="icon">📦</div><p>No OAuth apps yet.<br>Create one to get started.</p></div>';
+    return;
+  }
+  el.innerHTML = apps.map(app => `
+    <div class="app-card" data-id="${esc(app.client_id)}">
+      <div class="app-header">
+        <div>
+          <div class="app-name">${esc(app.client_name)}</div>
+          <div class="app-meta">Created ${new Date(app.client_id_issued_at * 1000).toLocaleDateString()}</div>
+        </div>
+      </div>
+      <div class="app-field">
+        <label>Client ID</label>
+        <div class="val"><code>${esc(app.client_id)}</code><button class="copy-btn" data-copy="${esc(app.client_id)}" aria-label="Copy client ID">📋</button></div>
+      </div>
+      <div class="app-field">
+        <label>Client Secret</label>
+        <div class="val"><code>${maskSecret(app.client_secret || app.client_id)}</code></div>
+      </div>
+      ${app.scope ? `<div class="app-field"><label>Scopes</label><div>${app.scope.split(' ').map(s => `<span class="scope-badge">${esc(s)}</span>`).join('')}</div></div>` : ''}
+      ${app.redirect_uris?.length ? `<div class="app-field"><label>Redirect URIs</label><div class="uri-list">${app.redirect_uris.map(u => esc(u)).join('<br>')}</div></div>` : ''}
+      ${app.grant_types?.length ? `<div class="app-field"><label>Grant Types</label><div>${app.grant_types.map(g => `<span class="scope-badge">${esc(g)}</span>`).join('')}</div></div>` : ''}
+      <div class="app-actions">
+        <button class="btn btn-sm" onclick="rotateSecret('${esc(app.client_id)}')" aria-label="Rotate secret">🔄 Rotate Secret</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteApp('${esc(app.client_id)}','${esc(app.client_name)}')" aria-label="Delete app">🗑 Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function maskSecret(s) {
+  if (!s || s.length < 8) return '••••••••••••';
+  return s.slice(0, 4) + '••••••••' + s.slice(-4);
+}
+
+// Create
+document.getElementById('createBtn').addEventListener('click', () => openModal());
+document.getElementById('cancelBtn').addEventListener('click', () => closeModal());
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+function openModal() {
+  document.getElementById('appName').value = '';
+  document.getElementById('appScopes').value = '';
+  document.getElementById('appRedirects').value = '';
+  document.getElementById('appGrants').value = '';
+  document.getElementById('modalTitle').textContent = 'New OAuth App';
+  document.getElementById('saveBtn').textContent = 'Create App';
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('appName').focus();
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const name = document.getElementById('appName').value.trim();
+  if (!name) { document.getElementById('appName').focus(); return; }
+  const body = { client_name: name };
+  const scopes = document.getElementById('appScopes').value.trim();
+  if (scopes) body.scope = scopes;
+  const redirects = document.getElementById('appRedirects').value.trim().split('\n').map(s => s.trim()).filter(Boolean);
+  if (redirects.length) body.redirect_uris = redirects;
+  const grants = document.getElementById('appGrants').value.trim().split(/\s+/).filter(Boolean);
+  if (grants.length) body.grant_types = grants;
+
+  try {
+    const r = await fetch(API + '/oauth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (r.ok || r.status === 201) {
+      const app = await r.json();
+      closeModal();
+      showSecret(app);
+      loadApps();
+    } else {
+      const err = await r.json().catch(() => ({}));
+      toast('Error: ' + (err.error || r.statusText), true);
+    }
+  } catch (e) { toast('Error: ' + e.message, true); }
+});
+
+function showSecret(app) {
+  document.getElementById('secretBanner').innerHTML = `
+    <div class="secret-banner">
+      <h3>✅ App "${esc(app.client_name)}" created</h3>
+      <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted)">Client ID</label>
+        <div class="secret-val">${esc(app.client_id)}<button class="copy-btn" data-copy="${esc(app.client_id)}" aria-label="Copy client ID">📋</button></div>
+      </div>
+      <div><label style="font-size:11px;color:var(--muted)">Client Secret</label>
+        <div class="secret-val">${esc(app.client_secret)}<button class="copy-btn" data-copy="${esc(app.client_secret)}" aria-label="Copy client secret">📋</button></div>
+      </div>
+      <div class="warn">⚠️ Copy the secret now — it won't be shown again.</div>
+    </div>`;
+}
+
+// Rotate
+async function rotateSecret(id) {
+  confirm('Rotate Secret', `Rotate the client secret for this app? The old secret will stop working immediately.`, async () => {
+    try {
+      const r = await fetch(API + '/oauth/register/' + id + '/rotate', { method: 'POST' });
+      if (r.ok) {
+        const app = await r.json();
+        showSecret(app);
+        toast('Secret rotated');
+        loadApps();
+      } else { toast('Failed to rotate', true); }
+    } catch (e) { toast('Error: ' + e.message, true); }
+  });
+}
+
+// Delete
+async function deleteApp(id, name) {
+  confirm('Delete App', `Delete "${name}"? This cannot be undone. All tokens issued to this app will be revoked.`, async () => {
+    try {
+      const r = await fetch(API + '/oauth/register/' + id, { method: 'DELETE' });
+      if (r.ok || r.status === 204) {
+        document.getElementById('secretBanner').innerHTML = '';
+        toast('App deleted');
+        loadApps();
+      } else { toast('Failed to delete', true); }
+    } catch (e) { toast('Error: ' + e.message, true); }
+  });
+}
+
+// Confirm dialog
+let confirmCb = null;
+function confirm(title, msg, cb) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent = msg;
+  confirmCb = cb;
+  document.getElementById('confirmModal').classList.add('open');
+}
+document.getElementById('confirmNo').addEventListener('click', () => { document.getElementById('confirmModal').classList.remove('open'); });
+document.getElementById('confirmYes').addEventListener('click', () => { document.getElementById('confirmModal').classList.remove('open'); if (confirmCb) confirmCb(); });
+document.getElementById('confirmModal').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
+
+// Copy
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.dataset.copy).then(() => { btn.textContent = '✅'; setTimeout(() => btn.textContent = '📋', 1500); });
+});
+
+// Toast
+function toast(msg, err) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = err ? 'var(--red)' : 'var(--green)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); document.getElementById('confirmModal').classList.remove('open'); }
+});
+
+loadApps();
+</script>
+</body>
+</html>

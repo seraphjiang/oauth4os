@@ -17,9 +17,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/seraphjiang/oauth4os/internal/admin"
 	"github.com/seraphjiang/oauth4os/internal/audit"
 	"github.com/seraphjiang/oauth4os/internal/cedar"
 	"github.com/seraphjiang/oauth4os/internal/config"
+	"github.com/seraphjiang/oauth4os/internal/discovery"
 	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
@@ -55,7 +57,7 @@ func main() {
 	validator := jwt.NewValidator(cfg.Providers)
 	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)
 	tokenMgr := token.NewManager()
-	auditor := audit.NewAuditor(os.Stdout)
+	auditor := audit.NewJSONAuditor(os.Stdout)
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Cedar policy engine (multi-tenant)
@@ -129,6 +131,10 @@ func main() {
 	})
 	mux.HandleFunc("GET /oauth/authorize", pkceHandler.Authorize)
 	mux.HandleFunc("POST /oauth/authorize/token", pkceHandler.Exchange)
+
+	// Admin API — runtime config management
+	adminState := admin.NewState(cfg, mapper, policyEngine)
+	adminState.Register(mux)
 
 	// Health
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

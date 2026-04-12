@@ -176,9 +176,19 @@ func (m *Manager) createToken(clientID string, scopes []string) (*Token, string)
 	m.mu.Lock()
 	m.tokens[id] = tok
 	m.refresh[refreshTok] = id
+	m.families[clientID] = append(m.families[clientID], id)
 	m.mu.Unlock()
 
 	return tok, refreshTok
+}
+
+// revokeFamily revokes all tokens for a client. Must be called with m.mu held.
+func (m *Manager) revokeFamily(clientID string) {
+	for _, tokID := range m.families[clientID] {
+		if tok, ok := m.tokens[tokID]; ok {
+			tok.Revoked = true
+		}
+	}
 }
 
 // CreateTokenForClient creates a token for a client (used by PKCE flow).

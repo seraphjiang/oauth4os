@@ -873,6 +873,7 @@ func main() {
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /dashboard/", serveWebFile("dashboard/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /logs/", serveWebFile("logs/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/feedback", serveWebFile("admin/feedback.html", "text/html; charset=utf-8"))
 

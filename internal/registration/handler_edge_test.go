@@ -11,7 +11,7 @@ import (
 func edgeRegistrar(id, secret string, scopes, redirectURIs []string) {}
 
 func TestConcurrentRegister(t *testing.T) {
-	h := NewHandler(noopRegistrar, []string{"read:logs-*", "admin"})
+	h := NewHandler(edgeRegistrar, []string{"read:logs-*", "admin"})
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
@@ -31,7 +31,7 @@ func TestConcurrentRegister(t *testing.T) {
 }
 
 func TestRegisterEmptyBody(t *testing.T) {
-	h := NewHandler(noopRegistrar, []string{"read:logs-*"})
+	h := NewHandler(edgeRegistrar, []string{"read:logs-*"})
 	r := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(""))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -42,7 +42,7 @@ func TestRegisterEmptyBody(t *testing.T) {
 }
 
 func TestRegisterSecretNotInResponse(t *testing.T) {
-	h := NewHandler(noopRegistrar, []string{"read:logs-*"})
+	h := NewHandler(edgeRegistrar, []string{"read:logs-*"})
 	body := `{"client_name":"svc","scope":["read:logs-*"]}`
 	r := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
@@ -59,7 +59,7 @@ func TestRegisterSecretNotInResponse(t *testing.T) {
 }
 
 func TestGetNonexistentClient(t *testing.T) {
-	h := NewHandler(noopRegistrar, []string{"read:logs-*"})
+	h := NewHandler(edgeRegistrar, []string{"read:logs-*"})
 	r := httptest.NewRequest("GET", "/oauth/register/nonexistent", nil)
 	w := httptest.NewRecorder()
 	h.Get(w, r)
@@ -69,7 +69,7 @@ func TestGetNonexistentClient(t *testing.T) {
 }
 
 func TestDeleteNonexistentEdge(t *testing.T) {
-	h := NewHandler(noopRegistrar, []string{"read:logs-*"})
+	h := NewHandler(edgeRegistrar, []string{"read:logs-*"})
 	r := httptest.NewRequest("DELETE", "/oauth/register/nonexistent", nil)
 	w := httptest.NewRecorder()
 	h.Delete(w, r)

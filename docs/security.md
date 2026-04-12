@@ -279,6 +279,8 @@ The demo app at `/demo/app` demonstrates scope enforcement:
 | Sliding window tokens | Auto-extend on active use, idle tokens expire normally |
 | Webhook auth | External auth decisions, fail-closed by default |
 | mTLS | Client cert auth as alternative to Bearer tokens |
+| JWT access tokens | Signed RS256 at+jwt tokens for stateless validation (RFC 9068) |
+| Refresh token expiry | 30-day TTL + 90-day absolute family lifetime, configurable |
 
 ## Known Limitations
 

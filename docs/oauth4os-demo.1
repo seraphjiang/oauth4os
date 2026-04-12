@@ -85,6 +85,30 @@ Show upstream latency, throughput, and error rate.
 .B install-man
 Install man page to /usr/local/share/man/man1/.
 .TP
+.B register \fIname\fR [\fIscopes\fR]
+Register a new OAuth client. Shows client_id and secret.
+.TP
+.B refresh
+Refresh access token using saved refresh token.
+.TP
+.B revoke [\fItoken\fR]
+Revoke current or specified token.
+.TP
+.B clients
+List all registered OAuth clients.
+.TP
+.B tokens
+List active tokens with client, expiry, and scopes.
+.TP
+.B keys
+Show JWKS public keys (kid, algorithm, usage).
+.TP
+.B sessions
+List active sessions.
+.TP
+.B tutorial
+Open the interactive tutorial in browser.
+.TP
 .B token
 Show current token info.
 .TP

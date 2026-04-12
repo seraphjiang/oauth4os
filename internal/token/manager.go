@@ -398,6 +398,32 @@ func (m *Manager) Cleanup() int {
 	return removed
 }
 
+// Stats returns token store statistics.
+func (m *Manager) Stats() map[string]int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	active, revoked, expired := 0, 0, 0
+	now := time.Now()
+	for _, tok := range m.tokens {
+		switch {
+		case tok.Revoked:
+			revoked++
+		case now.After(tok.ExpiresAt):
+			expired++
+		default:
+			active++
+		}
+	}
+	return map[string]int{
+		"total":   len(m.tokens),
+		"active":  active,
+		"revoked": revoked,
+		"expired": expired,
+		"clients": len(m.clients),
+		"refresh": len(m.refresh),
+	}
+}
+
 // CreateTokenForClient creates a token for a client (used by PKCE flow).
 func (m *Manager) CreateTokenForClient(clientID string, scopes []string) (*Token, string) {
 	return m.createToken(clientID, scopes)

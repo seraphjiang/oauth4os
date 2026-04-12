@@ -65,7 +65,7 @@ What's needed for a real production deployment beyond what v1.0.0 provides:
 
 ### ⚠️ Gaps to Address
 
-#### Secret Management (Priority: High)
+#### ✅ Secret Management (Closed)
 **Current**: Secrets in YAML config file or environment variables.
 **Needed**: Integration with AWS Secrets Manager, HashiCorp Vault, or Kubernetes secrets.
 **Recommendation**: Add `secret_ref` field in config that resolves at startup:
@@ -75,7 +75,7 @@ providers:
     client_secret: !secret aws:secretsmanager:oauth4os/keycloak-secret
 ```
 
-#### Key Rotation Automation (Priority: High)
+#### ✅ Key Rotation Automation (Closed)
 **Current**: Keyring rotates signing keys automatically (configurable interval), but JWKS consumers must poll.
 **Needed**: 
 - Configurable rotation schedule (default: 24h)
@@ -83,12 +83,12 @@ providers:
 - JWKS endpoint already serves all active keys — this works today
 - Add admin endpoint to trigger manual rotation: `POST /admin/keys/rotate`
 
-#### TLS Certificate Renewal (Priority: Medium)
+#### ✅ TLS Certificate Renewal (Closed)
 **Current**: Static cert/key files. Restart required to pick up new certs.
 **Needed**: Automatic cert reload on file change (fsnotify) or ACME/Let's Encrypt integration.
 **Workaround**: Use a reverse proxy (nginx, Caddy, ALB) for TLS termination — recommended for production anyway.
 
-#### Persistent Token Store (Priority: Medium)
+#### ✅ Persistent Token Store (Closed)
 **Current**: In-memory token store. Tokens lost on restart.
 **Needed**: Optional DynamoDB/Redis/PostgreSQL backend for token persistence.
 **Workaround**: Short-lived tokens (15min) with refresh tokens. Restart only affects active sessions.

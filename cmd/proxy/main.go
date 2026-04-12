@@ -238,6 +238,28 @@ func main() {
 		json.NewEncoder(w).Encode(entries)
 	})
 
+	mux.HandleFunc("GET /admin/sessions", func(w http.ResponseWriter, r *http.Request) {
+		clientID := r.URL.Query().Get("client_id")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sessionMgr.List(clientID))
+	})
+
+	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+		sessionMgr.Remove(r.PathValue("id"))
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	mux.HandleFunc("POST /admin/sessions/logout", func(w http.ResponseWriter, r *http.Request) {
+		clientID := r.URL.Query().Get("client_id")
+		if clientID == "" {
+			http.Error(w, `{"error":"client_id required"}`, http.StatusBadRequest)
+			return
+		}
+		removed := sessionMgr.ForceLogout(clientID)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"removed":%d}`, removed)
+	})
+
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintf(w, "# HELP oauth4os_requests_total Total proxy requests\n")
@@ -311,6 +333,14 @@ func main() {
 		}
 		tracer.EndSpan(jwtSpan, "ok")
 		authSuccess.Add(1)
+
+		// Session tracking — use token ID as session key
+		if !sessionMgr.Create(tokenStr[:16], claims.ClientID, tokenStr[:16], r.RemoteAddr) {
+			requestsFailed.Add(1)
+			http.Error(w, `{"error":"session_limit_exceeded"}`, http.StatusTooManyRequests)
+			return
+		}
+		sessionMgr.Touch(tokenStr[:16])
 
 		// Span: scope mapping
 		ctx, scopeSpan := tracer.StartSpan(r.Context(), string(tracing.SpanScope), map[string]string{"issuer": claims.Issuer})

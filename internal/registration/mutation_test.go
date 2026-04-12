@@ -63,7 +63,7 @@ func TestMutation_201Status(t *testing.T) {
 
 // Mutation: remove JSON content type → response must be application/json
 func TestMutation_JSONContentType(t *testing.T) {
-	h := NewHandler(nil)
+	h := NewHandler(nil, nil)
 	mux := http.NewServeMux()
 	h.Register(mux)
 	body := `{"client_name":"test-app","redirect_uris":["http://localhost/cb"]}`

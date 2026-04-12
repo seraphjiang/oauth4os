@@ -1,0 +1,15 @@
+upstream:
+  engine: ${UPSTREAM_ENGINE}
+  dashboards: ${UPSTREAM_DASHBOARDS}
+
+listen: ":8080"
+
+providers: []
+
+scope_mapping:
+  "read:*":
+    backend_roles: ["readall"]
+  "write:*":
+    backend_roles: ["logstash"]
+  "admin":
+    backend_roles: ["all_access"]

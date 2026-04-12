@@ -51,3 +51,26 @@ func TestCleanupEmpty(t *testing.T) {
 		t.Fatalf("expected 0 removed, got %d", removed)
 	}
 }
+
+func BenchmarkCleanup(b *testing.B) {
+	m := NewManager()
+	m.RegisterClient("bench", "secret", []string{"read:logs-*"}, nil)
+	// Pre-populate with 1000 expired tokens
+	for i := 0; i < 1000; i++ {
+		tok, _ := m.CreateTokenForClient("bench", []string{"read:logs-*"})
+		m.mu.Lock()
+		m.tokens[tok.ID].ExpiresAt = time.Now().Add(-1 * time.Second)
+		m.mu.Unlock()
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Cleanup()
+		// Re-populate for next iteration
+		for j := 0; j < 1000; j++ {
+			tok, _ := m.CreateTokenForClient("bench", []string{"read:logs-*"})
+			m.mu.Lock()
+			m.tokens[tok.ID].ExpiresAt = time.Now().Add(-1 * time.Second)
+			m.mu.Unlock()
+		}
+	}
+}

@@ -6,5 +6,4 @@ pkg/java/
 test/
 scripts/
 bench/
-*.sh
 LICENSE

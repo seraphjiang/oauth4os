@@ -1,0 +1,176 @@
+.TH OAUTH4OS-DEMO 1 "April 2026" "v0.5.0" "oauth4os CLI"
+.SH NAME
+oauth4os-demo \- interactive CLI for oauth4os proxy
+.SH SYNOPSIS
+.B oauth4os-demo
+.I command
+.RI [ arguments ]
+.SH DESCRIPTION
+CLI client for the oauth4os OAuth 2.0 proxy for OpenSearch.
+Authenticates via client credentials, caches tokens, and provides
+search, monitoring, and management commands.
+.PP
+When stdout is piped, outputs raw JSON instead of colored text.
+.SH COMMANDS
+.TP
+.B login
+Authenticate and cache token.
+.TP
+.B logout
+Clear cached token.
+.TP
+.B search \fIquery\fR
+Search logs using KQL syntax.
+.TP
+.B sql \fIquery\fR
+Run SQL query against OpenSearch.
+.TP
+.B tail \fR[\fIservice\fR]
+Live tail \- poll every 2s, show new entries.
+.TP
+.B watch \fIquery\fR
+Alert on new KQL matches (poll every 5s).
+.TP
+.B dashboard
+Live terminal dashboard (htop for logs).
+.TP
+.B stats
+Error counts, latency, top errors by service.
+.TP
+.B services
+List indexed services.
+.TP
+.B indices
+List OpenSearch indices.
+.TP
+.B export \fIquery\fR \fB-f\fR csv|json \fB-o\fR \fIfile\fR
+Export search results to file.
+.TP
+.B history
+Show last 50 queries.
+.TP
+.B bookmark \fIaction\fR [\fIname\fR] [\fIquery\fR]
+Manage query bookmarks. Actions: save, run, delete, list.
+.TP
+.B config \fIaction\fR [\fIkey\fR] [\fIvalue\fR]
+Manage settings. Actions: show, set, get, reset. Keys: proxy, index, format.
+.TP
+.B alias \fIaction\fR [\fIname\fR] [\fIcommand\fR]
+Manage command aliases. Actions: add, rm, run, list.
+.TP
+.B completion \fIshell\fR
+Generate shell completions (bash, zsh).
+.TP
+.B diff \fIrange1\fR \fIrange2\fR
+Compare two time ranges (today, yesterday, 1h, 24h, 7d).
+.TP
+.B profile
+Show formatted token claims, scopes, and expiry countdown.
+.TP
+.B top
+Real-time top consumers view (requests, clients, scopes). Press q to quit.
+.TP
+.B env
+Show config, file paths, dependency versions, and proxy connectivity.
+.TP
+.B audit \fI[n]\fR
+Show last n admin audit events (default 20).
+.TP
+.B alerts
+Show alert status derived from proxy metrics.
+.TP
+.B latency
+Show upstream latency, throughput, and error rate.
+.TP
+.B install-man
+Install man page to /usr/local/share/man/man1/.
+.TP
+.B token
+Show current token info.
+.TP
+.B whoami
+Decode and display JWT claims.
+.TP
+.B status
+Check proxy health.
+.SH KQL SYNTAX
+.TP
+.B field:value
+Exact match (e.g., service:payment)
+.TP
+.B field:>N
+Range query (also <, >=, <=)
+.TP
+.B field:val*
+Wildcard match
+.TP
+.B term1 AND term2
+Both must match
+.TP
+.B term1 OR term2
+Either matches
+.TP
+.B NOT term
+Exclude matches
+.SH PIPE SUPPORT
+When stdout is not a terminal, search and sql output raw JSON:
+.PP
+.nf
+oauth4os-demo search 'level:ERROR' | jq '.[] | .service'
+oauth4os-demo search 'service:payment' | jq length
+.fi
+.SH ENVIRONMENT
+.TP
+.B OAUTH4OS_PROXY
+Proxy URL (default: https://f5cmk2hxwx.us-west-2.awsapprunner.com)
+.TP
+.B OAUTH4OS_INDEX
+Default search index (default: logs-*)
+.TP
+.B OAUTH4OS_FORMAT
+Output format (default: text)
+.TP
+.B WATCH_INTERVAL
+Seconds between watch polls (default: 5)
+.SH FILES
+.TP
+.I ~/.oauth4os/config
+Persistent configuration
+.TP
+.I ~/.oauth4os/token
+Cached access token
+.TP
+.I ~/.oauth4os-history
+Query history (last 50)
+.TP
+.I ~/.oauth4os-bookmarks
+Saved query bookmarks
+.TP
+.I ~/.oauth4os/aliases
+Command aliases
+.SH EXAMPLES
+.nf
+oauth4os-demo login
+oauth4os-demo search 'level:ERROR'
+oauth4os-demo search 'service:payment AND latency_ms:>500'
+oauth4os-demo tail auth
+oauth4os-demo watch 'level:FATAL'
+oauth4os-demo diff today yesterday
+oauth4os-demo top
+oauth4os-demo profile
+oauth4os-demo alerts
+oauth4os-demo latency
+oauth4os-demo audit 50
+oauth4os-demo env
+oauth4os-demo export 'level:ERROR' -f csv -o errors.csv
+oauth4os-demo sql 'SELECT service, count(*) FROM logs-demo GROUP BY service'
+oauth4os-demo bookmark save errors 'level:ERROR'
+oauth4os-demo alias add slow 'latency_ms:>1000'
+oauth4os-demo search 'level:ERROR' | jq '.[] | .service' | sort -u
+sudo oauth4os-demo install-man
+.fi
+.SH SEE ALSO
+.BR jq (1),
+.BR curl (1)
+.SH AUTHORS
+oauth4os contributors \- https://github.com/seraphjiang/oauth4os

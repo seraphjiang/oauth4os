@@ -16,18 +16,24 @@ type Config struct {
 
 // Metadata is the OpenID Connect Discovery 1.0 response.
 type Metadata struct {
-	Issuer                string   `json:"issuer"`
-	TokenEndpoint         string   `json:"token_endpoint"`
-	IntrospectionEndpoint string   `json:"introspection_endpoint"`
-	RevocationEndpoint    string   `json:"revocation_endpoint"`
-	JWKSURI               string   `json:"jwks_uri"`
-	AuthorizationEndpoint string   `json:"authorization_endpoint"`
+	Issuer                 string   `json:"issuer"`
+	TokenEndpoint          string   `json:"token_endpoint"`
+	IntrospectionEndpoint  string   `json:"introspection_endpoint"`
+	RevocationEndpoint     string   `json:"revocation_endpoint"`
+	JWKSURI                string   `json:"jwks_uri"`
+	AuthorizationEndpoint  string   `json:"authorization_endpoint"`
+	UserinfoEndpoint       string   `json:"userinfo_endpoint"`
+	DeviceAuthEndpoint     string   `json:"device_authorization_endpoint,omitempty"`
+	PAREndpoint            string   `json:"pushed_authorization_request_endpoint,omitempty"`
+	BackchannelAuthEndpoint string  `json:"backchannel_authentication_endpoint,omitempty"`
+	RegistrationEndpoint   string   `json:"registration_endpoint,omitempty"`
 	ResponseTypesSupported []string `json:"response_types_supported"`
-	GrantTypesSupported   []string `json:"grant_types_supported"`
-	TokenEndpointAuth     []string `json:"token_endpoint_auth_methods_supported"`
-	ScopesSupported       []string `json:"scopes_supported,omitempty"`
-	CodeChallengeMethods  []string `json:"code_challenge_methods_supported"`
-	IntrospectionAuth     []string `json:"introspection_endpoint_auth_methods_supported"`
+	GrantTypesSupported    []string `json:"grant_types_supported"`
+	TokenEndpointAuth      []string `json:"token_endpoint_auth_methods_supported"`
+	ScopesSupported        []string `json:"scopes_supported,omitempty"`
+	CodeChallengeMethods   []string `json:"code_challenge_methods_supported"`
+	IntrospectionAuth      []string `json:"introspection_endpoint_auth_methods_supported"`
+	DPoPSigningAlgs        []string `json:"dpop_signing_alg_values_supported,omitempty"`
 }
 
 // Handler returns an http.HandlerFunc for /.well-known/openid-configuration.

@@ -8,7 +8,7 @@ import (
 
 // Mutation: remove Add → Flush must export added entries
 func TestMutation_AddAndFlush(t *testing.T) {
-	u := &memUploader{}
+	u := &memUploader{data: map[string][]byte{}}
 	e := New(u, "audit/", 0)
 	defer e.Stop()
 	e.Add(json.RawMessage(`{"action":"login"}`))
@@ -24,7 +24,7 @@ func TestMutation_AddAndFlush(t *testing.T) {
 
 // Mutation: remove Stop → loop goroutine must terminate
 func TestMutation_StopTerminates(t *testing.T) {
-	u := &memUploader{}
+	u := &memUploader{data: map[string][]byte{}}
 	e := New(u, "audit/", 50*time.Millisecond)
 	done := make(chan struct{})
 	go func() {

@@ -10,7 +10,6 @@ import (
 // Mutation: remove Allowed check → denied must return error
 func TestMutation_DeniedReturnsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	defer srv.Close()
 		json.NewEncoder(w).Encode(Response{Allowed: false, Reason: "policy"})
 	}))
 	defer srv.Close()
@@ -23,7 +22,6 @@ func TestMutation_DeniedReturnsError(t *testing.T) {
 // Mutation: remove status code check → non-200 must error
 func TestMutation_Non200Errors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	defer srv.Close()
 		w.WriteHeader(500)
 	}))
 	defer srv.Close()
@@ -37,7 +35,6 @@ func TestMutation_Non200Errors(t *testing.T) {
 func TestMutation_CustomHeaders(t *testing.T) {
 	var gotKey string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	defer srv.Close()
 		gotKey = r.Header.Get("X-Api-Key")
 		json.NewEncoder(w).Encode(Response{Allowed: true})
 	}))
@@ -53,7 +50,6 @@ func TestMutation_CustomHeaders(t *testing.T) {
 func TestMutation_ContentType(t *testing.T) {
 	var gotCT string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	defer srv.Close()
 		gotCT = r.Header.Get("Content-Type")
 		json.NewEncoder(w).Encode(Response{Allowed: true})
 	}))
@@ -76,7 +72,6 @@ func TestMutation_DefaultTimeout(t *testing.T) {
 // Mutation: remove body decode → malformed JSON must error
 func TestMutation_MalformedResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	defer srv.Close()
 		w.Write([]byte("not json"))
 	}))
 	defer srv.Close()

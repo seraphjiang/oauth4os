@@ -12,6 +12,7 @@ package cedar
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // Effect is the policy decision.

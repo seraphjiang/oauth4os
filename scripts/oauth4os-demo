@@ -64,6 +64,7 @@ ${BOLD}COMMANDS:${NC}
   profile              Formatted token claims, scopes, expiry
   top                  Real-time top consumers (like Unix top)
   env                  Show config, paths, connectivity diagnostic
+  audit [n]            Show last n admin audit events (default 20)
   install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}
@@ -1041,6 +1042,23 @@ cmd_env() {
   fi
 }
 
+cmd_audit() {
+  local tok n="${1:-20}"
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+  local resp
+  resp=$(curl -sf -H "Authorization: Bearer ${tok}" "${PROXY}/admin/audit?limit=${n}" 2>/dev/null)
+  if [ -z "$resp" ]; then
+    echo -e "${RED}Failed to fetch audit log${NC}" >&2; return 1
+  fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}📋 Recent Audit Events${NC} (last ${n})\n"
+  printf "  ${CYAN}%-20s %-15s %-20s %s${NC}\n" "TIME" "ACTION" "USER" "DETAIL"
+  echo "$resp" | jq -r '.events[]? // .[]? | "\(.timestamp // .time) \(.action) \(.user // .actor) \(.detail // .resource // "")"' 2>/dev/null | while read -r ts action user detail; do
+    local short_ts=$(echo "$ts" | sed 's/T/ /' | cut -d. -f1)
+    printf "  %-20s %-15s %-20s %s\n" "$short_ts" "$action" "$user" "$detail"
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -1064,6 +1082,7 @@ case "${1:-}" in
   profile)  cmd_profile ;;
   top)      cmd_top ;;
   env)      cmd_env ;;
+  audit)    shift; cmd_audit "${1:-20}" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

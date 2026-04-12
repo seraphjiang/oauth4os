@@ -1,6 +1,7 @@
 package tracing
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,7 +33,7 @@ func TestFormatTraceparent(t *testing.T) {
 
 func TestInjectTraceparent(t *testing.T) {
 	tracer := NewStdoutTracer(nil)
-	ctx, span := tracer.StartSpan(nil, "test", nil)
+	ctx, span := tracer.StartSpan(context.Background(), "test", nil)
 	_ = span
 	r := httptest.NewRequest("GET", "/", nil)
 	r = r.WithContext(ctx)

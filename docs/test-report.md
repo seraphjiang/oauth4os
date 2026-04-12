@@ -13,28 +13,28 @@
 | Internal packages | 47 |
 | Packages with tests | 47 (100%) |
 | Packages with mutations | 47 (100%) |
-| Test functions | 842 |
-| Mutation tests | 212 (all killed) |
-| Fuzz targets | 35 |
-| Benchmarks | 59 |
-| Property tests | 27 |
+| Test functions | 846 |
+| Mutation tests | 213 (all killed) |
+| Fuzz targets | 42 |
+| Benchmarks | 68 |
+| Property tests | 30 |
 | E2E Go tests | 38 |
 | Bash test scripts | 18 |
-| Test files | 204 |
-| Source lines | 9,461 |
-| Test lines | 18,347 |
-| Test:source ratio | 1.94:1 |
-| Commits | 617 |
+| Test files | 210 |
+| Source lines | 9,477 |
+| Test lines | 18,773 |
+| Test:source ratio | 1.98:1 |
+| Commits | 638 |
 
 ## Version Growth
 
 | Metric | v0.1.0 | v0.5.0 | v1.0.0+ |
 |---|---|---|---|
 | Packages | 23 | 40 | 47 |
-| Tests | 292 | 395 | 842 |
-| Mutations | 14 | 29 | 212 |
-| Fuzz | 10 | 17 | 35 |
-| Benchmarks | 10 | 23 | 59 |
+| Tests | 292 | 395 | 846 |
+| Mutations | 14 | 29 | 213 |
+| Fuzz | 10 | 17 | 42 |
+| Benchmarks | 10 | 23 | 68 |
 
 ## Performance
 
@@ -64,14 +64,17 @@ Endpoints: 11/11 live (200)
 2. **Timeout middleware** — data race on `written` field between handler goroutine and timeout goroutine. Fixed with `atomic.Bool`
 3. **Retry package** — duplicate `TestNoRetryOn4xx` function name (go vet error)
 4. **Events mutation test** — data race reading shared variable from drain goroutine. Fixed with channel
+5. **Events Notifier** — goroutine leak: `drain()` ran forever with no `Stop()` method. Added `Stop()` with done channel
+6. **Accesslog rotate** — potential nil pointer panic if file reopen fails after rotation. Added stderr fallback
+7. **Keyring** — panic on `New(bits, 0)`: `rotateLoop` called `NewTicker(0)`. Now skips loop when interval ≤ 0
 
 ## Quality
 
 - Race detector: 0 races across all 47 packages
 - go vet: 0 warnings
 - TODO/FIXME: 0 in production code
-- All 212 mutations killed
-- 35 fuzz targets — no panics found
-- 27 property tests — no invariant violations
+- All 213 mutations killed
+- 42 fuzz targets — no panics found
+- 30 property tests — no invariant violations
 
 **Verdict: PRODUCTION READY ✅**

@@ -1,67 +1,51 @@
 package cache
 
 import (
-	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
 
-// BenchmarkWithWithoutCache compares direct access vs cached access patterns.
-func BenchmarkWithoutCache_DirectLookup(b *testing.B) {
-	// Simulate: no cache, every request hits "upstream" (map lookup as proxy)
-	data := make(map[string][]byte)
-	for i := 0; i < 100; i++ {
-		data[fmt.Sprintf("client:/%d/_search", i)] = []byte(`{"hits":{"total":100}}`)
-	}
+// BenchmarkWithCache measures handler throughput with caching enabled.
+func BenchmarkWithCache(b *testing.B) {
+	c := New(5*time.Second, 10000)
+	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"hits":{"total":{"value":42}}}`))
+	})
+	// Wrap with cache middleware
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.URL.Path
+		if e := c.Get(key); e != nil {
+			w.WriteHeader(e.StatusCode)
+			w.Write(e.Body)
+			return
+		}
+		rec := httptest.NewRecorder()
+		backend.ServeHTTP(rec, r)
+		c.Set(key, rec.Code, nil, rec.Body.Bytes())
+		w.WriteHeader(rec.Code)
+		w.Write(rec.Body.Bytes())
+	})
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		key := fmt.Sprintf("client:/%d/_search", i%100)
-		_ = data[key]
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("GET", "/logs/_search", nil))
 	}
 }
 
-func BenchmarkWithCache_CachedLookup(b *testing.B) {
-	c := New(5*time.Second, 1000)
-	for i := 0; i < 100; i++ {
-		c.Set(fmt.Sprintf("client:/%d/_search", i), 200, nil, []byte(`{"hits":{"total":100}}`))
-	}
+// BenchmarkWithoutCache measures handler throughput without caching.
+func BenchmarkWithoutCache(b *testing.B) {
+	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"hits":{"total":{"value":42}}}`))
+	})
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		key := fmt.Sprintf("client:/%d/_search", i%100)
-		c.Get(key)
+		w := httptest.NewRecorder()
+		backend.ServeHTTP(w, httptest.NewRequest("GET", "/logs/_search", nil))
 	}
-}
-
-func BenchmarkCache_ThroughputComparison(b *testing.B) {
-	c := New(5*time.Second, 1000)
-	body := []byte(`{"hits":{"total":{"value":42},"hits":[{"_source":{"level":"ERROR"}}]}}`)
-
-	b.Run("no_cache", func(b *testing.B) {
-		store := make(map[string][]byte)
-		for i := 0; i < 50; i++ {
-			store[fmt.Sprintf("k%d", i)] = body
-		}
-		b.ResetTimer()
-		b.RunParallel(func(pb *testing.PB) {
-			i := 0
-			for pb.Next() {
-				_ = store[fmt.Sprintf("k%d", i%50)]
-				i++
-			}
-		})
-	})
-
-	b.Run("with_cache", func(b *testing.B) {
-		for i := 0; i < 50; i++ {
-			c.Set(fmt.Sprintf("k%d", i), 200, map[string]string{"Content-Type": "application/json"}, body)
-		}
-		b.ResetTimer()
-		b.RunParallel(func(pb *testing.PB) {
-			i := 0
-			for pb.Next() {
-				c.Get(fmt.Sprintf("k%d", i%50))
-				i++
-			}
-		})
-	})
 }

@@ -56,9 +56,9 @@ select,input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;b
   <h1>Performance Benchmark</h1>
   <p class="sub">Compare proxy overhead: direct vs proxied, cached vs uncached. Runs in your browser.</p>
   <div class="controls">
-    <label style="font-size:12px">Requests: <input id="reqCount" type="number" value="50" min="10" max="500" style="width:60px"></label>
-    <label style="font-size:12px">Concurrency: <select id="concurrency"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option><option value="20">20</option></select></label>
-    <button class="btn btn-primary" id="runBtn">▶ Run Benchmark</button>
+    <label style="font-size:12px">Requests: <input id="reqCount" aria-label="Request count" type="number" value="50" min="10" max="500" style="width:60px"></label>
+    <label style="font-size:12px">Concurrency: <select id="concurrency" aria-label="Concurrency level"><option value="1">1</option><option value="5" selected>5</option><option value="10">10</option><option value="20">20</option></select></label>
+    <button class="btn btn-primary" id="runBtn" aria-label="Run benchmark">▶ Run Benchmark</button>
   </div>
   <div id="output"></div>
 </div>

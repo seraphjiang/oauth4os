@@ -82,7 +82,7 @@ input:focus{outline:none;border-color:var(--accent)}
   <div class="toolbar">
     <input id="reqId" placeholder="X-Request-ID or click Trace Live" style="flex:1;min-width:200px" aria-label="Request ID">
     <button class="btn btn-primary" id="traceBtn" aria-label="Trace a live request">⚡ Trace Live</button>
-    <button class="btn btn-sm" id="clearBtn">Clear</button>
+    <button class="btn btn-sm" id="clearBtn" aria-label="Clear trace">Clear</button>
   </div>
   <div id="summary"></div>
   <div id="waterfall"></div>
@@ -271,7 +271,7 @@ document.getElementById('clearBtn').addEventListener('click', () => {
 // Error boundary
 window.addEventListener('error', e => {
   if (e.message?.includes('Script error')) return;
-  document.querySelector('.container').innerHTML = `<div class="error-boundary"><div class="icon">⚠️</div><h2>Something went wrong</h2><p>${esc(e.message)}</p><button onclick="location.reload()">Reload</button></div>`;
+  document.querySelector('.container').innerHTML = `<div class="error-boundary"><div class="icon">⚠️</div><h2>Something went wrong</h2><p>${esc(e.message)}</p><button onclick="location.reload()" aria-label="Reload page">Reload</button></div>`;
 });
 
 // Theme

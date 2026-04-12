@@ -19,6 +19,8 @@ func makeChallenge(verifier string) string {
 func testHandler() *Handler {
 	return NewHandler(func(clientID string, scopes []string) (string, string) {
 		return "tok_test", "rtk_test"
+	}, func(clientID, uri string) bool {
+		return true // allow all in tests
 	})
 }
 
@@ -179,5 +181,23 @@ func TestCleanup(t *testing.T) {
 	}
 	if _, ok := h.codes["fresh"]; !ok {
 		t.Error("fresh code should survive cleanup")
+	}
+}
+
+func TestAuthorize_OpenRedirectBlocked(t *testing.T) {
+	h := NewHandler(func(clientID string, scopes []string) (string, string) {
+		return "tok", "rtk"
+	}, func(clientID, uri string) bool {
+		return uri == "http://localhost/callback" // only allow localhost
+	})
+
+	// Attempt open redirect to evil.com
+	req := httptest.NewRequest(http.MethodGet,
+		"/oauth/authorize?client_id=app&code_challenge=abc&code_challenge_method=S256&redirect_uri=https://evil.com/steal", nil)
+	w := httptest.NewRecorder()
+	h.Authorize(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unregistered redirect_uri, got %d", w.Code)
 	}
 }

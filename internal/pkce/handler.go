@@ -261,6 +261,13 @@ func scopeIcon(s string) string {
 }
 
 func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []string) {
+	s := consentStrings{
+		Title: "Authorize — oauth4os", Subtitle: "An application is requesting access",
+		AppLabel: "Application", Permissions: "Requested permissions",
+		WriteWarn: "This app is requesting write access", Deny: "Deny", Approve: "Approve",
+		Footer: "Authorizing will redirect you back to the application",
+	}
+	_ = s
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize — oauth4os</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -318,7 +325,7 @@ h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;mar
 	}
 	fmt.Fprint(w, `</ul>`)
 	if hasWrite {
-		fmt.Fprint(w, `<div class="warn">⚠️ This app is requesting write access to your data</div>`)
+		fmt.Fprintf(w, `<div class="warn">⚠️ %s</div>`, s.WriteWarn)
 	}
 	fmt.Fprintf(w, `<form method="POST" action="/oauth/consent"><input type="hidden" name="consent_id" value="%s">`, consentID)
 	fmt.Fprint(w, `<div class="buttons"><button type="submit" name="action" value="deny" class="btn btn-deny">Deny</button><button type="submit" name="action" value="approve" class="btn btn-approve">Approve</button></div></form>`)

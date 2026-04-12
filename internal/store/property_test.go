@@ -14,8 +14,8 @@ func TestProperty_FilePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Set("key1", []byte("value1"))
-	f.Set("key2", []byte("value2"))
+	f.Set("key1", []byte(`"value1"`))
+	f.Set("key2", []byte(`"value2"`))
 	f.Close()
 
 	// Reopen and verify
@@ -26,12 +26,12 @@ func TestProperty_FilePersistence(t *testing.T) {
 	defer f2.Close()
 
 	got, err := f2.Get("key1")
-	if err != nil || string(got) != "value1" {
-		t.Errorf("expected 'value1', got %q err %v", got, err)
+	if err != nil || string(got) != `"value1"` {
+		t.Errorf("expected '\"value1\"', got %q err %v", got, err)
 	}
 	got2, err := f2.Get("key2")
-	if err != nil || string(got2) != "value2" {
-		t.Errorf("expected 'value2', got %q err %v", got2, err)
+	if err != nil || string(got2) != `"value2"` {
+		t.Errorf("expected '\"value2\"', got %q err %v", got2, err)
 	}
 	keys, _ := f2.List()
 	if len(keys) != 2 {

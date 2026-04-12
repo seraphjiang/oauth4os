@@ -131,11 +131,19 @@ oauth4os-demo search 'level:ERROR'
 oauth4os-demo search 'service:payment AND latency_ms:>500'
 oauth4os-demo tail auth
 oauth4os-demo watch 'level:FATAL'
+oauth4os-demo diff today yesterday
+oauth4os-demo top
+oauth4os-demo profile
+oauth4os-demo alerts
+oauth4os-demo latency
+oauth4os-demo audit 50
+oauth4os-demo env
 oauth4os-demo export 'level:ERROR' -f csv -o errors.csv
 oauth4os-demo sql 'SELECT service, count(*) FROM logs-demo GROUP BY service'
 oauth4os-demo bookmark save errors 'level:ERROR'
 oauth4os-demo alias add slow 'latency_ms:>1000'
 oauth4os-demo search 'level:ERROR' | jq '.[] | .service' | sort -u
+sudo oauth4os-demo install-man
 .fi
 .SH SEE ALSO
 .BR jq (1),

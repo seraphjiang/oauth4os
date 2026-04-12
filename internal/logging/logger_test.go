@@ -42,3 +42,32 @@ func TestLoggerLevelFilter(t *testing.T) {
 		t.Error("expected warn to be logged")
 	}
 }
+
+func TestLoggerAllLevels(t *testing.T) {
+	var buf bytes.Buffer
+	l := New(&buf, "debug")
+	l.Debug("d")
+	l.Info("i")
+	l.Warn("w")
+	l.Error("e")
+	lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 log lines, got %d", len(lines))
+	}
+	levels := []string{"DEBUG", "INFO", "WARN", "ERROR"}
+	for i, line := range lines {
+		var entry map[string]any
+		if err := json.Unmarshal(line, &entry); err != nil {
+			t.Fatalf("line %d: invalid JSON: %v", i, err)
+		}
+		if entry["level"] != levels[i] {
+			t.Errorf("line %d: expected %s, got %v", i, levels[i], entry["level"])
+		}
+	}
+}
+
+func TestParseLevelDefault(t *testing.T) {
+	if parseLevel("unknown") != INFO {
+		t.Error("expected unknown level to default to INFO")
+	}
+}

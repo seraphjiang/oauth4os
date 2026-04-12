@@ -63,6 +63,7 @@ type Decision struct {
 
 // Engine evaluates Cedar policies.
 type Engine struct {
+	mu       sync.RWMutex
 	policies []Policy
 }
 

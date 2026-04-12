@@ -571,6 +571,15 @@ func main() {
 	}
 	defer keys.Stop()
 	mux.HandleFunc("GET /.well-known/jwks.json", keys.JWKSHandler())
+	mux.HandleFunc("POST /admin/keys/rotate", func(w http.ResponseWriter, r *http.Request) {
+		if err := keys.Rotate(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, `{"error":%q}`, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status":"rotated","kid":%q}`, keys.Current().ID)
+	})
 
 	// Prometheus metrics
 	mux.HandleFunc("GET /admin/audit", func(w http.ResponseWriter, r *http.Request) {

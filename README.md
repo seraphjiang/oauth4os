@@ -340,6 +340,9 @@ listen: :8443
 | [docs/migration.md](docs/migration.md) | Migrate from basic auth, API keys, nginx |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes |
 | [docs/faq.md](docs/faq.md) | 20 most common questions |
+| [docs/monitoring.md](docs/monitoring.md) | Prometheus + Grafana setup |
+| [docs/canary-deployment.md](docs/canary-deployment.md) | Canary deployment guide |
+| [docs/opentelemetry.md](docs/opentelemetry.md) | OTLP tracing integration |
 
 ## Contributing
 

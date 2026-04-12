@@ -278,13 +278,22 @@ func (m *Manager) createToken(clientID string, scopes []string) (*Token, string)
 	id := generateID("tok_")
 	refreshTok := generateID("rtk_")
 
+	now := time.Now()
 	tok := &Token{
 		ID:           id,
 		ClientID:     clientID,
 		Scopes:       scopes,
-		CreatedAt:    time.Now(),
-		ExpiresAt:    time.Now().Add(1 * time.Hour),
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(1 * time.Hour),
 		RefreshToken: refreshTok,
+	}
+
+	// If JWT mode enabled, replace opaque ID with signed JWT
+	if m.jwtEnabled && m.keyProvider != nil {
+		if jwt, err := m.signJWT(tok); err == nil {
+			tok.ID = jwt
+			id = jwt
+		}
 	}
 
 	m.mu.Lock()
@@ -294,6 +303,37 @@ func (m *Manager) createToken(clientID string, scopes []string) (*Token, string)
 	m.mu.Unlock()
 
 	return tok, refreshTok
+}
+
+// signJWT creates a signed JWT access token using the keyring.
+func (m *Manager) signJWT(tok *Token) (string, error) {
+	kid, key := m.keyProvider.CurrentKey()
+	header := base64url(mustJSON(map[string]string{"alg": "RS256", "typ": "at+jwt", "kid": kid}))
+	payload := base64url(mustJSON(map[string]interface{}{
+		"iss":       m.issuer,
+		"sub":       tok.ClientID,
+		"client_id": tok.ClientID,
+		"scope":     strings.Join(tok.Scopes, " "),
+		"iat":       tok.CreatedAt.Unix(),
+		"exp":       tok.ExpiresAt.Unix(),
+		"jti":       generateID("jti_"),
+	}))
+	sigInput := header + "." + payload
+	h := sha256.Sum256([]byte(sigInput))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, h[:])
+	if err != nil {
+		return "", err
+	}
+	return sigInput + "." + base64url(sig), nil
+}
+
+func base64url(b []byte) string {
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func mustJSON(v interface{}) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 // revokeFamily revokes all tokens for a client. Must be called with m.mu held.

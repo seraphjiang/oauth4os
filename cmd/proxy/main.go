@@ -49,6 +49,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/backup"
 	"github.com/seraphjiang/oauth4os/internal/demo"
 	"github.com/seraphjiang/oauth4os/internal/tokenui"
+	"github.com/seraphjiang/oauth4os/internal/compress"
 	corsmw "github.com/seraphjiang/oauth4os/internal/cors"
 	"github.com/seraphjiang/oauth4os/internal/apikey"
 	"github.com/seraphjiang/oauth4os/internal/device"
@@ -1159,9 +1160,12 @@ func main() {
 		Headers: cfg.CORS.Headers,
 	})(traced)
 
+	// Gzip compression
+	compressed := compress.Middleware(corsHandler)
+
 	// Structured access logs
 	alog := accesslog.New(os.Stdout)
-	logged := alog.Middleware(corsHandler, func(r *http.Request) string {
+	logged := alog.Middleware(compressed, func(r *http.Request) string {
 		if v := r.Header.Get("X-Client-ID"); v != "" {
 			return v
 		}

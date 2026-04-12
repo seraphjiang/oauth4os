@@ -208,18 +208,101 @@ curl http://localhost:8443/oauth/register/client_abc123
 # Returns metadata without client_secret
 ```
 
+## 7. Device Authorization (RFC 8628)
+
+For CLI tools and IoT devices without a browser. User authorizes on a separate device.
+
+```
+CLI Device                  oauth4os                    User's Browser
+    │                          │                             │
+    │  POST /oauth/device/code │                             │
+    │  client_id=cli-tool      │                             │
+    │ ────────────────────────▶│                             │
+    │                          │                             │
+    │  {device_code, user_code,│                             │
+    │   verification_uri,      │                             │
+    │   interval: 5}           │                             │
+    │◀─────────────────────────│                             │
+    │                          │                             │
+    │  Display to user:        │                             │
+    │  "Go to /oauth/device    │                             │
+    │   Enter code: ABCD-1234" │                             │
+    │                          │     GET /oauth/device       │
+    │                          │◀────────────────────────────│
+    │                          │     Enter code + approve    │
+    │                          │◀────────────────────────────│
+    │                          │                             │
+    │  POST /oauth/device/token│                             │
+    │  (poll every 5s)         │                             │
+    │ ────────────────────────▶│                             │
+    │                          │  Before approve:            │
+    │  {error:                 │  authorization_pending      │
+    │   authorization_pending} │                             │
+    │◀─────────────────────────│                             │
+    │                          │  After approve:             │
+    │  POST /oauth/device/token│                             │
+    │ ────────────────────────▶│                             │
+    │  {access_token, ...}     │                             │
+    │◀─────────────────────────│                             │
+```
+
+```bash
+# Request device code
+curl -X POST https://proxy:8443/oauth/device/code \
+  -d "client_id=cli-tool&scope=read:logs-*"
+
+# Poll for token (repeat until success)
+curl -X POST https://proxy:8443/oauth/device/token \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=<code>"
+```
+
+## 8. API Key Authentication
+
+Stateless authentication via `X-API-Key` header. No OAuth flow — keys are pre-provisioned.
+
+```
+Client                      oauth4os                    OpenSearch
+    │                          │                             │
+    │  GET /logs/_search       │                             │
+    │  X-API-Key: osk_abc123   │                             │
+    │ ────────────────────────▶│                             │
+    │                          │  Validate key prefix + hash │
+    │                          │  Check rate limit (per key) │
+    │                          │  Map key scopes → roles     │
+    │                          │  Cedar evaluation           │
+    │                          │                             │
+    │                          │  Forward with roles         │
+    │                          │ ────────────────────────────▶│
+    │  200 {hits: [...]}       │                             │
+    │◀─────────────────────────│◀────────────────────────────│
+```
+
+```bash
+# Create an API key
+curl -X POST https://proxy:8443/admin/apikeys \
+  -H "Content-Type: application/json" \
+  -d '{"client_id":"my-agent","name":"ci-key","scopes":["read:logs-*"]}'
+
+# Use it
+curl -H "X-API-Key: osk_abc123..." \
+  https://proxy:8443/logs-demo/_search
+```
+
 ## Flow Selection Guide
 
 | Use Case | Flow | Why |
 |---|---|---|
 | AI agent / bot | Client Credentials | No user interaction needed |
-| CI/CD pipeline | Client Credentials | Automated, scoped access |
+| CI/CD pipeline | Client Credentials or API Key | Automated, scoped access |
 | Browser SPA | PKCE | No client secret in browser |
-| CLI tool | PKCE | Interactive login, secure |
+| CLI tool (interactive) | PKCE or Device Flow | Interactive login, secure |
+| CLI tool (headless) | Device Flow | No local browser needed |
+| IoT device | Device Flow | Authorize on separate device |
 | External IdP federation | Token Exchange | Reuse existing OIDC tokens |
 | Long-running service | Client Credentials + Refresh | Auto-rotate without re-auth |
 | Admin monitoring | Introspection | Check token validity |
 | Self-service onboarding | Registration | Automated client provisioning |
+| Simple scripts | API Key | No OAuth flow, pre-provisioned |
 
 ## Security Summary
 
@@ -231,3 +314,5 @@ curl http://localhost:8443/oauth/register/client_abc123
 | Token Exchange | JWKS signature verification, issuer/audience validation |
 | Introspection | No details leaked for inactive tokens |
 | Registration | Scope allowlist, redirect_uri binding |
+| Device Flow | Short-lived user codes, 10-min expiry, one-time use |
+| API Key | Hashed storage, prefix-based lookup, per-key rate limits |

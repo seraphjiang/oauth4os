@@ -125,6 +125,11 @@ select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;backgro
           <option value="DEBUG">Debug</option>
         </select>
         <button class="btn btn-primary" id="searchBtn" aria-label="Search">Search</button>
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--muted)"><input type="checkbox" id="autoRefresh"> Auto-refresh</label>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center">
+        <span id="tokenCountdown" style="font-size:12px;color:var(--muted)"></span>
+        <button class="btn btn-sm" id="scopeDemoBtn" aria-label="Scope enforcement demo" style="margin-left:auto">🛡️ Scope Demo</button>
       </div>
       <div class="stats" id="stats"></div>
       <table class="log-table">
@@ -132,6 +137,13 @@ select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;backgro
         <tbody id="logBody"></tbody>
       </table>
       <div id="logEmpty" class="empty-state" style="display:none"><div class="icon">🔍</div><p>No results. Try a different query.</p></div>
+      <div id="scopeDemo" style="display:none;margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+        <h3 style="font-size:14px;margin-bottom:12px">🛡️ Scope Enforcement Demo</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div id="scopeReadResult" style="padding:12px;border-radius:8px;border:1px solid var(--border);font-size:12px"></div>
+          <div id="scopeWriteResult" style="padding:12px;border-radius:8px;border:1px solid var(--border);font-size:12px"></div>
+        </div>
+      </div>
     </div>
     <!-- Settings -->
     <div id="settingsPage" style="display:none">
@@ -283,6 +295,7 @@ function showApp() {
   document.getElementById('settingsProxy').textContent = PROXY;
   loadServices();
   doSearch();
+  startCountdown();
 }
 
 // Navigation
@@ -371,6 +384,84 @@ document.getElementById('searchBtn').addEventListener('click', doSearch);
 document.getElementById('searchQuery').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 document.getElementById('filterService').addEventListener('change', doSearch);
 document.getElementById('filterLevel').addEventListener('change', doSearch);
+
+// Auto-refresh
+let refreshInterval = null;
+document.getElementById('autoRefresh').addEventListener('change', e => {
+  if (e.target.checked) {
+    refreshInterval = setInterval(doSearch, 5000);
+  } else {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+});
+
+// Token expiry countdown
+let countdownInterval = null;
+function startCountdown() {
+  clearInterval(countdownInterval);
+  const el = document.getElementById('tokenCountdown');
+  function update() {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (!payload.exp) { el.textContent = ''; return; }
+      const remaining = payload.exp - Math.floor(Date.now() / 1000);
+      if (remaining <= 0) { el.innerHTML = '⚠️ <span style="color:var(--red)">Token expired</span>'; clearInterval(countdownInterval); return; }
+      const m = Math.floor(remaining / 60), s = remaining % 60;
+      const color = remaining < 60 ? 'var(--red)' : remaining < 300 ? 'var(--orange)' : 'var(--green)';
+      el.innerHTML = `🔑 Token expires in <span style="color:${color};font-weight:600">${m}:${String(s).padStart(2,'0')}</span>`;
+    } catch { el.textContent = ''; }
+  }
+  update();
+  countdownInterval = setInterval(update, 1000);
+}
+
+// Scope enforcement demo
+document.getElementById('scopeDemoBtn').addEventListener('click', async () => {
+  const panel = document.getElementById('scopeDemo');
+  panel.style.display = '';
+  const readEl = document.getElementById('scopeReadResult');
+  const writeEl = document.getElementById('scopeWriteResult');
+  readEl.innerHTML = '⏳ Testing read scope...';
+  writeEl.innerHTML = '⏳ Testing write scope...';
+
+  // Read test
+  try {
+    const r = await fetch(PROXY + '/logs-*/_search', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: { match_all: {} }, size: 1 })
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const total = data.hits?.total?.value ?? data.hits?.total ?? 0;
+      readEl.innerHTML = `<div style="color:var(--green);font-weight:600">✅ READ — ${r.status} OK</div><div style="margin-top:4px;color:var(--muted)">Scope <code>read:logs-*</code> allowed search.<br>${total} documents accessible.</div>`;
+      readEl.style.borderColor = 'var(--green)';
+    } else {
+      readEl.innerHTML = `<div style="color:var(--red)">❌ READ — ${r.status}</div>`;
+      readEl.style.borderColor = 'var(--red)';
+    }
+  } catch (e) { readEl.innerHTML = `<div style="color:var(--red)">❌ ${e.message}</div>`; }
+
+  // Write test
+  try {
+    const r = await fetch(PROXY + '/logs-demo/_doc', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'scope test', timestamp: new Date().toISOString() })
+    });
+    if (r.status === 403) {
+      writeEl.innerHTML = `<div style="color:var(--red);font-weight:600">🚫 WRITE — 403 Forbidden</div><div style="margin-top:4px;color:var(--muted)">Scope <code>read:logs-*</code> does not permit writes.<br>Scope enforcement working correctly!</div>`;
+      writeEl.style.borderColor = 'var(--red)';
+    } else if (r.ok) {
+      writeEl.innerHTML = `<div style="color:var(--orange)">⚠️ WRITE — ${r.status} (allowed)</div><div style="margin-top:4px;color:var(--muted)">Write scope not enforced yet.</div>`;
+      writeEl.style.borderColor = 'var(--orange)';
+    } else {
+      writeEl.innerHTML = `<div style="color:var(--red)">🚫 WRITE — ${r.status}</div><div style="margin-top:4px;color:var(--muted)">Write blocked (${r.statusText}).</div>`;
+      writeEl.style.borderColor = 'var(--red)';
+    }
+  } catch (e) { writeEl.innerHTML = `<div style="color:var(--red)">❌ ${e.message}</div>`; }
+});
 
 // Theme
 document.getElementById('themeToggle').addEventListener('click', () => {

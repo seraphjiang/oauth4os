@@ -93,6 +93,28 @@ func (m *Manager) IsValid(tokenID string) bool {
 	return ok && !tok.Revoked && time.Now().Before(tok.ExpiresAt)
 }
 
+// TouchToken extends a token's expiry if more than half its lifetime has elapsed (sliding window).
+// Returns true if the token was extended.
+func (m *Manager) TouchToken(tokenID string, window time.Duration) bool {
+	if window <= 0 {
+		window = 1 * time.Hour
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	tok, ok := m.tokens[tokenID]
+	if !ok || tok.Revoked {
+		return false
+	}
+	remaining := time.Until(tok.ExpiresAt)
+	// Only extend if less than half the window remains
+	if remaining < window/2 {
+		tok.ExpiresAt = time.Now().Add(window)
+		m.tokens[tokenID] = tok
+		return true
+	}
+	return false
+}
+
 // IssueToken handles POST /oauth/token.
 func (m *Manager) IssueToken(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()

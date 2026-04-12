@@ -23,6 +23,7 @@ ${BOLD}COMMANDS:${NC}
   login              Authenticate via browser (PKCE flow)
   logout             Clear cached token
   search <query>     Search logs (e.g. 'level:ERROR')
+  tail [service]     Live tail — poll every 2s, show new entries
   services           List indexed services
   indices            List OpenSearch indices
   token              Show current access token
@@ -187,6 +188,41 @@ cmd_status() {
   fi
 }
 
+cmd_tail() {
+  local service="${1:-}" last_ts="" first=true
+  echo -e "${CYAN}Live tail${service:+ for $service}${NC} (Ctrl+C to stop)\n"
+  while true; do
+    local filter='{"match_all":{}}'
+    if [ -n "$service" ]; then
+      filter="{\"term\":{\"service.keyword\":\"$service\"}}"
+    fi
+    local query="{\"query\":$filter,\"size\":20,\"sort\":[{\"@timestamp\":\"desc\"}]}"
+    local resp
+    resp=$(curl -sf -H "$(auth_header)" -H "Content-Type: application/json" \
+      "${PROXY}/logs-*/_search" -d "$query" 2>/dev/null) || { sleep 2; continue; }
+    local lines
+    lines=$(echo "$resp" | jq -r '.hits.hits[]._source | "\(.["@timestamp"] // .timestamp // "—") [\(.level // "INFO")] \(.service // "?"): \(.message // .msg // "")"' 2>/dev/null | tac)
+    if [ -n "$lines" ]; then
+      local new_lines=""
+      if [ -n "$last_ts" ] && ! $first; then
+        new_lines=$(echo "$lines" | awk -v ts="$last_ts" '$1 > ts')
+      else
+        new_lines="$lines"
+        first=false
+      fi
+      if [ -n "$new_lines" ]; then
+        echo "$new_lines" | while IFS= read -r line; do
+          if echo "$line" | grep -qi 'error\|fatal'; then echo -e "${RED}${line}${NC}"
+          elif echo "$line" | grep -qi 'warn'; then echo -e "${YELLOW}${line}${NC}"
+          else echo "$line"; fi
+        done
+        last_ts=$(echo "$lines" | tail -1 | awk '{print $1}')
+      fi
+    fi
+    sleep 2
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -195,6 +231,7 @@ case "${1:-}" in
   search)   shift; cmd_search "$*" ;;
   services) cmd_services ;;
   indices)  cmd_indices ;;
+  tail)     shift; cmd_tail "${1:-}" ;;
   token)    cmd_token ;;
   whoami)   cmd_whoami ;;
   status)   cmd_status ;;

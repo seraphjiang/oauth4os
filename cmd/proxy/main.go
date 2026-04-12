@@ -634,6 +634,7 @@ func main() {
 			return
 		}
 		sessionMgr.Touch(tokenStr[:16])
+		tokenMgr.TouchToken(tokenStr, 1*time.Hour) // sliding window
 
 		// Span: scope mapping
 		ctx, scopeSpan := tracer.StartSpan(r.Context(), string(tracing.SpanScope), map[string]string{"issuer": claims.Issuer})

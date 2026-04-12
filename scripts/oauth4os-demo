@@ -1567,6 +1567,43 @@ cmd_metrics() {
   echo -e "\n  ${CYAN}${total} oauth4os metric(s)${NC}"
 }
 
+cmd_inspect() {
+  local token="${1:-}"
+  if [ -z "$token" ]; then
+    token=$(get_token 2>/dev/null)
+    [ -z "$token" ] && { echo -e "${RED}Usage: oauth4os-demo inspect [token]${NC}" >&2; return 1; }
+  fi
+  # Decode JWT payload (base64url → base64 → decode)
+  local payload
+  payload=$(echo "$token" | cut -d. -f2 | tr '_-' '/+' | awk '{l=length%4;if(l==2)$0=$0"==";else if(l==3)$0=$0"=";print}' | base64 -d 2>/dev/null)
+  if [ -z "$payload" ]; then echo -e "${RED}Invalid JWT${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$payload"; return; fi
+  echo -e "${BOLD}🔍 JWT Payload${NC}\n"
+  echo "$payload" | jq . 2>/dev/null || echo "$payload"
+  # Show expiry
+  local exp=$(echo "$payload" | jq -r '.exp // empty' 2>/dev/null)
+  if [ -n "$exp" ]; then
+    local now=$(date +%s)
+    local diff=$((exp - now))
+    if [ "$diff" -gt 0 ]; then
+      echo -e "\n  ${GREEN}Expires in $((diff/60))m $((diff%60))s${NC}"
+    else
+      echo -e "\n  ${RED}Expired $(((-diff)/60))m ago${NC}"
+    fi
+  fi
+}
+
+cmd_replay() {
+  local request_id="${1:?Usage: oauth4os-demo replay <request_id>}"
+  local resp
+  resp=$(authed_curl -X POST -H "Content-Type: application/json" \
+    "${PROXY}/admin/replay" -d "{\"request_id\":\"${request_id}\"}" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Replay failed — endpoint may not be available${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${GREEN}✅ Request replayed${NC}\n"
+  echo "$resp" | jq . 2>/dev/null || echo "$resp"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1619,6 +1656,8 @@ case "${1:-}" in
   backup)   shift; cmd_backup "${1:-}" ;;
   restore)  shift; cmd_restore "$@" ;;
   metrics)  shift; cmd_metrics "${1:-}" ;;
+  inspect)  shift; cmd_inspect "${1:-}" ;;
+  replay)   shift; cmd_replay "$@" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

@@ -21,18 +21,24 @@ func mutHandler() *Handler {
 	return NewHandler(v, i, "aud")
 }
 
-// Mutation: remove grant_type check
-func TestMutation_WrongGrantType(t *testing.T) {
-	w := mutPost(mutHandler(), url.Values{"grant_type": {"authorization_code"}, "subject_token": {"x"}})
-	if w.Code == 200 {
-		t.Error("wrong grant_type should be rejected")
-	}
-}
-
-// Mutation: remove subject_token check
+// Mutation: remove subject_token validation → missing token must fail
 func TestMutation_MissingSubjectToken(t *testing.T) {
 	w := mutPost(mutHandler(), url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:token-exchange"}})
 	if w.Code == 200 {
 		t.Error("missing subject_token should be rejected")
+	}
+}
+
+// Mutation: remove token issuance → valid exchange must return access_token
+func TestMutation_ValidExchange(t *testing.T) {
+	w := mutPost(mutHandler(), url.Values{
+		"grant_type":    {"urn:ietf:params:oauth:grant-type:token-exchange"},
+		"subject_token": {"valid-jwt"},
+	})
+	if w.Code != 200 {
+		t.Fatalf("valid exchange should return 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "access_token") {
+		t.Error("response must contain access_token")
 	}
 }

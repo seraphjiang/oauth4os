@@ -146,7 +146,8 @@ cmd_login() {
   CODE_CHALLENGE=$(printf '%s' "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr '+/' '-_' | tr -d '=')
   STATE=$(head -c 16 /dev/urandom | base64 | tr -d '=+/' | head -c 16)
 
-  AUTH_URL="${PROXY}/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&scope=read:logs&state=${STATE}"
+  local scope="${1:-read:logs-*}"
+  AUTH_URL="${PROXY}/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&scope=${scope}&state=${STATE}"
 
   echo -e "${CYAN}Opening browser for login...${NC}"
   echo -e "If browser doesn't open, visit:\n${AUTH_URL}\n"

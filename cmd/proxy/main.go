@@ -887,6 +887,7 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_upstream_healthy Upstream health (1=healthy, 0=unhealthy)\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_upstream_healthy gauge\n")
 		fmt.Fprintf(w, "oauth4os_upstream_healthy %d\n", healthy)
+		latencyHist.WritePrometheus(w, "oauth4os_request_duration_seconds")
 	})
 
 	// Developer docs — Swagger UI

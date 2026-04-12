@@ -1012,8 +1012,12 @@ func main() {
 
 	// Rate limiting middleware wraps the mux
 	rateLimited := limiter.Middleware(mux, func(r *http.Request) (string, []string) {
+		// Rate limit by API key ID if present (separate limits per key)
+		if keyID := r.Header.Get("X-Proxy-Key-ID"); keyID != "" {
+			scopes := strings.Split(r.Header.Get("X-Proxy-Scopes"), ",")
+			return "apikey:" + keyID, scopes
+		}
 		// Extract client from X-Proxy-User header (set by auth handler)
-		// For unauthenticated requests, use remote IP
 		if user := r.Header.Get("X-Proxy-User"); user != "" {
 			scopes := strings.Split(r.Header.Get("X-Proxy-Scopes"), ",")
 			return user, scopes

@@ -54,6 +54,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/i18n"
 	"github.com/seraphjiang/oauth4os/internal/par"
 	"github.com/seraphjiang/oauth4os/internal/configui"
+	"github.com/seraphjiang/oauth4os/internal/ciba"
 	"github.com/seraphjiang/oauth4os/internal/tokenbind"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
@@ -771,6 +772,13 @@ func main() {
 	// Config admin UI
 	configUI := configui.New(func() *config.Config { return cfg })
 	configUI.Register(mux)
+
+	// CIBA (Client Initiated Backchannel Authentication)
+	cibaHandler := ciba.NewHandler(func(clientID string, scopes []string) (string, string) {
+		tok, refresh := tokenMgr.CreateTokenForClient(clientID, scopes)
+		return tok.ID, refresh
+	})
+	cibaHandler.Register(mux)
 
 	// Token inspector page
 	tokenInspector := tokenui.New(issuerURL)

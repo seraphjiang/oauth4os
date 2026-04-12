@@ -77,3 +77,30 @@ func TestListActiveTokensTruncatesID(t *testing.T) {
 		t.Fatalf("token ID should be truncated, got length %d", len(id))
 	}
 }
+
+func TestRevokeByClient(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+	m.RegisterClient("svc-2", "secret", []string{"admin"}, nil)
+
+	m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+	m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+	tok3, _ := m.CreateTokenForClient("svc-2", []string{"admin"})
+
+	count := m.RevokeByClient("svc-1")
+	if count != 2 {
+		t.Fatalf("expected 2 revoked, got %d", count)
+	}
+	// svc-2 token should be unaffected
+	if !m.IsValid(tok3.ID) {
+		t.Fatal("svc-2 token should still be valid")
+	}
+}
+
+func TestRevokeByClientEmpty(t *testing.T) {
+	m := NewManager()
+	count := m.RevokeByClient("nonexistent")
+	if count != 0 {
+		t.Fatalf("expected 0, got %d", count)
+	}
+}

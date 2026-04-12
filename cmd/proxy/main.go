@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
@@ -570,6 +571,16 @@ func main() {
 		log.Fatalf("Failed to initialize keyring: %v", err)
 	}
 	defer keys.Stop()
+
+	// Enable JWT access tokens if configured
+	if cfg.JWTAccessToken {
+		issuer := cfg.Issuer
+		if issuer == "" {
+			issuer = "https://oauth4os.local"
+		}
+		tokenMgr.EnableJWT(issuer, &keyringAdapter{ring: keys})
+	}
+
 	mux.HandleFunc("GET /.well-known/jwks.json", keys.JWKSHandler())
 	mux.HandleFunc("POST /admin/keys/rotate", func(w http.ResponseWriter, r *http.Request) {
 		if err := keys.Rotate(); err != nil {
@@ -1301,4 +1312,14 @@ type breakerWriter struct {
 func (w *breakerWriter) WriteHeader(code int) {
 	w.code = code
 	w.ResponseWriter.WriteHeader(code)
+}
+
+// keyringAdapter adapts keyring.Ring to token.KeyProvider.
+type keyringAdapter struct {
+	ring *keyring.Ring
+}
+
+func (a *keyringAdapter) CurrentKey() (string, *rsa.PrivateKey) {
+	k := a.ring.Current()
+	return k.ID, k.Private
 }

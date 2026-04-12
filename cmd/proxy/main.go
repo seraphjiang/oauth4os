@@ -65,6 +65,12 @@ var demoCLIScript string
 //go:embed demo-app.html
 var demoAppHTML string
 
+//go:embed swagger.html
+var swaggerPage string
+
+//go:embed analytics.html
+var developerAnalyticsHTML string
+
 // Prometheus-style metrics
 var (
 	requestsTotal   atomic.Int64

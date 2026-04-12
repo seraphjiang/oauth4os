@@ -27,16 +27,18 @@ type AuthCode struct {
 
 // Handler manages PKCE authorization code flow.
 type Handler struct {
-	codes  map[string]*AuthCode
-	mu     sync.Mutex
-	issuer func(clientID string, scopes []string) (accessToken, refreshToken string)
+	codes            map[string]*AuthCode
+	mu               sync.Mutex
+	issuer           func(clientID string, scopes []string) (accessToken, refreshToken string)
+	validateRedirect func(clientID, uri string) bool
 }
 
-// NewHandler creates a PKCE handler. issuer is called to mint tokens on code exchange.
-func NewHandler(issuer func(clientID string, scopes []string) (string, string)) *Handler {
+// NewHandler creates a PKCE handler. issuer mints tokens; validateRedirect checks redirect_uri allowlist.
+func NewHandler(issuer func(clientID string, scopes []string) (string, string), validateRedirect func(clientID, uri string) bool) *Handler {
 	return &Handler{
-		codes:  make(map[string]*AuthCode),
-		issuer: issuer,
+		codes:            make(map[string]*AuthCode),
+		issuer:           issuer,
+		validateRedirect: validateRedirect,
 	}
 }
 

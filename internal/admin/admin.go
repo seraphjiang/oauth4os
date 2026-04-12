@@ -35,6 +35,11 @@ func (s *State) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/tenants", s.listTenants)
 	mux.HandleFunc("PUT /admin/tenants/{issuer}", s.updateTenant)
 	mux.HandleFunc("DELETE /admin/tenants/{issuer}", s.removeTenant)
+	mux.HandleFunc("GET /admin/cedar-policies", s.listCedarPolicies)
+	mux.HandleFunc("POST /admin/cedar-policies", s.addCedarPolicy)
+	mux.HandleFunc("DELETE /admin/cedar-policies/{id}", s.removeCedarPolicy)
+	mux.HandleFunc("GET /admin/rate-limits", s.listRateLimits)
+	mux.HandleFunc("PUT /admin/rate-limits", s.updateRateLimits)
 	mux.HandleFunc("GET /admin/config", s.getConfig)
 }
 

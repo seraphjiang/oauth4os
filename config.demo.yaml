@@ -1,0 +1,33 @@
+upstream:
+  engine: http://opensearch:9200
+  dashboards: http://opensearch-dashboards:5601
+
+providers:
+  - name: keycloak
+    issuer: http://keycloak:8080/realms/opensearch
+    jwks_uri: http://keycloak:8080/realms/opensearch/protocol/openid-connect/certs
+
+scope_mapping:
+  "read:logs-*":
+    backend_user: logs-reader
+    backend_roles: [logs_read_access]
+  "write:logs-*":
+    backend_user: logs-writer
+    backend_roles: [logs_write_access]
+  "read:metrics-*":
+    backend_user: metrics-reader
+    backend_roles: [metrics_read_access]
+  "write:dashboards":
+    backend_user: dashboard-writer
+    backend_roles: [dashboard_write_access]
+  "admin":
+    backend_user: admin-agent
+    backend_roles: [all_access]
+
+cedar:
+  enabled: true
+  policies:
+    - 'permit(*, *, *);'
+    - 'forbid(*, *, .opendistro_security);'
+
+listen: :8443

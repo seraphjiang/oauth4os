@@ -1,0 +1,57 @@
+{
+  "realm": "opensearch",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "log-reader",
+      "enabled": true,
+      "secret": "log-reader-secret",
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["read:logs-*"],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "log-writer",
+      "enabled": true,
+      "secret": "log-writer-secret",
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["write:logs-*"],
+      "optionalClientScopes": ["read:logs-*"]
+    },
+    {
+      "clientId": "admin-agent",
+      "enabled": true,
+      "secret": "admin-agent-secret",
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["admin"],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "ci-pipeline",
+      "enabled": true,
+      "secret": "ci-pipeline-secret",
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["write:dashboards"],
+      "optionalClientScopes": ["read:logs-*"]
+    }
+  ],
+  "clientScopes": [
+    {"name": "read:logs-*", "protocol": "openid-connect", "attributes": {"include.in.token.scope": "true"}},
+    {"name": "write:logs-*", "protocol": "openid-connect", "attributes": {"include.in.token.scope": "true"}},
+    {"name": "read:metrics-*", "protocol": "openid-connect", "attributes": {"include.in.token.scope": "true"}},
+    {"name": "write:dashboards", "protocol": "openid-connect", "attributes": {"include.in.token.scope": "true"}},
+    {"name": "admin", "protocol": "openid-connect", "attributes": {"include.in.token.scope": "true"}}
+  ]
+}

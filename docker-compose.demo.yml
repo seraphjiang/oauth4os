@@ -1,0 +1,54 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.17.0
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.17.0
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  oauth-proxy:
+    build: .
+    container_name: oauth4os-proxy
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./config.demo.yaml:/etc/oauth4os/config.yaml
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy

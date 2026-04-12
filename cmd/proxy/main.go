@@ -235,7 +235,7 @@ func main() {
 	dashboardsProxy.ErrorHandler = engineProxy.ErrorHandler
 
 	// Circuit breaker — opens after 5 consecutive 5xx, 30s cooldown
-	_ = circuit.New(5, 30*time.Second)
+	breaker := circuit.New(5, 30*time.Second)
 
 	// Multi-cluster federation router
 	var fedRouter *federation.Router

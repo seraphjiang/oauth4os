@@ -14,4 +14,6 @@
   <url><loc>/changelog/</loc><priority>0.5</priority></url>
   <url><loc>/status/</loc><priority>0.5</priority></url>
   <url><loc>/logs/</loc><priority>0.7</priority></url>
+  <url><loc>/dashboard/</loc><priority>0.8</priority></url>
+  <url><loc>/register/</loc><priority>0.8</priority></url>
 </urlset>

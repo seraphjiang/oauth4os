@@ -409,9 +409,21 @@ func main() {
 		}},
 		issuerURL,
 	)
+	// Token endpoint rate limiter: 10 req/min per client
+	tokenRateLimiter := ratelimit.New(nil, 10)
+
 	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<16) // 64KB max
 		r.ParseForm()
+		clientID := r.FormValue("client_id")
+		if basicID, _, ok := r.BasicAuth(); ok && clientID == "" {
+			clientID = basicID
+		}
+		if clientID != "" && !tokenRateLimiter.Allow(clientID, nil) {
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, `{"error":"rate_limit_exceeded"}`, 429)
+			return
+		}
 		if r.FormValue("grant_type") == exchange.GrantType {
 			exchangeHandler.ServeHTTP(w, r)
 			return
@@ -422,7 +434,7 @@ func main() {
 		if grantType == "refresh_token" {
 			evtType = events.TokenRefresh
 		}
-		notifier.Emit(events.Event{Type: evtType, ClientID: r.FormValue("client_id"), Scopes: strings.Split(r.FormValue("scope"), " ")})
+		notifier.Emit(events.Event{Type: evtType, ClientID: clientID, Scopes: strings.Split(r.FormValue("scope"), " ")})
 	})
 	mux.HandleFunc("DELETE /oauth/token/{id}", func(w http.ResponseWriter, r *http.Request) {
 		tokenMgr.RevokeToken(w, r)

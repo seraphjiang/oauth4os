@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Token Analytics</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149;--purple:#bc8cff}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e;--purple:#8250df}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent)}
+header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px;text-decoration:none}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.toolbar h1{font-size:20px}
+.toolbar .actions{display:flex;gap:8px;align-items:center}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn-sm{padding:3px 10px;font-size:11px}
+select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px}
+
+/* KPI cards */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600}
+.kpi .value{font-size:28px;font-weight:800;margin:4px 0}
+.kpi .delta{font-size:11px}
+.kpi .up{color:var(--green)}.kpi .down{color:var(--red)}
+
+/* Charts */
+.charts{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:20px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.chart-card h3{font-size:13px;margin-bottom:12px;color:var(--muted)}
+.chart-card svg{width:100%;height:auto}
+
+/* Tables */
+.tables{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.table-card h3{font-size:13px;margin-bottom:8px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:600}
+.bar{height:6px;border-radius:3px;background:var(--accent)}
+.bar-wrap{width:80px;background:var(--border);border-radius:3px;height:6px;display:inline-block;vertical-align:middle;margin-left:6px}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+.dot-ok{background:var(--green)}.dot-warn{background:var(--orange)}.dot-err{background:var(--red)}
+
+@media(max-width:768px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .charts,.tables{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📊 Token <span>Analytics</span></div>
+  <nav>
+    <a href="../">← oauth4os</a>
+    <a href="../playground/">Playground</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="toolbar">
+    <h1>Token Analytics Dashboard</h1>
+    <div class="actions">
+      <select id="timeRange" aria-label="Time range">
+        <option value="1h">Last 1 hour</option>
+        <option value="6h">Last 6 hours</option>
+        <option value="24h" selected>Last 24 hours</option>
+        <option value="7d">Last 7 days</option>
+      </select>
+      <button class="btn" id="refreshBtn" aria-label="Refresh data">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+  <div class="charts">
+    <div class="chart-card"><h3>Requests Over Time</h3><svg id="reqChart" viewBox="0 0 600 160"></svg></div>
+    <div class="chart-card"><h3>Scope Distribution</h3><svg id="scopeChart" viewBox="0 0 240 240"></svg></div>
+  </div>
+  <div class="tables">
+    <div class="table-card"><h3>Top Clients</h3><table id="clientsTable"><thead><tr><th>Client</th><th>Requests</th><th>Share</th></tr></thead><tbody></tbody></table></div>
+    <div class="table-card"><h3>Top Indices</h3><table id="indicesTable"><thead><tr><th>Index</th><th>Requests</th><th>Share</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<script>
+const API = window.OAUTH4OS_API || 'http://localhost:8443';
+let data = null;
+
+async function fetchData() {
+  try {
+    const [analytics, metrics, tokens] = await Promise.all([
+      fetch(`${API}/admin/analytics`).then(r => r.json()).catch(() => null),
+      fetch(`${API}/metrics`).then(r => r.text()).catch(() => ''),
+      fetch(`${API}/oauth/tokens`).then(r => r.json()).catch(() => []),
+    ]);
+    data = { analytics, metrics: parseMetrics(metrics), tokens: tokens || [] };
+    render();
+  } catch {
+    renderFallback();
+  }
+}
+
+function parseMetrics(text) {
+  const m = {};
+  text.split('\n').filter(l => l && !l.startsWith('#')).forEach(l => {
+    const [k, v] = l.split(' ');
+    m[k] = parseFloat(v);
+  });
+  return m;
+}
+
+function render() {
+  renderKPIs();
+  renderReqChart();
+  renderScopeChart();
+  renderTables();
+}
+
+function renderKPIs() {
+  const m = data.metrics;
+  const kpis = [
+    { label: 'Total Requests', value: fmt(m.oauth4os_requests_total || 0), icon: '📊' },
+    { label: 'Auth Success', value: fmt(m.oauth4os_auth_success || 0), icon: '✅', cls: 'up' },
+    { label: 'Auth Failed', value: fmt(m.oauth4os_auth_failed || 0), icon: '❌', cls: (m.oauth4os_auth_failed || 0) > 0 ? 'down' : '' },
+    { label: 'Cedar Denied', value: fmt(m.oauth4os_cedar_denied || 0), icon: '🌲' },
+    { label: 'Active Tokens', value: data.tokens.length, icon: '🔑' },
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(k =>
+    `<div class="kpi"><div class="label">${k.icon} ${k.label}</div><div class="value">${k.value}</div>${k.cls ? `<div class="delta ${k.cls}">${k.cls === 'up' ? '↑' : '↓'}</div>` : ''}</div>`
+  ).join('');
+}
+
+function renderReqChart() {
+  const svg = document.getElementById('reqChart');
+  // Generate sparkline from analytics or simulated data
+  const a = data.analytics;
+  const clients = a?.clients || {};
+  const total = Object.values(clients).reduce((s, c) => s + (c.requests || 0), 0) || 1;
+  // Simple bar chart of per-client requests
+  const entries = Object.entries(clients).sort((a, b) => (b[1].requests || 0) - (a[1].requests || 0)).slice(0, 10);
+  if (!entries.length) { svg.innerHTML = '<text x="300" y="80" text-anchor="middle" fill="var(--muted)" font-size="13">No data yet — make some requests</text>'; return; }
+  const barW = 560 / entries.length - 4;
+  const maxVal = Math.max(...entries.map(e => e[1].requests || 0));
+  svg.innerHTML = entries.map(([name, info], i) => {
+    const h = ((info.requests || 0) / maxVal) * 120;
+    const x = 20 + i * (barW + 4);
+    return `<rect x="${x}" y="${140 - h}" width="${barW}" height="${h}" rx="3" fill="var(--accent)" opacity="0.8"/>
+      <text x="${x + barW / 2}" y="155" text-anchor="middle" fill="var(--muted)" font-size="9">${name.slice(0, 10)}</text>
+      <text x="${x + barW / 2}" y="${135 - h}" text-anchor="middle" fill="var(--text)" font-size="10">${info.requests}</text>`;
+  }).join('');
+}
+
+function renderScopeChart() {
+  const svg = document.getElementById('scopeChart');
+  const a = data.analytics;
+  const scopes = a?.scopes || {};
+  const entries = Object.entries(scopes).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) { svg.innerHTML = '<text x="120" y="120" text-anchor="middle" fill="var(--muted)" font-size="13">No data</text>'; return; }
+  const total = entries.reduce((s, e) => s + e[1], 0);
+  const colors = ['var(--accent)', 'var(--green)', 'var(--orange)', 'var(--purple)', 'var(--red)', 'var(--muted)'];
+  let angle = 0;
+  const cx = 120, cy = 100, r = 80;
+  let paths = '';
+  let legend = '';
+  entries.forEach(([name, count], i) => {
+    const slice = (count / total) * Math.PI * 2;
+    const x1 = cx + r * Math.cos(angle);
+    const y1 = cy + r * Math.sin(angle);
+    const x2 = cx + r * Math.cos(angle + slice);
+    const y2 = cy + r * Math.sin(angle + slice);
+    const large = slice > Math.PI ? 1 : 0;
+    const color = colors[i % colors.length];
+    paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z" fill="${color}" opacity="0.85"/>`;
+    legend += `<text x="10" y="${200 + i * 16}" fill="var(--text)" font-size="11"><tspan fill="${color}">●</tspan> ${name.slice(0, 20)} (${Math.round(count / total * 100)}%)</text>`;
+    angle += slice;
+  });
+  svg.innerHTML = paths + legend;
+}
+
+function renderTables() {
+  const a = data.analytics;
+  const clients = Object.entries(a?.clients || {}).sort((a, b) => (b[1].requests || 0) - (a[1].requests || 0));
+  const indices = Object.entries(a?.indices || {}).sort((a, b) => b[1] - a[1]);
+  const totalC = clients.reduce((s, e) => s + (e[1].requests || 0), 0) || 1;
+  const totalI = indices.reduce((s, e) => s + e[1], 0) || 1;
+
+  document.querySelector('#clientsTable tbody').innerHTML = clients.slice(0, 10).map(([name, info]) => {
+    const pct = Math.round((info.requests || 0) / totalC * 100);
+    return `<tr><td>${esc(name)}</td><td>${info.requests || 0}</td><td><div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div> ${pct}%</td></tr>`;
+  }).join('') || '<tr><td colspan="3" style="color:var(--muted)">No data</td></tr>';
+
+  document.querySelector('#indicesTable tbody').innerHTML = indices.slice(0, 10).map(([name, count]) => {
+    const pct = Math.round(count / totalI * 100);
+    return `<tr><td>${esc(name)}</td><td>${count}</td><td><div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div> ${pct}%</td></tr>`;
+  }).join('') || '<tr><td colspan="3" style="color:var(--muted)">No data</td></tr>';
+}
+
+function renderFallback() {
+  data = { analytics: { clients: {}, scopes: {}, indices: {} }, metrics: {}, tokens: [] };
+  render();
+}
+
+function fmt(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Init
+fetchData();
+document.getElementById('refreshBtn').addEventListener('click', fetchData);
+document.getElementById('timeRange').addEventListener('change', fetchData);
+
+// Auto-refresh every 30s
+setInterval(fetchData, 30000);
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+</script>
+</body>
+</html>

@@ -143,10 +143,23 @@ func TestConsentDenyFlow(t *testing.T) {
 		return http.ErrUseLastResponse
 	}}
 
+	// Register client so redirect_uri validation passes
+	regBody := `{"client_name":"deny-test","redirect_uris":["http://localhost:9999/callback"],"grant_types":["authorization_code"],"scope":"read:logs-*"}`
+	regResp := mustDo(t, client, "POST", proxy+"/oauth/register", "application/json", regBody)
+	if regResp.StatusCode != 201 {
+		t.Fatalf("register: expected 201, got %d: %s", regResp.StatusCode, readBody(regResp))
+	}
+	var reg struct {
+		ClientID string `json:"client_id"`
+	}
+	json.NewDecoder(regResp.Body).Decode(&reg)
+	regResp.Body.Close()
+	defer mustDo(t, client, "DELETE", proxy+"/oauth/register/"+reg.ClientID, "", "")
+
 	verifier := "deny-flow-verifier-test"
 	challenge := s256(verifier)
-	authURL := fmt.Sprintf("%s/oauth/authorize?response_type=code&client_id=test&redirect_uri=%s&code_challenge=%s&code_challenge_method=S256&state=deny1",
-		proxy, url.QueryEscape("http://localhost:9999/callback"), challenge)
+	authURL := fmt.Sprintf("%s/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&code_challenge=%s&code_challenge_method=S256&state=deny1",
+		proxy, reg.ClientID, url.QueryEscape("http://localhost:9999/callback"), challenge)
 	resp := mustDo(t, client, "GET", authURL, "", "")
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected consent page, got %d", resp.StatusCode)

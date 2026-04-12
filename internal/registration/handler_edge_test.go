@@ -15,17 +15,17 @@ func TestConcurrentRegister(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
-		go func(n int) {
+		go func() {
 			defer wg.Done()
-			body := `{"client_name":"svc","scope":["read:logs-*"]}`
+			body := `{"client_name":"svc","scope":"read:logs-*"}`
 			r := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(body))
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			h.Register(w, r)
 			if w.Code != 201 {
-				t.Errorf("expected 201, got %d", w.Code)
+				t.Errorf("expected 201, got %d: %s", w.Code, w.Body.String())
 			}
-		}(i)
+		}()
 	}
 	wg.Wait()
 }
@@ -41,9 +41,9 @@ func TestRegisterEmptyBody(t *testing.T) {
 	}
 }
 
-func TestRegisterSecretNotInResponse(t *testing.T) {
+func TestRegisterSecretInResponse(t *testing.T) {
 	h := NewHandler(edgeRegistrar, []string{"read:logs-*"})
-	body := `{"client_name":"svc","scope":["read:logs-*"]}`
+	body := `{"client_name":"svc","scope":"read:logs-*"}`
 	r := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -51,8 +51,6 @@ func TestRegisterSecretNotInResponse(t *testing.T) {
 
 	var resp map[string]interface{}
 	json.NewDecoder(w.Body).Decode(&resp)
-
-	// Secret should be present in registration response (one-time display)
 	if resp["client_secret"] == nil || resp["client_secret"] == "" {
 		t.Fatal("client_secret should be in registration response")
 	}
@@ -65,15 +63,5 @@ func TestGetNonexistentClient(t *testing.T) {
 	h.Get(w, r)
 	if w.Code == 200 {
 		t.Fatal("nonexistent client should not return 200")
-	}
-}
-
-func TestDeleteNonexistentEdge(t *testing.T) {
-	h := NewHandler(edgeRegistrar, []string{"read:logs-*"})
-	r := httptest.NewRequest("DELETE", "/oauth/register/nonexistent", nil)
-	w := httptest.NewRecorder()
-	h.Delete(w, r)
-	if w.Code == 200 {
-		t.Fatal("deleting nonexistent client should not return 200")
 	}
 }

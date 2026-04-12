@@ -127,3 +127,29 @@ The proxy adds <1ms overhead to every request. OpenSearch query time dominates.
 | Both combined | ~120ns/request | Negligible |
 
 All resilience layers are zero-allocation on hot paths.
+
+## Histogram Metrics (v1.1.0)
+
+| Component | Operation | Throughput | Latency | Allocs |
+|---|---|---|---|---|
+| Histogram | Observe (concurrent) | 8M ops/s | 191ns | 0 |
+| ETag | Small body (16B) | 176K ops/s | 6.5µs | 22 |
+| ETag | Large body (4.6KB) | 117K ops/s | 15.8µs | 21 |
+| ETag | 304 cache hit | 270K ops/s | 5.3µs | 17 |
+
+### Prometheus Metrics Summary
+
+| Metric | Type | Description |
+|---|---|---|
+| oauth4os_request_duration_seconds | histogram | Request latency with per-endpoint breakdown |
+| oauth4os_requests_total | counter | Total requests |
+| oauth4os_requests_active | gauge | Currently active requests |
+| oauth4os_auth_success / auth_failed | counter | Authentication outcomes |
+| oauth4os_cedar_denied | counter | Cedar policy denials |
+| oauth4os_rate_limited | counter | Rate-limited requests |
+| oauth4os_cache_hits / cache_misses | counter | Response cache performance |
+| oauth4os_circuit_opens | counter | Circuit breaker activations |
+| oauth4os_upstream_latency_ms | gauge | Background health check latency |
+| oauth4os_upstream_healthy | gauge | Upstream health (1/0) |
+| oauth4os_loadshed_inflight | gauge | Active connections |
+| oauth4os_loadshed_total | counter | Load-shed rejections |

@@ -37,15 +37,16 @@ oauth4os-demo search 'level:ERROR'
 
 | Metric | Value |
 |--------|-------|
-| Commits | 218 |
-| Files | 255 |
-| Go source (non-test) | 6,500 lines |
-| Test code | 7,000 lines |
-| Test functions | 371 |
-| Test packages passing | 25/25 |
-| Internal packages | 25 |
+| Commits | 281 |
+| Files | 305 |
+| Go source (non-test) | 8,000 lines |
+| Test code | 8,500 lines |
+| Test functions | 369 |
+| Test packages passing | 32/32 |
+| Internal packages | 36 |
 | OAuth RFCs implemented | 4 (7636, 7662, 8693, 7591) |
 | External dependencies | 2 (jwt, yaml) |
+| Throughput | 232 req/s (0.25 vCPU) |
 
 ---
 
@@ -311,6 +312,14 @@ listen: :8443
 | [docs/blog-post.md](docs/blog-post.md) | "Building an OAuth 2.0 Proxy for OpenSearch" |
 | [docs/adr/](docs/adr/) | 10 Architecture Decision Records |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [docs/api-reference.md](docs/api-reference.md) | All 35 endpoints with curl examples |
+| [docs/sdk-guide.md](docs/sdk-guide.md) | Go, Python, Node, Rust, Java integration |
+| [docs/cedar-guide.md](docs/cedar-guide.md) | Cedar policy syntax, examples, multi-tenant |
+| [docs/deployment.md](docs/deployment.md) | App Runner, ECS, Kubernetes, Docker |
+| [docs/performance.md](docs/performance.md) | Benchmarks, tuning, capacity planning |
+| [docs/migration.md](docs/migration.md) | Migrate from basic auth, API keys, nginx |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes |
+| [docs/faq.md](docs/faq.md) | 20 most common questions |
 
 ## Contributing
 

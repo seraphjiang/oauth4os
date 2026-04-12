@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/seraphjiang/oauth4os/internal/admin"
+	"github.com/seraphjiang/oauth4os/internal/analytics"
 	"github.com/seraphjiang/oauth4os/internal/audit"
 	"github.com/seraphjiang/oauth4os/internal/cedar"
 	"github.com/seraphjiang/oauth4os/internal/config"
@@ -69,6 +70,8 @@ func main() {
 	auditor.WithStore(auditStore)
 
 	sessionMgr := session.New(map[string]int{"*": 100})
+
+	analyticsTracker := analytics.New()
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
@@ -250,6 +253,11 @@ func main() {
 		json.NewEncoder(w).Encode(entries)
 	})
 
+	mux.HandleFunc("GET /admin/analytics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(analyticsTracker.Snapshot())
+	})
+
 	mux.HandleFunc("GET /admin/clusters", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if fedRouter != nil {
@@ -403,6 +411,7 @@ func main() {
 		r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))
 
 		auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
+		analyticsTracker.Record(claims.ClientID, claims.Scopes, index)
 
 		// Span: upstream forwarding
 		ctx, upSpan := tracer.StartSpan(r.Context(), string(tracing.SpanUpstream), map[string]string{"target": r.URL.Path})

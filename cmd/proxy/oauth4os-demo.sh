@@ -493,7 +493,7 @@ cmd_sql() {
   local tok
   tok=$(get_token) || { echo -e "${RED}Not logged in${NC}"; return 1; }
   save_history "sql: $sql"
-  echo -e "${CYAN}SQL:${NC} $sql\n"
+  if $IS_TTY; then echo -e "${CYAN}SQL:${NC} $sql\n"; fi
   local body
   body=$(jq -n --arg q "$sql" '{query:$q}')
   local resp

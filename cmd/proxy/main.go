@@ -62,7 +62,12 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/retry"
 )
 
-const version = "0.2.0"
+var (
+	version   = "0.5.0"
+	commit    = "unknown"
+	buildTime = "unknown"
+	goVersion = "unknown"
+)
 
 //go:embed landing.html
 var landingPage string

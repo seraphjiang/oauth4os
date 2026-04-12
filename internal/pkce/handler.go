@@ -94,7 +94,7 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Unlock()
 
-	renderConsent(w, consentID, clientID, splitScopes(scope))
+	renderConsent(w, r, consentID, clientID, splitScopes(scope))
 }
 
 // Consent handles POST /oauth/consent — approve or deny.
@@ -265,6 +265,17 @@ type consentStrings struct {
 	Title, Subtitle, AppLabel, Permissions, WriteWarn, Deny, Approve, Footer string
 }
 
+var consentI18n = map[string]consentStrings{
+	"en": {"Authorize — oauth4os", "An application is requesting access", "Application", "Requested permissions", "This app is requesting write access to your data", "Deny", "Approve", "Authorizing will redirect you back to the application"},
+}
+
+func detectLang(r *http.Request) string {
+	if a := r.Header.Get("Accept-Language"); len(a) >= 2 {
+		return a[:2]
+	}
+	return "en"
+}
+
 func renderConsent(w http.ResponseWriter, r *http.Request, consentID, clientID string, scopes []string) {
 	lang := detectLang(r)
 	s, ok := consentI18n[lang]
@@ -301,7 +312,7 @@ h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;mar
 </style></head><body><div class="card">
 <div class="logo">🔐 oauth<span>4os</span></div>
 <div class="subtitle">%s</div>
-<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">%s</div><div class="app-id">`, s.Title, s.Subtitle, s.AppLabel)
+<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">%s</div><div class="app-id">`, lang, s.Title, s.Subtitle, s.AppLabel)
 	// Escape clientID
 	for _, c := range clientID {
 		switch c {

@@ -161,6 +161,23 @@ func main() {
 	mapper := scope.NewMultiTenantMapper(cfg.ScopeMapping, cfg.Tenants)
 	tokenMgr := token.NewManager()
 
+	// Configure refresh token expiry
+	if cfg.RefreshTokenTTL != "" || cfg.RefreshMaxLife != "" {
+		ttl := 30 * 24 * time.Hour
+		maxLife := 90 * 24 * time.Hour
+		if cfg.RefreshTokenTTL != "" {
+			if d, err := time.ParseDuration(cfg.RefreshTokenTTL); err == nil {
+				ttl = d
+			}
+		}
+		if cfg.RefreshMaxLife != "" {
+			if d, err := time.ParseDuration(cfg.RefreshMaxLife); err == nil {
+				maxLife = d
+			}
+		}
+		tokenMgr.SetRefreshTTL(ttl, maxLife)
+	}
+
 	// Structured logger — replaces log.Printf
 	logger := logging.New(os.Stdout, "info")
 

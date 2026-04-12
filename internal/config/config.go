@@ -25,6 +25,8 @@ type Config struct {
 	TokenStore     string            `yaml:"token_store"`     // memory (default), file:/path
 	JWTAccessToken bool              `yaml:"jwt_access_token"` // issue signed JWTs instead of opaque tokens
 	Issuer         string            `yaml:"issuer"` // JWT issuer URL (required if jwt_access_token is true)
+	RefreshTokenTTL  string          `yaml:"refresh_token_ttl"` // refresh token lifetime (default "720h" = 30 days)
+	RefreshMaxLife   string          `yaml:"refresh_max_life"` // absolute family lifetime (default "2160h" = 90 days)
 }
 
 // CORSConfig holds CORS settings.

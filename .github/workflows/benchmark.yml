@@ -1,0 +1,67 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["**.go"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-branch
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Benchmark PR
+        run: go test -bench=. -benchmem -count=5 ./internal/... > pr.txt
+
+      - name: Benchmark main
+        working-directory: main-branch
+        run: go test -bench=. -benchmem -count=5 ./internal/... > ../main.txt
+
+      - name: Compare
+        id: compare
+        run: |
+          go install golang.org/x/perf/cmd/benchstat@latest
+          benchstat main.txt pr.txt > result.txt 2>&1 || true
+          cat result.txt
+          # Check for >10% regression
+          if grep -E '\+[1-9][0-9]\.' result.txt | grep -v '~'; then
+            echo "regression=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "regression=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = fs.readFileSync('result.txt', 'utf8');
+            const regression = '${{ steps.compare.outputs.regression }}' === 'true';
+            const icon = regression ? '⚠️' : '✅';
+            const body = `${icon} **Benchmark Results**\n\n\`\`\`\n${result}\n\`\`\`\n${regression ? '\n⚠️ Performance regression detected (>10%). Please investigate.' : ''}`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      - name: Fail on regression
+        if: steps.compare.outputs.regression == 'true'
+        run: |
+          echo "::error::Performance regression >10% detected"
+          exit 1

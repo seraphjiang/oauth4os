@@ -1,9 +1,9 @@
-# Prometheus scrape config for oauth4os
+global:
+  scrape_interval: 15s
+
 scrape_configs:
   - job_name: oauth4os
-    scrape_interval: 15s
     static_configs:
-      - targets: ["oauth-proxy:8443"]
-
-rule_files:
-  - alerts.yml
+      - targets: ['oauth-proxy:8443']
+    metrics_path: /metrics
+    scheme: http

@@ -62,6 +62,8 @@ var installScript string
 //go:embed oauth4os-demo.sh
 var demoCLIScript string
 
+// Prometheus-style metrics
+var (
 	requestsTotal   atomic.Int64
 	requestsActive  atomic.Int64
 	requestsFailed  atomic.Int64

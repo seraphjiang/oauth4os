@@ -502,6 +502,146 @@ paths:
         "200":
           description: Current configuration (sensitive fields redacted)
 
+  /oauth/revoke:
+    post:
+      tags: [OAuth]
+      summary: Revoke token (RFC 7009)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                token_type_hint: { type: string, enum: [access_token, refresh_token] }
+      responses:
+        '200': { description: Token revoked }
+
+  /oauth/consent:
+    post:
+      tags: [OAuth]
+      summary: Approve or deny consent
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                consent_id: { type: string }
+                action: { type: string, enum: [approve, deny] }
+      responses:
+        '302': { description: Redirect to client with code or error }
+
+  /oauth/register/{client_id}/rotate:
+    post:
+      tags: [Registration]
+      summary: Rotate client secret
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: New secret issued }
+
+  /.well-known/jwks.json:
+    get:
+      tags: [Discovery]
+      summary: JSON Web Key Set
+      responses:
+        '200': { description: JWKS with signing keys }
+
+  /admin/analytics:
+    get:
+      tags: [Admin]
+      summary: Token analytics snapshot
+      responses:
+        '200': { description: Client usage, scope distribution, index stats }
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Query audit log
+      responses:
+        '200': { description: Audit log entries }
+
+  /admin/audit/export:
+    get:
+      tags: [Admin]
+      summary: Export audit log
+      parameters:
+        - name: format
+          in: query
+          schema: { type: string, enum: [csv, json] }
+      responses:
+        '200': { description: Audit log export }
+
+  /admin/sessions:
+    get:
+      tags: [Admin]
+      summary: List active sessions
+      responses:
+        '200': { description: Active session list }
+
+  /admin/sessions/{id}:
+    delete:
+      tags: [Admin]
+      summary: Revoke session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Session revoked }
+
+  /admin/health:
+    get:
+      tags: [Admin]
+      summary: Deep health check
+      responses:
+        '200': { description: Upstream, JWKS, client count status }
+
+  /admin/clusters:
+    get:
+      tags: [Admin]
+      summary: List upstream clusters
+      responses:
+        '200': { description: Cluster configuration and status }
+
+  /admin/apikeys:
+    post:
+      tags: [Admin]
+      summary: Create API key
+      responses:
+        '201': { description: API key created }
+
+  /admin/apikeys/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: API key deleted }
+
+  /version:
+    get:
+      tags: [System]
+      summary: Proxy version info
+      responses:
+        '200': { description: Version, commit, build time }
+
+  /health/deep:
+    get:
+      tags: [System]
+      summary: Deep health with upstream connectivity
+      responses:
+        '200': { description: Component-level health status }
+
   /{path}:
     get:
       tags: [Proxy]

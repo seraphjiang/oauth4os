@@ -115,6 +115,11 @@ func main() {
 
 	sessionMgr := session.New(map[string]int{"*": 100})
 	apiKeyStore := apikey.NewStore()
+	tokenBinder := tokenbind.New()
+	deviceHandler := device.NewHandler(func(clientID string, scopes []string) (string, string) {
+		tok, refresh := tokenMgr.CreateTokenForClient(clientID, scopes)
+		return tok.ID, refresh
+	})
 
 	analyticsTracker := analytics.New()
 

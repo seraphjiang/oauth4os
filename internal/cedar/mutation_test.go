@@ -94,18 +94,3 @@ func TestMutation_ExactMatchLoose(t *testing.T) {
 }
 
 
-func TestDebugUnlessParsing(t *testing.T) {
-	p, err := ParsePolicy("p", `permit(*, *, *) unless { principal.scope == "readonly" };`)
-	if err != nil {
-		t.Fatalf("parse error: %v", err)
-	}
-	t.Logf("Unless conditions: %+v", p.Unless)
-
-	e := NewEngine([]Policy{p})
-	d := e.Evaluate(Request{
-		Principal: map[string]string{"sub": "u", "scope": "readonly"},
-		Action:    "GET",
-		Resource:  map[string]string{"index": "x"},
-	})
-	t.Logf("Decision: allowed=%v reason=%s", d.Allowed, d.Reason)
-}

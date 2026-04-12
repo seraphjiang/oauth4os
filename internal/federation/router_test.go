@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"net/http"
 	"testing"
 )
 

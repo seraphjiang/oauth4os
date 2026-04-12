@@ -559,7 +559,7 @@ func main() {
 		result["audit_store"] = sub{"ok", fmt.Sprintf("entries=%d", auditStore.Len())}
 
 		// Sessions
-		result["sessions"] = sub{"ok", fmt.Sprintf("active=%d", sessionMgr.Count())}
+		result["sessions"] = sub{"ok", fmt.Sprintf("active=%d", len(sessionMgr.List("")))}
 
 		// SigV4
 		if cfg.Upstream.SigV4 != nil {
@@ -653,7 +653,6 @@ func main() {
 	// Developer docs — Swagger UI
 	mux.HandleFunc("GET /developer/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		fmt.Fprint(w, openapiSpec)
 	})
 	mux.HandleFunc("GET /developer/docs", func(w http.ResponseWriter, r *http.Request) {

@@ -269,3 +269,48 @@ Bind tokens to client fingerprint (SHA-256 of IP + User-Agent) on first use. Sub
 ## Consequences
 - Legitimate IP changes (VPN, mobile roaming) will invalidate the binding
 - User-Agent changes (browser updates) will also invalidate
+
+---
+
+# ADR-014: W3C Traceparent Propagation
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+Distributed tracing across the proxy and upstream OpenSearch requires correlating spans. Without standard trace context propagation, each hop starts a new trace.
+
+## Decision
+Implement W3C Trace Context (traceparent header). Extract incoming trace-id, create child spans with same trace-id, inject traceparent in responses and upstream requests.
+
+## Rationale
+- W3C Trace Context is the industry standard (supported by Jaeger, Zipkin, OTEL)
+- Enables end-to-end latency analysis across proxy → OpenSearch
+- Zero config for clients already sending traceparent
+
+## Consequences
+- Adds ~1μs overhead per request for header parsing
+- Clients not sending traceparent get proxy-generated trace IDs
+
+---
+
+# ADR-015: Multi-Tier Rate Limiting
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+Different clients and API keys need different rate limits. A single global limit is too coarse — admin endpoints need lower limits than read-only log queries.
+
+## Decision
+Three-tier rate limiting: per-client (by OAuth client_id), per-API-key (by key ID), and scope-based (admin scopes get lower RPM). Deny-overrides: most restrictive limit wins.
+
+## Rationale
+- Per-client prevents one client from starving others
+- Per-API-key enables M2M rate control without OAuth overhead
+- Scope-based limits protect admin endpoints from abuse
+- Sliding window algorithm avoids burst-at-boundary problems
+
+## Consequences
+- Memory grows linearly with unique client/key count (mitigated by cleanup)
+- Clients must handle 429 responses and Retry-After header

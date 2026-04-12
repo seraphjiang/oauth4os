@@ -18,7 +18,7 @@ func TestMutation_CurrentKey(t *testing.T) {
 	if k == nil || k.Private == nil {
 		t.Error("Current must return a valid key")
 	}
-	if k.KID == "" {
+	if k.ID == "" {
 		t.Error("key must have a KID")
 	}
 }
@@ -57,7 +57,7 @@ func TestMutation_UniqueKIDs(t *testing.T) {
 	k1 := r.Current()
 	r.rotate()
 	k2 := r.Current()
-	if k1.KID == k2.KID {
+	if k1.ID == k2.ID {
 		t.Error("rotated keys must have different KIDs")
 	}
 }

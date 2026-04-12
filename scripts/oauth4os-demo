@@ -316,18 +316,22 @@ cmd_search() {
 }
 
 cmd_services() {
-  curl -sf -H "$(auth_header)" \
+  local resp
+  resp=$(curl -sf -H "$(auth_header)" \
     "${PROXY}/demo-logs/_search" \
     -H "Content-Type: application/json" \
-    -d '{"size":0,"aggs":{"services":{"terms":{"field":"service.keyword","size":50}}}}' \
-    | jq -r '.aggregations.services.buckets[] | "\(.key) (\(.doc_count) logs)"' 2>/dev/null \
-    || echo -e "${RED}Failed to list services${NC}"
+    -d '{"size":0,"aggs":{"services":{"terms":{"field":"service.keyword","size":50}}}}' 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Failed to list services${NC}"; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp" | jq '.aggregations.services.buckets' 2>/dev/null || echo "$resp"; return; fi
+  echo "$resp" | jq -r '.aggregations.services.buckets[] | "\(.key) (\(.doc_count) logs)"' 2>/dev/null
 }
 
 cmd_indices() {
-  curl -sf -H "$(auth_header)" "${PROXY}/_cat/indices?format=json" \
-    | jq -r '.[] | "\(.index)\t\(.["docs.count"]) docs\t\(.["store.size"])"' 2>/dev/null \
-    || echo -e "${RED}Failed to list indices${NC}"
+  local resp
+  resp=$(curl -sf -H "$(auth_header)" "${PROXY}/_cat/indices?format=json" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Failed to list indices${NC}"; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo "$resp" | jq -r '.[] | "\(.index)\t\(.["docs.count"]) docs\t\(.["store.size"])"' 2>/dev/null
 }
 
 cmd_token() {
@@ -422,6 +426,8 @@ cmd_stats() {
   if [ $? -ne 0 ] || [ -z "$resp" ]; then
     echo -e "${RED}Query failed${NC}"; return 1
   fi
+
+  if [ "$IS_TTY" = "false" ]; then echo "$resp" | jq '.aggregations' 2>/dev/null || echo "$resp"; return; fi
 
   # Summary
   local total errs
@@ -1038,6 +1044,14 @@ cmd_top() {
 }
 
 cmd_env() {
+  if [ "$IS_TTY" = "false" ]; then
+    local healthy="false"
+    curl -sf --max-time 3 "${PROXY}/health" >/dev/null 2>&1 && healthy="true"
+    printf '{"proxy":"%s","index":"%s","format":"%s","config":"%s","token_exists":%s,"proxy_reachable":%s}\n' \
+      "$PROXY" "$DEFAULT_INDEX" "$DEFAULT_FORMAT" "$CONFIG_FILE" \
+      "$([ -f "$TOKEN_FILE" ] && echo true || echo false)" "$healthy"
+    return
+  fi
   echo -e "${BOLD}🔧 Environment${NC}\n"
   echo -e "  ${BOLD}Proxy:${NC}     ${PROXY}"
   echo -e "  ${BOLD}Index:${NC}     ${DEFAULT_INDEX}"

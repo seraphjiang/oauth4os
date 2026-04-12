@@ -1044,6 +1044,14 @@ cmd_top() {
 }
 
 cmd_env() {
+  if [ "$IS_TTY" = "false" ]; then
+    local healthy="false"
+    curl -sf --max-time 3 "${PROXY}/health" >/dev/null 2>&1 && healthy="true"
+    printf '{"proxy":"%s","index":"%s","format":"%s","config":"%s","token_exists":%s,"proxy_reachable":%s}\n' \
+      "$PROXY" "$DEFAULT_INDEX" "$DEFAULT_FORMAT" "$CONFIG_FILE" \
+      "$([ -f "$TOKEN_FILE" ] && echo true || echo false)" "$healthy"
+    return
+  fi
   echo -e "${BOLD}🔧 Environment${NC}\n"
   echo -e "  ${BOLD}Proxy:${NC}     ${PROXY}"
   echo -e "  ${BOLD}Index:${NC}     ${DEFAULT_INDEX}"

@@ -6,38 +6,38 @@ import (
 	"testing"
 )
 
-func TestHandlerDefaultEnglish(t *testing.T) {
+func TestHandlerReturnsAllTranslations(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/i18n", nil)
-	Handler(w, r)
+	Handler(w, httptest.NewRequest("GET", "/i18n", nil))
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var data map[string]string
-	json.NewDecoder(w.Body).Decode(&data)
-	if data["approve"] != "Approve" {
-		t.Errorf("expected English 'Approve', got %q", data["approve"])
+	var data map[string]map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if data["en"]["approve"] != "Approve" {
+		t.Errorf("expected en.approve='Approve', got %q", data["en"]["approve"])
+	}
+	if data["es"]["approve"] != "Aprobar" {
+		t.Errorf("expected es.approve='Aprobar', got %q", data["es"]["approve"])
 	}
 }
 
-func TestHandlerSpanish(t *testing.T) {
+func TestHandlerContentType(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/i18n?lang=es", nil)
-	Handler(w, r)
-	var data map[string]string
-	json.NewDecoder(w.Body).Decode(&data)
-	if data["approve"] != "Aprobar" {
-		t.Errorf("expected Spanish 'Aprobar', got %q", data["approve"])
+	Handler(w, httptest.NewRequest("GET", "/i18n", nil))
+	ct := w.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("expected application/json, got %s", ct)
 	}
 }
 
-func TestHandlerUnknownLangFallback(t *testing.T) {
+func TestHandlerCacheHeader(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/i18n?lang=xx", nil)
-	Handler(w, r)
-	var data map[string]string
-	json.NewDecoder(w.Body).Decode(&data)
-	if data["approve"] != "Approve" {
-		t.Errorf("expected English fallback, got %q", data["approve"])
+	Handler(w, httptest.NewRequest("GET", "/i18n", nil))
+	cc := w.Header().Get("Cache-Control")
+	if cc == "" {
+		t.Error("expected Cache-Control header")
 	}
 }

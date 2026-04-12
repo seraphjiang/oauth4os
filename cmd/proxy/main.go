@@ -61,6 +61,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/ciba"
 	"github.com/seraphjiang/oauth4os/internal/tokenbind"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
+	"github.com/seraphjiang/oauth4os/internal/userinfo"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 	"github.com/seraphjiang/oauth4os/internal/cache"
 	"github.com/seraphjiang/oauth4os/internal/circuit"
@@ -1179,6 +1180,11 @@ func main() {
 		fmt.Fprintf(w, "# TYPE oauth4os_upstream_healthy gauge\n")
 		fmt.Fprintf(w, "oauth4os_upstream_healthy %d\n", healthy)
 		latencyHist.WritePrometheus(w, "oauth4os_request_duration_seconds")
+		reqCounter.WritePrometheus(w, "oauth4os_http_requests_total", "Total HTTP requests by method and path")
+		reqSummary.WritePrometheus(w, "oauth4os_http_request_duration", "Request duration summary by method and path")
+		fmt.Fprintf(w, "# HELP oauth4os_metric_cardinality Number of unique label combinations\n")
+		fmt.Fprintf(w, "oauth4os_metric_cardinality{metric=\"http_requests_total\"} %d\n", reqCounter.Cardinality())
+		fmt.Fprintf(w, "oauth4os_metric_cardinality{metric=\"http_request_duration\"} %d\n", reqSummary.Cardinality())
 	})
 
 	// Developer docs — Swagger UI

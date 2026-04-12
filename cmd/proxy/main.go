@@ -113,6 +113,7 @@ var (
 	cacheMisses     atomic.Int64
 	circuitOpens    atomic.Int64
 	startTime       = time.Now()
+	latencyHist     = histogram.New()
 	shuttingDown    atomic.Bool
 )
 
@@ -909,6 +910,8 @@ func main() {
 		requestsTotal.Add(1)
 		requestsActive.Add(1)
 		defer requestsActive.Add(-1)
+		reqStart := time.Now()
+		defer func() { latencyHist.Observe(time.Since(reqStart), r.URL.Path) }()
 
 		// Request body size limit (10MB)
 		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)

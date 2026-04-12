@@ -74,3 +74,27 @@ func BenchmarkCleanup(b *testing.B) {
 		}
 	}
 }
+
+func TestStats(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+
+	s := m.Stats()
+	if s["total"] != 0 || s["clients"] != 1 {
+		t.Fatalf("empty store: %v", s)
+	}
+
+	tok, _ := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+	s = m.Stats()
+	if s["active"] != 1 || s["refresh"] != 1 {
+		t.Fatalf("after create: %v", s)
+	}
+
+	m.mu.Lock()
+	m.tokens[tok.ID].Revoked = true
+	m.mu.Unlock()
+	s = m.Stats()
+	if s["revoked"] != 1 || s["active"] != 0 {
+		t.Fatalf("after revoke: %v", s)
+	}
+}

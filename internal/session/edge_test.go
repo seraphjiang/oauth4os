@@ -41,7 +41,7 @@ func TestSessionLimit_GlobalDefault(t *testing.T) {
 	}
 }
 
-func TestForceLogout(t *testing.T) {
+func TestForceLogout_Edge(t *testing.T) {
 	m := New(nil)
 	m.Create("s1", "c", "t1", "ip")
 	m.Create("s2", "c", "t2", "ip")

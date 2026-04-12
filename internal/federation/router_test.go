@@ -2,22 +2,20 @@ package federation
 
 import (
 	"testing"
-
-	"github.com/seraphjiang/oauth4os/internal/config"
 )
 
 func TestRouterResolve(t *testing.T) {
-	clusters := map[string]config.Cluster{
-		"logs":    {Engine: "https://logs:9200", Prefixes: []string{"logs-*", "audit-*"}},
-		"metrics": {Engine: "https://metrics:9200", Prefixes: []string{"metrics-*"}},
-		"default": {Engine: "https://general:9200", Prefixes: []string{"*"}},
+	clusters := []Cluster{
+		{Name: "logs", URL: "https://logs:9200", Indices: []string{"logs-*", "audit-*"}},
+		{Name: "metrics", URL: "https://metrics:9200", Indices: []string{"metrics-*"}},
+		{Name: "default", URL: "https://general:9200", Indices: []string{"*"}},
 	}
-	r := NewRouter(clusters, "https://fallback:9200")
+	r := New(clusters, nil)
 
 	tests := []struct {
-		path    string
-		engine  string
-		cluster string
+		path string
+		url  string
+		name string
 	}{
 		{"/logs-2025/_search", "https://logs:9200", "logs"},
 		{"/audit-trail/_search", "https://logs:9200", "logs"},
@@ -28,20 +26,24 @@ func TestRouterResolve(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		engine, cluster := r.Resolve(tt.path)
-		if engine != tt.engine {
-			t.Errorf("Resolve(%q) engine = %q, want %q", tt.path, engine, tt.engine)
+		url, name := r.Resolve(tt.path)
+		if url != tt.url {
+			t.Errorf("Resolve(%q) url = %q, want %q", tt.path, url, tt.url)
 		}
-		if cluster != tt.cluster {
-			t.Errorf("Resolve(%q) cluster = %q, want %q", tt.path, cluster, tt.cluster)
+		if name != tt.name {
+			t.Errorf("Resolve(%q) name = %q, want %q", tt.path, name, tt.name)
 		}
 	}
 }
 
-func TestRouterFallback(t *testing.T) {
-	r := NewRouter(nil, "https://fallback:9200")
-	engine, _ := r.Resolve("/anything/_search")
-	if engine != "https://fallback:9200" {
-		t.Errorf("expected fallback, got %q", engine)
+func TestClusterNames(t *testing.T) {
+	clusters := []Cluster{
+		{Name: "a", URL: "http://a:9200"},
+		{Name: "b", URL: "http://b:9200"},
+	}
+	r := New(clusters, nil)
+	names := r.ClusterNames()
+	if len(names) != 2 || names[0] != "a" || names[1] != "b" {
+		t.Errorf("ClusterNames() = %v, want [a b]", names)
 	}
 }

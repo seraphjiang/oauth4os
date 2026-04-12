@@ -201,3 +201,71 @@ Validate that the `issuer` field in the discovery document matches the configure
 - Prevents SSRF via discovery redirect
 - Matches OIDC Core spec §3 requirement
 - Simple check with high security value
+
+---
+
+# ADR-011: Pushed Authorization Requests (PAR)
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+PKCE authorize requests pass parameters in the browser URL. A compromised browser extension or network observer could tamper with redirect_uri, scope, or code_challenge.
+
+## Decision
+Implement RFC 9126 PAR. Clients POST auth params to /oauth/par, receive a one-time request_uri, then redirect users with only the opaque URI.
+
+## Rationale
+- Auth parameters never appear in browser URL bar
+- One-time use prevents replay
+- 60s expiry limits window of attack
+- Client authentication on the PAR endpoint
+
+## Consequences
+- Adds an extra round-trip before authorization
+- Clients must implement the PAR flow (not just redirect)
+
+---
+
+# ADR-012: Client Initiated Backchannel Authentication (CIBA)
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+Some services (IoT, backend jobs, call centers) need to authenticate users without a browser redirect on the requesting device.
+
+## Decision
+Implement CIBA. Service requests auth via backchannel, user approves on a separate device/app, service polls for token.
+
+## Rationale
+- No browser needed on the requesting device
+- User approves on their own device (phone, laptop)
+- Polling model is simple to implement and debug
+- 5-min expiry prevents stale requests
+
+## Consequences
+- Requires a separate approval mechanism (web page, push notification)
+- Polling adds latency vs. push-based notification
+
+---
+
+# ADR-013: Token Binding via Client Fingerprint
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Context
+Bearer tokens are susceptible to theft — if stolen, they can be used from any client.
+
+## Decision
+Bind tokens to client fingerprint (SHA-256 of IP + User-Agent) on first use. Subsequent requests must match.
+
+## Rationale
+- Prevents stolen token reuse from different network/client
+- First-use binding requires no client-side changes
+- Lightweight — no cryptographic proof required (DPoP is separate)
+
+## Consequences
+- Legitimate IP changes (VPN, mobile roaming) will invalidate the binding
+- User-Agent changes (browser updates) will also invalidate

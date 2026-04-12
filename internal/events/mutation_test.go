@@ -17,17 +17,26 @@ func TestMutation_NoURLsNoop(t *testing.T) {
 
 // Mutation: remove timestamp assignment → events must have timestamp
 func TestMutation_TimestampSet(t *testing.T) {
-	var got Event
+	ch := make(chan Event, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&got)
+		var e Event
+		json.NewDecoder(r.Body).Decode(&e)
+		select {
+		case ch <- e:
+		default:
+		}
 	}))
 	defer srv.Close()
 	n := New([]string{srv.URL})
 	before := time.Now()
 	n.Emit(Event{Type: TokenIssued, ClientID: "app"})
-	time.Sleep(100 * time.Millisecond)
-	if got.Timestamp.Before(before) {
-		t.Error("event timestamp must be set on Emit")
+	select {
+	case got := <-ch:
+		if got.Timestamp.Before(before) {
+			t.Error("event timestamp must be set on Emit")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("event not delivered")
 	}
 }
 

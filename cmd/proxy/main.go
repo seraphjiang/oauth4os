@@ -24,6 +24,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/discovery"
 	"github.com/seraphjiang/oauth4os/internal/exchange"
+	"github.com/seraphjiang/oauth4os/internal/federation"
 	"github.com/seraphjiang/oauth4os/internal/introspect"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/keyring"

@@ -1,0 +1,9 @@
+{
+  "name": "oauth4os",
+  "version": "0.1.0",
+  "description": "Node.js SDK for oauth4os — OAuth 2.0 proxy for OpenSearch",
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/seraphjiang/oauth4os",
+  "keywords": ["opensearch", "oauth", "proxy", "sdk"]
+}

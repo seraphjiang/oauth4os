@@ -49,3 +49,17 @@ func TestMutation_ContentType(t *testing.T) {
 		t.Error("discovery must return application/json")
 	}
 }
+
+// Mutation: remove scopes_supported → must include configured scopes
+func TestMutation_ScopesSupported(t *testing.T) {
+	h := Handler(Config{Issuer: "https://proxy.example.com"}, []string{"read", "write", "admin"})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
+	body := w.Body.String()
+	if !strings.Contains(body, "scopes_supported") {
+		t.Error("must include scopes_supported")
+	}
+	if !strings.Contains(body, "read") {
+		t.Error("must include configured scopes")
+	}
+}

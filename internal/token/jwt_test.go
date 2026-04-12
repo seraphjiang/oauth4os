@@ -1,8 +1,10 @@
 package token
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"strings"
@@ -84,5 +86,33 @@ func TestOpaqueTokenWhenJWTDisabled(t *testing.T) {
 	}
 	if !strings.HasPrefix(tok.ID, "tok_") {
 		t.Fatalf("expected tok_ prefix, got %s", tok.ID[:10])
+	}
+}
+
+func TestJWTSignatureValid(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager()
+	m.EnableJWT("https://auth.example.com", &testKeyProvider{key: key})
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+
+	tok, _ := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+	parts := strings.Split(tok.ID, ".")
+	if len(parts) != 3 {
+		t.Fatal("not a JWT")
+	}
+
+	// Verify signature with public key
+	sigInput := []byte(parts[0] + "." + parts[1])
+	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := sha256.Sum256(sigInput)
+	err = rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, h[:], sig)
+	if err != nil {
+		t.Fatalf("signature verification failed: %v", err)
 	}
 }

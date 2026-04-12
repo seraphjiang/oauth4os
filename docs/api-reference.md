@@ -411,6 +411,57 @@ curl https://proxy:8443/admin/health
 
 ---
 
+### GET /admin/clients
+
+List all registered clients (secrets excluded).
+
+```bash
+curl https://proxy:8443/admin/clients
+```
+
+Response:
+```json
+[
+  {"client_id": "abc123", "client_name": "my-app", "scope": "read:logs-*"},
+  {"client_id": "def456", "client_name": "demo-cli", "scope": "read:logs"}
+]
+```
+
+---
+
+### GET /admin/tokens
+
+List active tokens (values excluded).
+
+```bash
+curl https://proxy:8443/admin/tokens
+```
+
+Response:
+```json
+[
+  {"token_id": "tok_1", "client_id": "abc123", "scope": "read:logs-*", "expires_at": "2026-04-13T10:00:00Z"},
+  {"token_id": "tok_2", "client_id": "def456", "scope": "read:logs", "expires_at": "2026-04-13T11:00:00Z"}
+]
+```
+
+---
+
+### POST /admin/keys/rotate
+
+Trigger immediate signing key rotation. Previous key stays in JWKS.
+
+```bash
+curl -X POST https://proxy:8443/admin/keys/rotate
+```
+
+Response:
+```json
+{"status": "rotated", "kid": "new-key-id"}
+```
+
+---
+
 ## Discovery Endpoints
 
 ### GET /.well-known/openid-configuration

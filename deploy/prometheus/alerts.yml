@@ -1,42 +1,86 @@
 groups:
   - name: oauth4os
     rules:
-      - alert: HighErrorRate
-        expr: rate(oauth4os_requests_failed_total[5m]) / rate(oauth4os_requests_total[5m]) > 0.05
+      # High auth failure rate — possible brute force or misconfigured client
+      - alert: HighAuthFailureRate
+        expr: rate(oauth4os_auth_failed[5m]) / (rate(oauth4os_auth_success[5m]) + rate(oauth4os_auth_failed[5m])) > 0.3
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "High error rate (>5%)"
+          summary: "Auth failure rate above 30%"
+          description: "{{ $value | humanizePercentage }} of auth attempts are failing over the last 5 minutes."
 
-      - alert: UpstreamDown
-        expr: oauth4os_upstream_errors_total > 0 and rate(oauth4os_upstream_errors_total[1m]) > 0.5
+      # Upstream errors — OpenSearch may be down
+      - alert: UpstreamErrorsHigh
+        expr: rate(oauth4os_upstream_errors[5m]) > 1
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Upstream OpenSearch errors"
+          summary: "Upstream errors exceeding 1/s"
+          description: "{{ $value }} upstream errors per second. Check OpenSearch connectivity."
 
-      - alert: AuthFailureSpike
-        expr: rate(oauth4os_auth_failed_total[5m]) > 1
-        for: 3m
+      # Upstream unhealthy
+      - alert: UpstreamUnhealthy
+        expr: oauth4os_upstream_healthy == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Upstream OpenSearch is unreachable"
+
+      # Cedar policy denials spike
+      - alert: CedarDenialSpike
+        expr: rate(oauth4os_cedar_denied[5m]) > 5
+        for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "Auth failure rate >1/s for 3m"
+          summary: "Cedar policy denials above 5/s"
+          description: "Possible misconfigured policies or unauthorized access attempts."
 
-      - alert: CedarDenySpike
-        expr: rate(oauth4os_cedar_denied_total[5m]) > 0.5
+      # Rate limiting active
+      - alert: RateLimitingActive
+        expr: rate(oauth4os_rate_limited[5m]) > 0.5
         for: 5m
         labels:
           severity: info
         annotations:
-          summary: "Cedar policy denials elevated"
+          summary: "Clients being rate limited"
 
-      - alert: HighLatency
-        expr: histogram_quantile(0.95, rate(oauth4os_request_duration_seconds_bucket[5m])) > 2
+      # Circuit breaker open
+      - alert: CircuitBreakerOpen
+        expr: oauth4os_circuit_opens > 0
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker is open — upstream failures detected"
+
+      # Load shedding active
+      - alert: LoadSheddingActive
+        expr: oauth4os_loadshed_inflight > 400
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Load shedding near threshold ({{ $value }}/500 inflight)"
+
+      # High request latency
+      - alert: HighUpstreamLatency
+        expr: oauth4os_upstream_latency_ms > 2000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Upstream latency above 2s"
+
+      # Proxy down (no requests for 5 min)
+      - alert: ProxyNoTraffic
+        expr: rate(oauth4os_requests_total[5m]) == 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "p95 latency >2s"
+          summary: "No requests received in 5 minutes"

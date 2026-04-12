@@ -1108,8 +1108,11 @@ func main() {
 		addr = ":8443"
 	}
 
+	// Request timeout (30s)
+	timedMux := timeout.Middleware(mux, 30*time.Second)
+
 	// Rate limiting middleware wraps the mux
-	rateLimited := limiter.Middleware(mux, func(r *http.Request) (string, []string) {
+	rateLimited := limiter.Middleware(timedMux, func(r *http.Request) (string, []string) {
 		// Rate limit by API key ID if present (separate limits per key)
 		if keyID := r.Header.Get("X-Proxy-Key-ID"); keyID != "" {
 			scopes := strings.Split(r.Header.Get("X-Proxy-Scopes"), ",")

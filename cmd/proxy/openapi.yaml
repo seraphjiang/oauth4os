@@ -635,6 +635,15 @@ paths:
       tags: [Admin]
       responses:
         '200': { description: HTML config viewer }
+    put:
+      summary: Update configuration
+      tags: [Admin]
+      requestBody:
+        content:
+          application/x-yaml:
+            schema: { type: string }
+      responses:
+        '200': { description: Configuration updated }
 components:
   securitySchemes:
     bearerAuth:
@@ -972,3 +981,43 @@ components:
       responses:
         '200':
           description: Version string
+
+  /playground:
+    get:
+      tags: [Demo]
+      summary: PKCE OAuth playground — interactive flow visualization
+      responses:
+        '200':
+          description: HTML page
+
+  /analytics:
+    get:
+      tags: [Demo]
+      summary: Developer analytics dashboard
+      responses:
+        '200':
+          description: HTML page
+
+  /.well-known/jwks.json:
+    get:
+      tags: [OAuth]
+      summary: JSON Web Key Set for token verification
+      responses:
+        '200':
+          description: JWKS document
+
+  /oauth/register/{client_id}/rotate:
+    post:
+      tags: [Client Management]
+      summary: Rotate client secret
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: New client_id and client_secret
+        '404':
+          description: Client not found

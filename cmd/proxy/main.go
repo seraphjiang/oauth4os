@@ -28,6 +28,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/ratelimit"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 	"github.com/seraphjiang/oauth4os/internal/token"
+	"github.com/seraphjiang/oauth4os/internal/tracing"
 )
 
 const version = "0.2.0"
@@ -59,6 +60,14 @@ func main() {
 	tokenMgr := token.NewManager()
 	auditor := audit.NewJSONAuditor(os.Stdout)
 	limiter := ratelimit.New(cfg.RateLimits, 600)
+
+	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
+	var tracer tracing.Tracer
+	if os.Getenv("OAUTH4OS_TRACING") == "off" {
+		tracer = tracing.NoopTracer{}
+	} else {
+		tracer = tracing.NewStdoutTracer(os.Stderr)
+	}
 
 	// Cedar policy engine (multi-tenant)
 	defaultPolicies := []cedar.Policy{
@@ -283,9 +292,12 @@ func main() {
 		return "", nil
 	})
 
+	// Tracing middleware (outermost) → rate limiting → mux
+	traced := tracing.Middleware(rateLimited, tracer)
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      rateLimited,
+		Handler:      traced,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

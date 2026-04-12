@@ -48,6 +48,11 @@ tidy:
 		docker run --rm -v $(CURDIR):/app -w /app golang:1.22-alpine go mod tidy
 	@echo "go.sum updated"
 
+# Generate go.sum with custom proxy (if corporate proxy blocks default)
+tidy-goproxy:
+	GOPROXY=direct go mod tidy || \
+		docker run --rm -e GOPROXY=direct -v $(CURDIR):/app -w /app golang:1.22-alpine go mod tidy
+
 # Start demo environment
 demo-up:
 	docker compose -f docker-compose.demo.yml up -d

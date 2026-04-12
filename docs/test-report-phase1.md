@@ -80,58 +80,48 @@ All 9 internal packages have unit tests.
 
 ## 3. Coverage Analysis
 
-### 3.1 Packages With No Unit Tests
+### 3.1 All Packages Have Unit Tests ✅
 
-| Package | Functions | Risk | Notes |
-|---|---|---|---|
-| `internal/token` | 15 | **HIGH** | Core token issuance, revocation, auth. Covered by integration tests only. |
-| `internal/jwt` | 9 | **HIGH** | JWT validation, JWKS resolution, key parsing. No test at all — relies on real Keycloak in E2E. |
-| `internal/scope` | 2 | Medium | Simple mapper. Covered by integration tests. |
-| `internal/config` | 1 | Low | YAML loader. Implicitly tested by everything. |
-| `internal/audit` | 2 | Low | 21 lines, writes JSON to io.Writer. |
-| `internal/introspect` | 3 | **HIGH** | RFC 7662 endpoint. New code, zero tests. |
-| `internal/pkce` | 8 | **HIGH** | Browser auth flow. New code, zero tests. |
-| `internal/ratelimit` | 8 | **HIGH** | Token bucket + middleware. New code, zero tests. |
+Every internal package now has dedicated unit tests. The highest-risk packages (token, jwt, introspect, pkce, ratelimit) all have coverage.
 
 ### 3.2 What's Well Tested
 
-- **Cedar engine**: 8 unit tests + 5 integration tests. Good coverage of permit/forbid, glob, conditions.
-- **Token lifecycle**: 10 integration tests cover issuance, listing, revocation, get-by-ID, not-found, multi-scope.
-- **Scope enforcement**: 10 integration tests cover read/write/admin scopes, 403 on missing scope, concurrent issuance.
-- **Proxy routing**: Integration tests verify engine vs dashboards path routing.
+- **Cedar engine**: 10 unit tests + 5 integration tests. Good coverage of permit/forbid, glob, conditions, multi-tenant.
+- **Token lifecycle**: 14 unit tests + 11 integration tests. Issuance, refresh, revocation, listing, auth, scope validation.
+- **JWT validation**: 12 unit tests. Malformed tokens, scope extraction, JWKS lookup.
+- **Rate limiter**: 9 unit tests. Bucket refill, per-scope RPM, 429 + Retry-After, middleware.
+- **Introspection**: 9 unit tests. RFC 7662 active/inactive, adapter for all token states.
+- **PKCE flow**: 9 unit tests. Authorize, exchange, bad verifier, code reuse, redirect mismatch, cleanup.
+- **Scope enforcement**: 3 unit + 10 integration tests. Global, tenant override, dedup.
 - **E2E flow**: Real Keycloak → real proxy → real OpenSearch. Covers the happy path end-to-end.
 
 ### 3.3 What's NOT Tested
 
 | Gap | Severity | Description |
 |---|---|---|
-| JWT validation edge cases | **Critical** | Expired tokens, wrong issuer, malformed JWT, missing kid, JWKS rotation, clock skew |
-| Token manager internals | **High** | Refresh token flow, scope validation errors, concurrent token map access |
-| Introspection endpoint | **High** | RFC 7662 compliance — active/inactive, required fields, malformed input |
-| PKCE flow | **High** | Authorization code exchange, code_verifier validation, state parameter, expiry |
-| Rate limiter | **High** | Token bucket refill, per-scope limits, 429 response, Retry-After header, concurrent access |
-| Config validation | Medium | Invalid YAML, missing required fields, malformed provider URLs |
+| JWT JWKS rotation under load | Medium | JWKS cache refresh with concurrent requests |
 | CLI commands | Medium | 20 functions, 376 lines, zero tests |
 | Proxy graceful shutdown | Low | Signal handling, connection draining |
 | Metrics endpoint | Low | /metrics Prometheus format output |
+| Adversarial inputs | Medium | SQL injection in scope names, oversized tokens, header injection |
+| E2E in CI | Medium | docker-compose.demo.yml E2E suite only runs manually |
 
 ## 4. Risk Assessment
 
-### Critical Risks
-
-1. **JWT validator has zero unit tests.** This is the security boundary. A bug here means unauthorized access. The 285-line validator with JWKS caching, key rotation, and multi-provider support needs dedicated tests.
-
-2. **New Phase 1 features (introspect, PKCE, ratelimit) shipped with zero tests.** These are 389 lines of security-critical code with no coverage at any level.
-
-3. **Integration tests require a running proxy.** If the proxy fails to start, all 25 integration tests are blind. There's no unit-level safety net for token/scope logic.
-
 ### Medium Risks
 
-4. **E2E tests not in CI.** The docker-compose.demo.yml E2E suite only runs manually. Regressions in the Keycloak integration path won't be caught automatically.
+1. **E2E tests not in CI.** The docker-compose.demo.yml E2E suite only runs manually. Regressions in the Keycloak integration path won't be caught automatically.
 
-5. **No negative/adversarial tests.** No tests for: SQL injection in scope names, oversized tokens, header injection, request smuggling, slowloris.
+2. **No adversarial tests.** No tests for: SQL injection in scope names, oversized tokens, header injection, request smuggling, slowloris.
 
-6. **CLI is untested.** 376 lines including token caching, config file I/O, and HTTP requests — all untested.
+3. **CLI is untested.** 376 lines including token caching, config file I/O, and HTTP requests — all untested.
+
+4. **JWKS rotation under concurrent load.** The JWT validator caches JWKS keys but the cache refresh path under concurrent requests is untested.
+
+### Low Risks
+
+5. **Proxy graceful shutdown** — signal handling and connection draining are untested but low-risk.
+6. **Metrics endpoint** — /metrics Prometheus format is untested.
 
 ## 5. Recommendations
 

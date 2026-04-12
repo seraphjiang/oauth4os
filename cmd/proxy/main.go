@@ -605,7 +605,6 @@ func main() {
 	// Admin health dashboard — all subsystem statuses
 	// OTLP trace export endpoint
 	mux.HandleFunc("GET /v1/traces", otlpExporter.Handler())
-	_ = otlpExporter // used by trace endpoint
 
 	mux.HandleFunc("GET /admin/health", func(w http.ResponseWriter, r *http.Request) {
 		type sub struct {

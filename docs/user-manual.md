@@ -7,14 +7,19 @@
 3. [Configuration](#configuration)
 4. [OIDC Provider Setup](#oidc-provider-setup)
 5. [Token Management](#token-management)
-6. [Scope & Role Mapping](#scope--role-mapping)
-7. [Cedar Policies](#cedar-policies)
-8. [CLI Reference](#cli-reference)
-9. [API Reference](#api-reference)
-10. [AI Agent Integration](#ai-agent-integration)
-11. [Deployment](#deployment)
-12. [Monitoring](#monitoring)
-13. [Troubleshooting](#troubleshooting)
+6. [Token Introspection](#token-introspection)
+7. [PKCE Flow (Browser Clients)](#pkce-flow-browser-clients)
+8. [Scope & Role Mapping](#scope--role-mapping)
+9. [Cedar Policies](#cedar-policies)
+10. [Rate Limiting](#rate-limiting)
+11. [Multi-Tenancy](#multi-tenancy)
+12. [OSD Plugin](#osd-plugin)
+13. [CLI Reference](#cli-reference)
+14. [API Reference](#api-reference)
+15. [AI Agent Integration](#ai-agent-integration)
+16. [Deployment](#deployment)
+17. [Monitoring](#monitoring)
+18. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -232,6 +237,82 @@ Issue → Active → [Expire | Revoke] → Inactive
 
 ---
 
+## Token Introspection
+
+oauth4os implements [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662) — token introspection. Resource servers can verify tokens without parsing JWTs themselves.
+
+### Endpoint
+
+```bash
+curl -X POST https://proxy:8443/oauth/introspect \
+  -d "token=eyJhbGciOi..."
+```
+
+### Response (active token)
+
+```json
+{
+  "active": true,
+  "client_id": "my-agent",
+  "scope": "read:logs-*",
+  "exp": 1705312200,
+  "iat": 1705308600,
+  "sub": "my-agent",
+  "iss": "https://keycloak.example.com/realms/opensearch",
+  "token_type": "Bearer"
+}
+```
+
+### Response (expired/revoked)
+
+```json
+{ "active": false }
+```
+
+---
+
+## PKCE Flow (Browser Clients)
+
+For browser-based applications, oauth4os supports [PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636) — Proof Key for Code Exchange. This prevents authorization code interception attacks.
+
+### Flow
+
+1. Browser generates `code_verifier` (random string) and `code_challenge` (SHA256 hash)
+2. Browser redirects to `/oauth/authorize?response_type=code&client_id=...&code_challenge=...&code_challenge_method=S256`
+3. User authenticates with OIDC provider
+4. Proxy returns authorization code
+5. Browser exchanges code for token at `/oauth/token` with `code_verifier`
+
+### Example
+
+```javascript
+// 1. Generate PKCE pair
+const verifier = generateRandomString(64);
+const challenge = await sha256(verifier);
+
+// 2. Start auth flow
+window.location = `https://proxy:8443/oauth/authorize?` +
+  `response_type=code&client_id=web-app&` +
+  `code_challenge=${challenge}&code_challenge_method=S256&` +
+  `redirect_uri=${encodeURIComponent(window.location.origin + '/callback')}&` +
+  `scope=read:logs-*`;
+
+// 3. On callback, exchange code for token
+const resp = await fetch('https://proxy:8443/oauth/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: new URLSearchParams(window.location.search).get('code'),
+    code_verifier: verifier,
+    client_id: 'web-app',
+    redirect_uri: window.location.origin + '/callback',
+  }),
+});
+```
+
+---
+
 ## Scope & Role Mapping
 
 Scopes in the JWT `scope` claim are mapped to OpenSearch backend roles.
@@ -325,6 +406,131 @@ forbid(*, DELETE, *) unless { principal.role == "admin" };
 
 # Specific client can write to specific index
 permit(*, POST, metrics-*) when { principal.scope contains "write:metrics" };
+```
+
+---
+
+## Rate Limiting
+
+oauth4os includes per-client rate limiting using a token bucket algorithm. Protects your OpenSearch cluster from runaway clients.
+
+### Configuration
+
+```yaml
+rate_limit:
+  default_rpm: 60              # Default: 60 requests per minute per client
+  per_scope:
+    "read:logs-*": 120         # Higher limit for read-heavy agents
+    "admin": 30                # Lower limit for admin operations
+```
+
+### Behavior
+
+- Each client (identified by `client_id` in the JWT) gets its own bucket
+- When a client exceeds the limit, the proxy returns `429 Too Many Requests`
+- The `Retry-After` header tells the client how long to wait (in seconds)
+- Rate limits are per-scope — a client with multiple scopes uses the highest limit
+
+### Response (rate limited)
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 5
+Content-Type: application/json
+
+{"error":"rate_limit_exceeded","retry_after":5}
+```
+
+### Monitoring
+
+```promql
+# Rate limit hits per client
+rate(oauth4os_rate_limited_total[5m])
+```
+
+---
+
+## Multi-Tenancy
+
+oauth4os supports per-OIDC-provider isolation. Each provider gets its own scope mappings and Cedar policies — useful for multi-team or multi-environment setups.
+
+### Configuration
+
+```yaml
+providers:
+  - name: team-a
+    issuer: https://keycloak.example.com/realms/team-a
+    jwks_uri: auto
+    scope_mapping:                    # Provider-specific mapping
+      "read:logs-*":
+        backend_roles: [team_a_logs_read]
+    cedar:
+      policies:
+        - 'permit(*, GET, team-a-logs-*);'
+        - 'forbid(*, *, team-b-*);'   # Can't access team B's indices
+
+  - name: team-b
+    issuer: https://keycloak.example.com/realms/team-b
+    jwks_uri: auto
+    scope_mapping:
+      "read:logs-*":
+        backend_roles: [team_b_logs_read]
+    cedar:
+      policies:
+        - 'permit(*, GET, team-b-logs-*);'
+        - 'forbid(*, *, team-a-*);'
+```
+
+### How It Works
+
+1. Token arrives with `iss` claim
+2. Proxy matches issuer to provider config
+3. Provider-specific scope mapping is applied
+4. Provider-specific Cedar policies are evaluated
+5. If no provider-specific config, falls back to global config
+
+---
+
+## OSD Plugin
+
+The OpenSearch Dashboards plugin provides a UI for token management.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| List tokens | Table with status badges, scope tags, time-ago, copy-to-clipboard |
+| Create token | Client credentials form with scope help text |
+| Revoke token | Confirmation dialog to prevent accidental revocation |
+| Token result | Copy buttons for access + refresh tokens |
+
+### Installation
+
+Copy the plugin into your OSD plugins directory:
+
+```bash
+cp -r plugins/oauth4os-dashboards /path/to/opensearch-dashboards/plugins/
+```
+
+Set the proxy URL:
+
+```yaml
+# opensearch_dashboards.yml
+oauth4os.proxy_url: https://oauth4os-proxy:8443
+```
+
+Restart Dashboards. The plugin appears in the left nav as "OAuth Token Management".
+
+### Standalone Testing
+
+The plugin includes a standalone test harness:
+
+```bash
+# Start proxy
+docker compose up
+
+# Open in browser
+open plugins/oauth4os-dashboards/public/index.html
 ```
 
 ---

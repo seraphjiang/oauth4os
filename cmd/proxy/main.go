@@ -123,8 +123,38 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Issuer URL for discovery + token exchange
+	issuerURL := "http://localhost" + cfg.Listen
+	if cfg.TLS.Enabled {
+		issuerURL = "https://localhost" + cfg.Listen
+	}
+	if envIssuer := os.Getenv("OAUTH4OS_ISSUER"); envIssuer != "" {
+		issuerURL = envIssuer
+	}
+
 	// Token endpoints
-	mux.HandleFunc("POST /oauth/token", tokenMgr.IssueToken)
+	exchangeHandler := exchange.NewHandler(
+		&exchange.JWTSubjectValidator{Validate: func(token string) (string, string, []string, error) {
+			claims, err := validator.Validate(token)
+			if err != nil {
+				return "", "", nil, err
+			}
+			return claims.ClientID, claims.Issuer, claims.Scopes, nil
+		}},
+		&exchange.ManagerAdapter{CreateToken: func(clientID string, scopes []string) (string, string) {
+			tok, refresh := tokenMgr.CreateTokenForClient(clientID, scopes)
+			return tok.ID, refresh
+		}},
+		issuerURL,
+	)
+	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.FormValue("grant_type") == exchange.GrantType {
+			exchangeHandler.ServeHTTP(w, r)
+			return
+		}
+		tokenMgr.IssueToken(w, r)
+	})
 	mux.HandleFunc("DELETE /oauth/token/{id}", tokenMgr.RevokeToken)
 	mux.HandleFunc("GET /oauth/tokens", tokenMgr.ListTokens)
 	mux.HandleFunc("GET /oauth/token/{id}", tokenMgr.GetToken)
@@ -154,13 +184,6 @@ func main() {
 	})
 
 	// OIDC Discovery
-	issuerURL := "http://localhost" + cfg.Listen
-	if cfg.TLS.Enabled {
-		issuerURL = "https://localhost" + cfg.Listen
-	}
-	if envIssuer := os.Getenv("OAUTH4OS_ISSUER"); envIssuer != "" {
-		issuerURL = envIssuer
-	}
 	var scopeNames []string
 	for s := range cfg.ScopeMapping {
 		scopeNames = append(scopeNames, s)
@@ -274,6 +297,9 @@ func main() {
 
 		r.Header.Del("Authorization")
 		r.Header.Del("Cookie")
+		r.Header.Del("Proxy-Authorization")
+		r.Header.Del("X-Forwarded-For")  // proxy sets its own
+		r.Header.Del("X-Forwarded-Host")
 		r.Header.Set("X-Proxy-User", claims.ClientID)
 		r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
 		r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))

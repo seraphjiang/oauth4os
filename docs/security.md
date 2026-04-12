@@ -184,7 +184,7 @@ forbid(*, DELETE, *)
 ## Known Limitations
 
 1. **In-memory token store** — tokens lost on restart. Production deployments should use Redis or DynamoDB.
-2. **No audience validation** — `aud` claim is not currently validated against expected values.
+2. **In-memory token store** — tokens lost on restart. Production deployments should use Redis or DynamoDB.
 3. **Single signing algorithm** — only RSA (RS256) supported. ES256/EdDSA not yet implemented.
 4. **No token size limit** — extremely large JWTs are not rejected before parsing.
 5. **PKCE codes in memory** — authorization codes not persisted; lost on restart.

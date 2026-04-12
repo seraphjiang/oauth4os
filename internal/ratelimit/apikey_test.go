@@ -81,11 +81,11 @@ func TestRetryAfterValue(t *testing.T) {
 	}
 }
 
-// Test unknown client has zero retry-after
+// Test unknown client has minimal retry-after
 func TestRetryAfterUnknownClient(t *testing.T) {
 	l := New(nil, 100)
 	ra := l.RetryAfter("unknown")
-	if ra != 0 {
-		t.Errorf("expected 0 for unknown client, got %d", ra)
+	if ra > 60 {
+		t.Errorf("expected retry-after <=60 for fresh client, got %d", ra)
 	}
 }

@@ -1,0 +1,73 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: proxy
+    main: ./cmd/proxy
+    binary: oauth4os
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
+
+  - id: cli
+    main: ./cmd/cli
+    binary: oauth4os-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - config.demo.yaml
+
+dockers:
+  - image_templates:
+      - "jianghuan/oauth4os:{{ .Version }}"
+      - "jianghuan/oauth4os:latest"
+      - "544277935543.dkr.ecr.us-west-2.amazonaws.com/oauth4os:{{ .Version }}"
+      - "544277935543.dkr.ecr.us-west-2.amazonaws.com/oauth4os:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^style:"
+      - "^test:"
+
+release:
+  github:
+    owner: seraphjiang
+    name: oauth4os
+  draft: false
+  prerelease: auto

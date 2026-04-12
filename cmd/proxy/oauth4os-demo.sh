@@ -696,7 +696,7 @@ cmd_dashboard() {
       }
     }'
     local resp
-    resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    resp=$(authed_curl -H "Content-Type: application/json" \
       "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
     [ $? -ne 0 ] && { sleep 3; continue; }
 
@@ -899,7 +899,7 @@ cmd_watch() {
   while true; do
     local body="{\"query\":${dsl},\"size\":5,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
     local resp
-    resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    resp=$(authed_curl -H "Content-Type: application/json" \
       "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
     if [ $? -ne 0 ]; then sleep "$interval"; continue; fi
 
@@ -948,7 +948,7 @@ cmd_diff() {
   _agg_query() {
     local from="$1" to="$2"
     local body="{\"size\":0,\"query\":{\"range\":{\"@timestamp\":{\"gte\":\"$from\",\"lte\":\"$to\"}}},\"aggs\":{\"total\":{\"value_count\":{\"field\":\"_index\"}},\"errors\":{\"filter\":{\"terms\":{\"level.keyword\":[\"ERROR\",\"FATAL\"]}}},\"by_service\":{\"terms\":{\"field\":\"service.keyword\",\"size\":20}},\"by_level\":{\"terms\":{\"field\":\"level.keyword\",\"size\":10}}}}"
-    curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    authed_curl -H "Content-Type: application/json" \
       "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null
   }
 

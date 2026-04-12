@@ -918,6 +918,12 @@ func main() {
 			http.Error(w, `{"error":"not found"}`, 404)
 		}
 	})
+	mux.HandleFunc("DELETE /admin/api/clients/{id}/tokens", func(w http.ResponseWriter, r *http.Request) {
+		clientID := r.PathValue("id")
+		count := tokenMgr.RevokeByClient(clientID)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"status": "revoked", "client_id": clientID, "count": count})
+	})
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))

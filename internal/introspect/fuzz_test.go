@@ -13,7 +13,9 @@ func FuzzIntrospect(f *testing.F) {
 	f.Add("token=")
 	f.Add("token=" + strings.Repeat("x", 10000))
 	f.Fuzz(func(t *testing.T, body string) {
-		h := NewHandler(&StaticLookup{})
+		h := NewHandler(&mockLookup{fn: func(tok string) *Response {
+			return &Response{Active: tok == "valid"}
+		}})
 		r := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()

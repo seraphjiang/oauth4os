@@ -1,0 +1,63 @@
+{
+  "dashboard": {
+    "title": "oauth4os",
+    "uid": "oauth4os",
+    "panels": [
+      {
+        "title": "Requests / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [{"expr": "rate(oauth4os_requests_total[5m])", "legendFormat": "req/s"}]
+      },
+      {
+        "title": "Active Requests",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "targets": [{"expr": "oauth4os_requests_active"}]
+      },
+      {
+        "title": "Uptime",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "targets": [{"expr": "oauth4os_uptime_seconds"}],
+        "fieldConfig": {"defaults": {"unit": "s"}}
+      },
+      {
+        "title": "Auth Success vs Failure",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {"expr": "rate(oauth4os_auth_success[5m])", "legendFormat": "success/s"},
+          {"expr": "rate(oauth4os_auth_failed[5m])", "legendFormat": "failed/s"}
+        ]
+      },
+      {
+        "title": "Error Rate %",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [{"expr": "rate(oauth4os_requests_failed[5m]) / rate(oauth4os_requests_total[5m]) * 100", "legendFormat": "error %"}],
+        "fieldConfig": {"defaults": {"unit": "percent"}}
+      },
+      {
+        "title": "Cedar Denials / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+        "targets": [{"expr": "rate(oauth4os_cedar_denied[5m])", "legendFormat": "denied/s"}]
+      },
+      {
+        "title": "Rate Limited / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+        "targets": [{"expr": "rate(oauth4os_rate_limited[5m])", "legendFormat": "limited/s"}]
+      },
+      {
+        "title": "Upstream Errors / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+        "targets": [{"expr": "rate(oauth4os_upstream_errors[5m])", "legendFormat": "errors/s"}]
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "10s"
+  }
+}

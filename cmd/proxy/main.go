@@ -53,6 +53,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/device"
 	"github.com/seraphjiang/oauth4os/internal/i18n"
 	"github.com/seraphjiang/oauth4os/internal/par"
+	"github.com/seraphjiang/oauth4os/internal/configui"
 	"github.com/seraphjiang/oauth4os/internal/tokenbind"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
@@ -421,6 +422,13 @@ func main() {
 	})
 
 	// Health
+	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"version": version, "commit": commit, "build_time": buildTime, "go_version": goVersion,
+		})
+	})
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","version":"%s","uptime_seconds":%d}`,
@@ -754,6 +762,10 @@ func main() {
 	// Pushed Authorization Requests (RFC 9126)
 	parHandler := par.NewHandler(tokenMgr.AuthenticateClient)
 	parHandler.Register(mux)
+
+	// Config admin UI
+	configUI := configui.New(func() *config.Config { return cfg })
+	configUI.Register(mux)
 
 	// Token inspector page
 	tokenInspector := tokenui.New(issuerURL)
@@ -1094,6 +1106,29 @@ func main() {
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
+
+	// SIGHUP — reload config (rate limits, IP filter, scope mapping)
+	go func() {
+		hupCh := make(chan os.Signal, 1)
+		signal.Notify(hupCh, syscall.SIGHUP)
+		for range hupCh {
+			logger.Info("SIGHUP received, reloading config")
+			newCfg, err := config.Load(*configPath)
+			if err != nil {
+				logger.Error("config reload failed", "error", err)
+				continue
+			}
+			if err := newCfg.Validate(); err != nil {
+				logger.Error("config reload invalid", "error", err)
+				continue
+			}
+			// Update rate limits
+			*limiter = *ratelimit.New(newCfg.RateLimits, 600)
+			// Update scope mapper
+			*mapper = *scope.NewMultiTenantMapper(newCfg.ScopeMapping, newCfg.Tenants)
+			logger.Info("config reloaded successfully")
+		}
+	}()
 
 	// Graceful shutdown — drain connections, flush state
 	go func() {

@@ -154,6 +154,8 @@ func main() {
 		cmdInspectToken(cfg)
 	case "status":
 		cmdStatus(cfg)
+	case "healthcheck":
+		cmdHealthcheck(cfg)
 	case "config":
 		cmdConfig(cfg)
 	case "logout":
@@ -382,6 +384,24 @@ func cmdStatus(cfg *CLIConfig) {
 		{"Version", fmt.Sprint(result["version"])},
 		{"Token", tokenState},
 	})
+}
+
+// cmdHealthcheck — exit 0 if healthy, exit 1 if not. For K8s liveness probes.
+func cmdHealthcheck(cfg *CLIConfig) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(cfg.Server + "/health")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "UNHEALTHY: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		fmt.Fprintf(os.Stderr, "UNHEALTHY: status %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	fmt.Printf("HEALTHY: %s\n", result["status"])
 }
 
 func cmdConfig(cfg *CLIConfig) {

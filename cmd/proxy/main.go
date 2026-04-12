@@ -1163,9 +1163,20 @@ func main() {
 	// Gzip compression
 	compressed := compress.Middleware(corsHandler)
 
+	// Security headers
+	secured := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if cfg.TLS.Enabled {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
+		compressed.ServeHTTP(w, r)
+	})
+
 	// Structured access logs
 	alog := accesslog.New(os.Stdout)
-	logged := alog.Middleware(compressed, func(r *http.Request) string {
+	logged := alog.Middleware(secured, func(r *http.Request) string {
 		if v := r.Header.Get("X-Client-ID"); v != "" {
 			return v
 		}

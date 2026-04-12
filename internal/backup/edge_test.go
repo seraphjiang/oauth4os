@@ -6,66 +6,67 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/seraphjiang/oauth4os/internal/config"
 )
 
-// Edge cases for backup/restore.
+func emptyCfg() *config.Config {
+	return &config.Config{}
+}
+
+func noCli() []ClientEntry { return nil }
+
+func noopApply(c *config.Config) {}
 
 func TestExport_EmptyConfig(t *testing.T) {
-	h := NewHandler(
-		func() interface{} { return map[string]interface{}{} },
-		func() interface{} { return []interface{}{} },
-		nil,
-	)
-	r := httptest.NewRequest("GET", "/admin/config/export", nil)
+	h := NewHandler(emptyCfg, noCli, noopApply)
 	w := httptest.NewRecorder()
-	h.Export(w, r)
+	h.Export(w, httptest.NewRequest("GET", "/admin/backup", nil))
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var result map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
-		t.Fatalf("response should be valid JSON: %v", err)
+	var b Bundle
+	if err := json.Unmarshal(w.Body.Bytes(), &b); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
 	}
-}
-
-func TestImport_EmptyBody(t *testing.T) {
-	applied := false
-	h := NewHandler(nil, nil, func(data json.RawMessage) error {
-		applied = true
-		return nil
-	})
-	r := httptest.NewRequest("POST", "/admin/config/import", strings.NewReader("{}"))
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	h.Import(w, r)
-	// Should not crash on empty import
-	if w.Code >= 500 {
-		t.Errorf("empty import should not cause 5xx, got %d", w.Code)
-	}
-}
-
-func TestImport_InvalidJSON(t *testing.T) {
-	h := NewHandler(nil, nil, func(data json.RawMessage) error { return nil })
-	r := httptest.NewRequest("POST", "/admin/config/import", strings.NewReader("{invalid"))
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	h.Import(w, r)
-	if w.Code != http.StatusBadRequest && w.Code < 400 {
-		t.Errorf("invalid JSON should return 4xx, got %d", w.Code)
+	if b.Version != "1" {
+		t.Errorf("expected version 1, got %s", b.Version)
 	}
 }
 
 func TestExport_ContentType(t *testing.T) {
-	h := NewHandler(
-		func() interface{} { return nil },
-		func() interface{} { return nil },
-		nil,
-	)
-	r := httptest.NewRequest("GET", "/admin/config/export", nil)
+	h := NewHandler(emptyCfg, noCli, noopApply)
 	w := httptest.NewRecorder()
-	h.Export(w, r)
-	ct := w.Header().Get("Content-Type")
-	if !strings.Contains(ct, "json") {
-		t.Errorf("export should return JSON content type, got %s", ct)
+	h.Export(w, httptest.NewRequest("GET", "/admin/backup", nil))
+	if !strings.Contains(w.Header().Get("Content-Type"), "json") {
+		t.Error("export should return JSON")
+	}
+	if !strings.Contains(w.Header().Get("Content-Disposition"), "attachment") {
+		t.Error("export should be downloadable")
+	}
+}
+
+func TestImport_InvalidJSON(t *testing.T) {
+	h := NewHandler(emptyCfg, noCli, noopApply)
+	r := httptest.NewRequest("POST", "/admin/restore", strings.NewReader("{bad"))
+	w := httptest.NewRecorder()
+	h.Import(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestImport_AppliesConfig(t *testing.T) {
+	var applied *config.Config
+	h := NewHandler(emptyCfg, noCli, func(c *config.Config) { applied = c })
+	body := `{"version":"1","providers":[{"name":"test","issuer":"https://test.example.com"}]}`
+	r := httptest.NewRequest("POST", "/admin/restore", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	h.Import(w, r)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if applied == nil || len(applied.Providers) != 1 {
+		t.Error("config should have been applied with 1 provider")
 	}
 }

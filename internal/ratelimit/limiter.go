@@ -44,6 +44,24 @@ func (b *Bucket) retryAfter() int {
 	return int((1 - b.tokens) / b.rate) + 1
 }
 
+// status returns (limit, remaining, resetUnix) for rate limit headers.
+func (b *Bucket) status() (int, int, int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	limit := int(b.capacity)
+	remaining := int(b.tokens)
+	if remaining < 0 {
+		remaining = 0
+	}
+	// Reset = when bucket fully refills
+	secsToFull := 0.0
+	if b.rate > 0 {
+		secsToFull = (b.capacity - b.tokens) / b.rate
+	}
+	reset := time.Now().Add(time.Duration(secsToFull) * time.Second).Unix()
+	return limit, remaining, reset
+}
+
 // Limiter manages per-client rate limit buckets.
 type Limiter struct {
 	limits  map[string]int // scope → requests_per_minute
@@ -110,14 +128,24 @@ func (l *Limiter) Middleware(next http.Handler, extractClient func(r *http.Reque
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !l.Allow(clientID, scopes) {
-			retry := l.RetryAfter(clientID)
+		rpm := l.resolveRPM(scopes)
+		bucket := l.getBucket(clientID, rpm)
+		if !bucket.allow() {
+			retry := bucket.retryAfter()
+			limit, remaining, reset := bucket.status()
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset, 10))
 			w.Header().Set("Retry-After", strconv.Itoa(retry))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
 			fmt.Fprintf(w, `{"error":"rate_limit_exceeded","retry_after":%d}`, retry)
 			return
 		}
+		limit, remaining, reset := bucket.status()
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset, 10))
 		next.ServeHTTP(w, r)
 	})
 }

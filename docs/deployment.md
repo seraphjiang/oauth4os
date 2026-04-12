@@ -123,6 +123,26 @@ token_store: file:/var/lib/oauth4os/tokens.json
 secrets_backend: env             # env or file
 ```
 
+### TLS Certificate Auto-Reload
+
+The proxy automatically reloads TLS certificates when files change on disk — no restart needed. Works with certbot, cert-manager, or manual renewal.
+
+```yaml
+tls:
+  enabled: true
+  cert_file: /etc/ssl/certs/proxy.pem
+  key_file: /etc/ssl/private/proxy.key
+```
+
+Certificates are polled every 30 seconds. When a change is detected, the new cert is loaded and used for all new connections. Existing connections are unaffected.
+
+**With certbot:**
+```bash
+certbot renew --deploy-hook "echo 'cert renewed, proxy will auto-reload'"
+```
+
+**With Kubernetes cert-manager:** Mount the Secret as a volume — the proxy detects the file update automatically.
+
 ### Deploy
 
 ```bash

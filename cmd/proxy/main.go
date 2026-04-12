@@ -66,6 +66,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/circuit"
 	"github.com/seraphjiang/oauth4os/internal/healthcheck"
 	"github.com/seraphjiang/oauth4os/internal/histogram"
+	"github.com/seraphjiang/oauth4os/internal/metrics"
 	"github.com/seraphjiang/oauth4os/internal/retry"
 	"github.com/seraphjiang/oauth4os/internal/secrets"
 	"github.com/seraphjiang/oauth4os/internal/store"
@@ -122,6 +123,8 @@ var (
 	circuitOpens    atomic.Int64
 	startTime       = time.Now()
 	latencyHist     = histogram.New()
+	reqCounter      = metrics.NewCounter()
+	reqSummary      = metrics.NewSummary()
 	shuttingDown    atomic.Bool
 )
 
@@ -436,6 +439,17 @@ func main() {
 	introHandler := introspect.NewHandler(introAdapter)
 	introHandler.SetClientAuth(tokenMgr.AuthenticateClient)
 	mux.Handle("POST /oauth/introspect", introHandler)
+
+	// OIDC UserInfo endpoint
+	userinfoHandler := userinfo.New(func(token string) (string, []string, bool) {
+		clientID, scopes, _, expiresAt, revoked, ok := tokenMgr.Lookup(token)
+		if !ok || revoked || time.Now().After(expiresAt) {
+			return "", nil, false
+		}
+		return clientID, scopes, true
+	})
+	mux.Handle("GET /oauth/userinfo", userinfoHandler)
+	mux.Handle("POST /oauth/userinfo", userinfoHandler)
 
 	// PKCE authorization code flow for browser clients
 	pkceHandler := pkce.NewHandler(func(clientID string, scopes []string) (string, string) {
@@ -1189,7 +1203,13 @@ func main() {
 		requestsActive.Add(1)
 		defer requestsActive.Add(-1)
 		reqStart := time.Now()
-		defer func() { latencyHist.Observe(time.Since(reqStart), r.URL.Path) }()
+		defer func() {
+			d := time.Since(reqStart)
+			latencyHist.Observe(d, r.URL.Path)
+			ml := metrics.Labels{Method: r.Method, Path: r.URL.Path}
+			reqCounter.Inc(ml)
+			reqSummary.Observe(ml, d)
+		}()
 
 		// Request body size limit (10MB)
 		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)

@@ -853,7 +853,7 @@ cmd_completion() {
       cat <<'COMP'
 _oauth4os_demo() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local cmds="login logout search sql tail services indices stats export dashboard bookmark history config alias completion status token whoami help"
+  local cmds="login logout refresh register revoke rotate search sql tail watch stream services indices clients tokens sessions keys stats export dashboard bookmark history config alias completion status token whoami profile ping latency alerts audit diff top env install-man changelog version tutorial policy backup restore help"
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=($(compgen -W "$cmds" -- "$cur"))
   elif [ "${COMP_WORDS[1]}" = "config" ] && [ "$COMP_CWORD" -eq 2 ]; then
@@ -876,14 +876,27 @@ COMP
       cat <<'COMP'
 #compdef oauth4os-demo
 _oauth4os_demo() {
-  local -a commands=(login logout search sql tail services indices stats export dashboard bookmark history config alias completion status token whoami help)
+  local -a commands=(login logout refresh register revoke rotate search sql tail watch stream services indices clients tokens sessions keys stats export dashboard bookmark history config alias completion status token whoami profile ping latency alerts audit diff top env install-man changelog version tutorial policy backup restore help)
   _arguments '1:command:compadd -a commands'
 }
 compdef _oauth4os_demo oauth4os-demo
 COMP
       echo -e "\n# Add to ~/.zshrc: eval \"\$(oauth4os-demo completion zsh)\"" >&2
       ;;
-    *) echo -e "${YELLOW}Usage: oauth4os-demo completion <bash|zsh>${NC}" ;;
+    fish)
+      cat <<'COMP'
+set -l cmds login logout refresh register revoke rotate search sql tail watch stream services indices clients tokens sessions keys stats export dashboard bookmark history config alias completion status token whoami profile ping latency alerts audit diff top env install-man changelog version tutorial policy backup restore help
+complete -c oauth4os-demo -f
+complete -c oauth4os-demo -n "not __fish_seen_subcommand_from $cmds" -a "$cmds"
+complete -c oauth4os-demo -n "__fish_seen_subcommand_from config" -a "show set get reset"
+complete -c oauth4os-demo -n "__fish_seen_subcommand_from alias" -a "add rm run list"
+complete -c oauth4os-demo -n "__fish_seen_subcommand_from bookmark" -a "save run delete list"
+complete -c oauth4os-demo -n "__fish_seen_subcommand_from policy" -a "list add remove test"
+complete -c oauth4os-demo -n "__fish_seen_subcommand_from completion" -a "bash zsh fish"
+COMP
+      echo -e "\n# Save to: oauth4os-demo completion fish > ~/.config/fish/completions/oauth4os-demo.fish" >&2
+      ;;
+    *) echo -e "${YELLOW}Usage: oauth4os-demo completion <bash|zsh|fish>${NC}" ;;
   esac
 }
 
@@ -1379,6 +1392,152 @@ cmd_rotate() {
   echo -e "\n  ${YELLOW}⚠ Update your application with the new secret${NC}"
 }
 
+cmd_stream() {
+  local filter="${1:-*}"
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+  local ws_url="${PROXY}/ws/logs"
+  ws_url=$(echo "$ws_url" | sed 's|^http|ws|')
+
+  echo -e "${BOLD}📡 Live Log Stream${NC} (filter: ${CYAN}${filter}${NC})"
+  echo -e "  Press Ctrl+C to stop\n"
+
+  # Try websocat first (WebSocket client)
+  if command -v websocat >/dev/null 2>&1; then
+    websocat -H "Authorization: Bearer ${tok}" "${ws_url}?filter=${filter}" 2>/dev/null | while IFS= read -r line; do
+      _format_stream_line "$line"
+    done
+    return
+  fi
+
+  # Fallback: poll tail endpoint
+  echo -e "  ${YELLOW}(websocat not found — falling back to polling)${NC}\n"
+  local seen=""
+  trap 'echo -e "\n${GREEN}Stream stopped${NC}"; return 0' INT
+  while true; do
+    local resp
+    resp=$(authed_curl -H "Content-Type: application/json" \
+      "${PROXY}/${DEFAULT_INDEX}/_search" \
+      -d "{\"size\":5,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}],\"query\":{\"query_string\":{\"query\":\"${filter}\"}}}" 2>/dev/null)
+    echo "$resp" | jq -r '.hits.hits[]?._source | "\(.["@timestamp"] // .timestamp) \(.level // "INFO") \(.service // "—") \(.message // .msg // "")"' 2>/dev/null | tac | while IFS= read -r line; do
+      local hash=$(echo "$line" | md5sum | cut -c1-8)
+      if ! echo "$seen" | grep -q "$hash"; then
+        seen="${seen}${hash} "
+        _format_stream_line "$line"
+      fi
+    done
+    sleep 2
+  done
+}
+
+_format_stream_line() {
+  local line="$1"
+  local level=$(echo "$line" | awk '{print $2}')
+  case "$level" in
+    ERROR|FATAL) echo -e "  ${RED}${line}${NC}" ;;
+    WARN*)       echo -e "  ${YELLOW}${line}${NC}" ;;
+    *)           echo -e "  ${line}" ;;
+  esac
+}
+
+cmd_policy() {
+  local action="${1:-list}"
+  shift 2>/dev/null
+  case "$action" in
+    list)
+      local resp
+      resp=$(authed_curl "${PROXY}/cedar/policies" 2>/dev/null)
+      if [ -z "$resp" ]; then
+        resp=$(authed_curl "${PROXY}/playground/api/policies" 2>/dev/null)
+      fi
+      if [ -z "$resp" ]; then echo -e "${RED}No policies found${NC}" >&2; return 1; fi
+      if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+      echo -e "${BOLD}🌲 Cedar Policies${NC}\n"
+      echo "$resp" | jq -r '.[]? | "  [\(.effect // .Effect)] \(.id // .ID // "—"): \(.description // .principal // "—")"' 2>/dev/null
+      ;;
+    add)
+      local policy="$*"
+      [ -z "$policy" ] && { echo -e "${RED}Usage: oauth4os-demo policy add '<cedar policy>'${NC}" >&2; return 1; }
+      local resp
+      resp=$(authed_curl -X POST -H "Content-Type: application/json" \
+        "${PROXY}/cedar/policies" -d "{\"policy\":\"${policy}\"}" 2>/dev/null)
+      if [ "$IS_TTY" = "false" ]; then echo "${resp:-{\"status\":\"added\"}}"; return; fi
+      echo -e "${GREEN}✅ Policy added${NC}"
+      echo "$resp" | jq . 2>/dev/null
+      ;;
+    remove)
+      local id="${1:?Usage: oauth4os-demo policy remove <id>}"
+      local resp
+      resp=$(authed_curl -X DELETE "${PROXY}/cedar/policies/${id}" 2>/dev/null)
+      if [ "$IS_TTY" = "false" ]; then echo "${resp:-{\"status\":\"removed\"}}"; return; fi
+      echo -e "${GREEN}✅ Policy removed${NC}"
+      ;;
+    test)
+      local principal="${1:?Usage: oauth4os-demo policy test <principal> <action> <resource>}"
+      local action_name="${2:?}" resource="${3:?}"
+      local resp
+      resp=$(authed_curl -X POST -H "Content-Type: application/json" \
+        "${PROXY}/cedar/authorize" \
+        -d "{\"principal\":\"${principal}\",\"action\":\"${action_name}\",\"resource\":\"${resource}\"}" 2>/dev/null)
+      if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+      local decision=$(echo "$resp" | jq -r '.decision // .allowed // "unknown"' 2>/dev/null)
+      if [ "$decision" = "Allow" ] || [ "$decision" = "true" ]; then
+        echo -e "${GREEN}✅ ALLOW${NC}"
+      else
+        echo -e "${RED}❌ DENY${NC}"
+      fi
+      echo "$resp" | jq -r '.reasons[]? // empty' 2>/dev/null | while read -r r; do
+        echo -e "  ${CYAN}→ $r${NC}"
+      done
+      ;;
+    *) echo -e "Usage: oauth4os-demo policy {list|add|remove|test}" >&2; return 1 ;;
+  esac
+}
+
+cmd_backup() {
+  local outfile="${1:-oauth4os-backup-$(date +%Y%m%d-%H%M%S).json}"
+  echo -e "${CYAN}Backing up proxy state...${NC}"
+  local clients tokens policies
+  clients=$(authed_curl "${PROXY}/oauth/register" 2>/dev/null)
+  tokens=$(authed_curl "${PROXY}/oauth/tokens" 2>/dev/null)
+  policies=$(authed_curl "${PROXY}/cedar/policies" 2>/dev/null)
+  local backup
+  backup=$(jq -n \
+    --argjson clients "${clients:-[]}" \
+    --argjson tokens "${tokens:-[]}" \
+    --argjson policies "${policies:-[]}" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg ver "2.0.0" \
+    '{version:$ver,timestamp:$ts,clients:$clients,tokens:$tokens,policies:$policies}')
+  echo "$backup" > "$outfile"
+  if [ "$IS_TTY" = "false" ]; then echo "$backup"; return; fi
+  local nc=$(echo "$clients" | jq 'length' 2>/dev/null)
+  local nt=$(echo "$tokens" | jq 'length' 2>/dev/null)
+  local np=$(echo "$policies" | jq 'length' 2>/dev/null)
+  echo -e "${GREEN}✅ Backup saved to ${outfile}${NC}"
+  echo -e "  Clients: ${nc:-0}  Tokens: ${nt:-0}  Policies: ${np:-0}"
+}
+
+cmd_restore() {
+  local infile="${1:?Usage: oauth4os-demo restore <backup.json>}"
+  [ ! -f "$infile" ] && { echo -e "${RED}File not found: $infile${NC}" >&2; return 1; }
+  echo -e "${CYAN}Restoring from ${infile}...${NC}"
+  local data
+  data=$(cat "$infile")
+  # Restore clients
+  local count=0
+  echo "$data" | jq -c '.clients[]?' 2>/dev/null | while IFS= read -r client; do
+    curl -sf -X POST "${PROXY}/oauth/register" \
+      -H "Content-Type: application/json" -d "$client" >/dev/null 2>&1 && count=$((count+1))
+  done
+  # Restore policies
+  echo "$data" | jq -c '.policies[]?' 2>/dev/null | while IFS= read -r policy; do
+    authed_curl -X POST -H "Content-Type: application/json" \
+      "${PROXY}/cedar/policies" -d "$policy" >/dev/null 2>&1
+  done
+  echo -e "${GREEN}✅ Restore complete${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1426,6 +1585,10 @@ case "${1:-}" in
   tokens)   cmd_tokens ;;
   keys)     cmd_keys ;;
   rotate)   shift; cmd_rotate "$@" ;;
+  stream)   shift; cmd_stream "${1:-*}" ;;
+  policy)   shift; cmd_policy "$@" ;;
+  backup)   shift; cmd_backup "${1:-}" ;;
+  restore)  shift; cmd_restore "$@" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

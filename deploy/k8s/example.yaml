@@ -1,0 +1,21 @@
+apiVersion: oauth4os.dev/v1alpha1
+kind: OAuthProxy
+metadata:
+  name: my-proxy
+spec:
+  replicas: 2
+  image: jianghuan/oauth4os:v1.0.1
+  upstream:
+    engine: http://opensearch:9200
+    dashboards: http://opensearch-dashboards:5601
+  listen: ":8443"
+  providers:
+    - name: github
+      issuer: https://token.actions.githubusercontent.com
+      audience: ["oauth4os"]
+  resources:
+    cpu: "256m"
+    memory: "512Mi"
+  monitoring:
+    enabled: true
+    scrapeInterval: "15s"

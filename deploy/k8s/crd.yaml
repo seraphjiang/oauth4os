@@ -1,0 +1,101 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: oauthproxies.oauth4os.dev
+spec:
+  group: oauth4os.dev
+  names:
+    kind: OAuthProxy
+    listKind: OAuthProxyList
+    plural: oauthproxies
+    singular: oauthproxy
+    shortNames: [oap]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [upstream]
+              properties:
+                replicas:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                image:
+                  type: string
+                  default: "jianghuan/oauth4os:latest"
+                upstream:
+                  type: object
+                  required: [engine]
+                  properties:
+                    engine:
+                      type: string
+                      description: "OpenSearch/Elasticsearch URL"
+                    dashboards:
+                      type: string
+                listen:
+                  type: string
+                  default: ":8443"
+                providers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      issuer:
+                        type: string
+                      audience:
+                        type: array
+                        items:
+                          type: string
+                resources:
+                  type: object
+                  properties:
+                    cpu:
+                      type: string
+                      default: "128m"
+                    memory:
+                      type: string
+                      default: "256Mi"
+                monitoring:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    scrapeInterval:
+                      type: string
+                      default: "15s"
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                replicas:
+                  type: integer
+                url:
+                  type: string
+                lastUpdated:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Replicas
+          type: integer
+          jsonPath: .status.replicas
+        - name: URL
+          type: string
+          jsonPath: .status.url
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

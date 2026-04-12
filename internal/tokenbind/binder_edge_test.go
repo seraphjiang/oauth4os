@@ -7,7 +7,7 @@ import (
 )
 
 func TestDifferentIPRejected(t *testing.T) {
-	b := NewBinder()
+	b := New()
 	r1 := httptest.NewRequest("GET", "/", nil)
 	r1.RemoteAddr = "10.0.0.1:1234"
 	r1.Header.Set("User-Agent", "cli/1.0")
@@ -24,7 +24,7 @@ func TestDifferentIPRejected(t *testing.T) {
 }
 
 func TestDifferentUARejected(t *testing.T) {
-	b := NewBinder()
+	b := New()
 	r1 := httptest.NewRequest("GET", "/", nil)
 	r1.RemoteAddr = "10.0.0.1:1234"
 	r1.Header.Set("User-Agent", "cli/1.0")
@@ -41,7 +41,7 @@ func TestDifferentUARejected(t *testing.T) {
 }
 
 func TestConcurrentBindAndVerify(t *testing.T) {
-	b := NewBinder()
+	b := New()
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -63,7 +63,7 @@ func TestConcurrentBindAndVerify(t *testing.T) {
 }
 
 func TestRemoveAndRebind(t *testing.T) {
-	b := NewBinder()
+	b := New()
 	r1 := httptest.NewRequest("GET", "/", nil)
 	r1.RemoteAddr = "10.0.0.1:1234"
 	r1.Header.Set("User-Agent", "cli/1.0")
@@ -83,7 +83,7 @@ func TestRemoveAndRebind(t *testing.T) {
 }
 
 func TestPortIgnored(t *testing.T) {
-	b := NewBinder()
+	b := New()
 	r1 := httptest.NewRequest("GET", "/", nil)
 	r1.RemoteAddr = "10.0.0.1:1234"
 	r1.Header.Set("User-Agent", "cli/1.0")

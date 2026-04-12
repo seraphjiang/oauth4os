@@ -1,61 +1,42 @@
 package analytics
 
-import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
+import "testing"
 
-func TestRecordAndStats(t *testing.T) {
-	tr := NewTracker(100)
-	tr.Record("agent-1", []string{"read:logs-*"}, "GET", "/logs/_search")
-	tr.Record("agent-1", []string{"read:logs-*"}, "GET", "/logs/_search")
-	tr.Record("agent-2", []string{"admin"}, "PUT", "/settings")
-	tr.RecordDenied()
+func TestRecordAndSnapshot(t *testing.T) {
+	tr := New()
+	tr.Record("agent-1", []string{"read:logs-*"}, "logs-2026")
+	tr.Record("agent-1", []string{"read:logs-*"}, "logs-2026")
+	tr.Record("agent-2", []string{"write:metrics-*"}, "metrics-cpu")
 
-	s := tr.GetStats(10)
-	if s.TotalRequests != 3 {
-		t.Fatalf("expected 3 total, got %d", s.TotalRequests)
+	r := tr.Snapshot()
+
+	if len(r.Clients) != 2 {
+		t.Fatalf("clients = %d, want 2", len(r.Clients))
 	}
-	if s.TotalDenied != 1 {
-		t.Fatalf("expected 1 denied, got %d", s.TotalDenied)
+	// agent-1 should be first (2 requests)
+	if r.Clients[0].ClientID != "agent-1" || r.Clients[0].Requests != 2 {
+		t.Errorf("top client = %+v", r.Clients[0])
 	}
-	if s.TopClients[0].ClientID != "agent-1" || s.TopClients[0].Requests != 2 {
-		t.Fatalf("expected agent-1 with 2 requests at top, got %+v", s.TopClients[0])
+
+	if len(r.Scopes) != 2 {
+		t.Fatalf("scopes = %d, want 2", len(r.Scopes))
 	}
-	if s.ScopeDistro["read:logs-*"] != 2 {
-		t.Fatalf("expected read:logs-* count 2, got %d", s.ScopeDistro["read:logs-*"])
+	if r.Scopes[0].Name != "read:logs-*" || r.Scopes[0].Count != 2 {
+		t.Errorf("top scope = %+v", r.Scopes[0])
+	}
+
+	if len(r.Indices) != 2 {
+		t.Fatalf("indices = %d, want 2", len(r.Indices))
+	}
+	if r.Indices[0].Name != "logs-2026" || r.Indices[0].Count != 2 {
+		t.Errorf("top index = %+v", r.Indices[0])
 	}
 }
 
-func TestHandler(t *testing.T) {
-	tr := NewTracker(100)
-	tr.Record("c1", []string{"read:logs-*"}, "GET", "/logs")
-
-	w := httptest.NewRecorder()
-	tr.Handler(w, httptest.NewRequest(http.MethodGet, "/oauth/analytics", nil))
-
-	if w.Code != 200 {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	var s Stats
-	json.NewDecoder(w.Body).Decode(&s)
-	if s.TotalRequests != 1 {
-		t.Fatalf("expected 1, got %d", s.TotalRequests)
-	}
-}
-
-func TestMaxEventsCaped(t *testing.T) {
-	tr := NewTracker(5)
-	for i := 0; i < 20; i++ {
-		tr.Record("c1", nil, "GET", "/")
-	}
-	s := tr.GetStats(10)
-	if s.RecentEvents != 5 {
-		t.Fatalf("expected 5 stored events, got %d", s.RecentEvents)
-	}
-	if s.TotalRequests != 20 {
-		t.Fatalf("expected 20 total, got %d", s.TotalRequests)
+func TestEmptySnapshot(t *testing.T) {
+	tr := New()
+	r := tr.Snapshot()
+	if len(r.Clients) != 0 || len(r.Scopes) != 0 || len(r.Indices) != 0 {
+		t.Error("empty tracker should return empty report")
 	}
 }

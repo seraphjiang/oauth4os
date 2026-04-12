@@ -1,34 +1,19 @@
-// Package analytics tracks token usage patterns per client.
-// Provides GET /oauth/analytics with usage stats, top clients, scope distribution.
+// Package analytics tracks token usage patterns for operator dashboards.
 package analytics
 
 import (
-	"encoding/json"
-	"net/http"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Event records a single token use.
-type Event struct {
-	ClientID string
-	Scope    string
-	Action   string
-	Resource string
-	At       time.Time
-}
-
-// Tracker collects token usage analytics.
+// Tracker collects per-client, per-scope, and per-index request metrics.
 type Tracker struct {
-	mu       sync.Mutex
-	events   []Event
-	clients  map[string]*clientStats
-	scopes   map[string]*atomic.Int64
-	total    atomic.Int64
-	denied   atomic.Int64
-	maxEvents int
+	clients map[string]*clientStats
+	scopes  map[string]*atomic.Int64
+	indices map[string]*atomic.Int64
+	mu      sync.RWMutex
 }
 
 type clientStats struct {
@@ -36,23 +21,17 @@ type clientStats struct {
 	LastSeen atomic.Value // time.Time
 }
 
-// NewTracker creates an analytics tracker.
-func NewTracker(maxEvents int) *Tracker {
-	if maxEvents <= 0 {
-		maxEvents = 10000
-	}
+// New creates an analytics tracker.
+func New() *Tracker {
 	return &Tracker{
-		clients:   make(map[string]*clientStats),
-		scopes:    make(map[string]*atomic.Int64),
-		maxEvents: maxEvents,
+		clients: make(map[string]*clientStats),
+		scopes:  make(map[string]*atomic.Int64),
+		indices: make(map[string]*atomic.Int64),
 	}
 }
 
-// Record logs a token usage event.
-func (t *Tracker) Record(clientID string, scopes []string, action, resource string) {
-	t.total.Add(1)
-	now := time.Now()
-
+// Record tracks a single request.
+func (t *Tracker) Record(clientID string, scopes []string, index string) {
 	t.mu.Lock()
 	cs, ok := t.clients[clientID]
 	if !ok {
@@ -60,85 +39,74 @@ func (t *Tracker) Record(clientID string, scopes []string, action, resource stri
 		t.clients[clientID] = cs
 	}
 	for _, s := range scopes {
-		cnt, ok := t.scopes[s]
-		if !ok {
-			cnt = &atomic.Int64{}
-			t.scopes[s] = cnt
+		if _, ok := t.scopes[s]; !ok {
+			t.scopes[s] = &atomic.Int64{}
 		}
-		cnt.Add(1)
+		t.scopes[s].Add(1)
 	}
-	if len(t.events) < t.maxEvents {
-		t.events = append(t.events, Event{ClientID: clientID, Action: action, Resource: resource, At: now})
+	if index != "" {
+		if _, ok := t.indices[index]; !ok {
+			t.indices[index] = &atomic.Int64{}
+		}
+		t.indices[index].Add(1)
 	}
 	t.mu.Unlock()
 
 	cs.Requests.Add(1)
-	cs.LastSeen.Store(now)
+	cs.LastSeen.Store(time.Now())
 }
 
-// RecordDenied logs a denied request.
-func (t *Tracker) RecordDenied() {
-	t.denied.Add(1)
-}
+// Snapshot returns current analytics data.
+func (t *Tracker) Snapshot() Report {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
-// Stats is the analytics response.
-type Stats struct {
-	TotalRequests  int64          `json:"total_requests"`
-	TotalDenied    int64          `json:"total_denied"`
-	UniqueClients  int            `json:"unique_clients"`
-	TopClients     []ClientUsage  `json:"top_clients"`
-	ScopeDistro    map[string]int64 `json:"scope_distribution"`
-	RecentEvents   int            `json:"recent_events_stored"`
-}
-
-// ClientUsage is per-client usage info.
-type ClientUsage struct {
-	ClientID string `json:"client_id"`
-	Requests int64  `json:"requests"`
-	LastSeen string `json:"last_seen"`
-}
-
-// GetStats returns current analytics.
-func (t *Tracker) GetStats(topN int) Stats {
-	if topN <= 0 {
-		topN = 10
+	r := Report{
+		Clients: make([]ClientEntry, 0, len(t.clients)),
+		Scopes:  make([]CountEntry, 0, len(t.scopes)),
+		Indices: make([]CountEntry, 0, len(t.indices)),
 	}
-	t.mu.Lock()
-	var clients []ClientUsage
+
 	for id, cs := range t.clients {
-		ls, _ := cs.LastSeen.Load().(time.Time)
-		clients = append(clients, ClientUsage{
+		var lastSeen time.Time
+		if v := cs.LastSeen.Load(); v != nil {
+			lastSeen = v.(time.Time)
+		}
+		r.Clients = append(r.Clients, ClientEntry{
 			ClientID: id,
 			Requests: cs.Requests.Load(),
-			LastSeen: ls.Format(time.RFC3339),
+			LastSeen: lastSeen,
 		})
 	}
-	scopeDist := make(map[string]int64)
-	for s, cnt := range t.scopes {
-		scopeDist[s] = cnt.Load()
+	for name, cnt := range t.scopes {
+		r.Scopes = append(r.Scopes, CountEntry{Name: name, Count: cnt.Load()})
 	}
-	eventCount := len(t.events)
-	t.mu.Unlock()
-
-	sort.Slice(clients, func(i, j int) bool {
-		return clients[i].Requests > clients[j].Requests
-	})
-	if len(clients) > topN {
-		clients = clients[:topN]
+	for name, cnt := range t.indices {
+		r.Indices = append(r.Indices, CountEntry{Name: name, Count: cnt.Load()})
 	}
 
-	return Stats{
-		TotalRequests: t.total.Load(),
-		TotalDenied:   t.denied.Load(),
-		UniqueClients: len(clients),
-		TopClients:    clients,
-		ScopeDistro:   scopeDist,
-		RecentEvents:  eventCount,
-	}
+	// Sort all by count descending
+	sort.Slice(r.Clients, func(i, j int) bool { return r.Clients[i].Requests > r.Clients[j].Requests })
+	sort.Slice(r.Scopes, func(i, j int) bool { return r.Scopes[i].Count > r.Scopes[j].Count })
+	sort.Slice(r.Indices, func(i, j int) bool { return r.Indices[i].Count > r.Indices[j].Count })
+
+	return r
 }
 
-// Handler serves GET /oauth/analytics.
-func (t *Tracker) Handler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(t.GetStats(10))
+// Report is the JSON response for GET /admin/analytics.
+type Report struct {
+	Clients []ClientEntry `json:"top_clients"`
+	Scopes  []CountEntry  `json:"scope_distribution"`
+	Indices []CountEntry  `json:"top_indices"`
+}
+
+type ClientEntry struct {
+	ClientID string    `json:"client_id"`
+	Requests int64     `json:"requests"`
+	LastSeen time.Time `json:"last_seen"`
+}
+
+type CountEntry struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
 }

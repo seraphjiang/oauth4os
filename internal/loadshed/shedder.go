@@ -23,8 +23,8 @@ func New(maxConcurrent int) *Shedder {
 func (s *Shedder) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		current := s.active.Add(1)
-		defer s.active.Add(-1)
 		if current > s.threshold {
+			s.active.Add(-1)
 			s.rejected.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "5")
@@ -33,6 +33,7 @@ func (s *Shedder) Middleware(next http.Handler) http.Handler {
 			fmt.Fprintf(w, `{"error":"overloaded","request_id":%q,"active":%d,"threshold":%d}`, reqID, current-1, s.threshold)
 			return
 		}
+		defer s.active.Add(-1)
 		next.ServeHTTP(w, r)
 	})
 }

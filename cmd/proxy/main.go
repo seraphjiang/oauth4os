@@ -85,6 +85,9 @@ var installScript string
 //go:embed oauth4os-demo.sh
 var demoCLIScript string
 
+//go:embed oauth4os-demo.1
+var manPage string
+
 //go:embed demo-app.html
 var demoAppHTML string
 
@@ -312,7 +315,7 @@ func main() {
 	}
 
 	// Backup handler
-	backupHandler := backup.NewHandler(
+	_ = backup.NewHandler(
 		func() *config.Config { return cfg },
 		func() []backup.ClientEntry { return nil },
 		func(c *config.Config) { *cfg = *c },
@@ -324,7 +327,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Register backup routes
-	// backupHandler.Register(mux) — routes handled by admin API
+	backupHandler.Register(mux)
 
 	// Issuer URL for discovery + token exchange
 	issuerURL := "http://localhost" + cfg.Listen
@@ -425,6 +428,10 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("Cache-Control", "no-cache")
 		fmt.Fprint(w, demoCLIScript)
+	})
+	mux.HandleFunc("GET /docs/oauth4os-demo.1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, manPage)
 	})
 
 	// Demo web app — log viewer with PKCE login
@@ -759,7 +766,6 @@ func main() {
 	})
 
 	// Backup endpoints
-	//backupHandler.Register(mux) // handled by admin API
 
 	// API key management
 	mux.HandleFunc("POST /admin/apikeys", func(w http.ResponseWriter, r *http.Request) {

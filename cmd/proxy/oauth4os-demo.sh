@@ -62,6 +62,7 @@ ${BOLD}COMMANDS:${NC}
   alias <action>       add|rm|run|list command aliases
   completion <shell>   Generate bash/zsh completions
   profile              Formatted token claims, scopes, expiry
+  top                  Real-time top consumers (like Unix top)
   install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}
@@ -970,6 +971,54 @@ cmd_install_man() {
   echo "  Run: man oauth4os-demo"
 }
 
+cmd_top() {
+  trap 'tput cnorm; echo; exit 0' INT
+  tput civis
+  while true; do
+    local resp
+    resp=$(curl -sf "${PROXY}/admin/analytics" 2>/dev/null)
+    local metrics
+    metrics=$(curl -sf "${PROXY}/metrics" 2>/dev/null)
+
+    tput clear
+    local ts=$(date '+%H:%M:%S')
+    echo -e "${BOLD}🔐 oauth4os top${NC}                                              ${CYAN}${ts}${NC}  (q=quit)"
+    echo -e "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Metrics summary
+    if [ -n "$metrics" ]; then
+      local total=$(echo "$metrics" | grep '^oauth4os_requests_total ' | awk '{print $2}')
+      local active=$(echo "$metrics" | grep '^oauth4os_requests_active ' | awk '{print $2}')
+      local failed=$(echo "$metrics" | grep '^oauth4os_requests_failed ' | awk '{print $2}')
+      local shed=$(echo "$metrics" | grep '^oauth4os_loadshed_total ' | awk '{print $2}')
+      local cache_h=$(echo "$metrics" | grep '^oauth4os_cache_hits ' | awk '{print $2}')
+      local uptime=$(echo "$metrics" | grep '^oauth4os_uptime_seconds ' | awk '{print $2}')
+      printf "\n  ${BOLD}Requests:${NC} %-8s  ${BOLD}Active:${NC} ${CYAN}%-4s${NC}  ${BOLD}Failed:${NC} ${RED}%-6s${NC}  ${BOLD}Shed:${NC} %-6s  ${BOLD}Cache:${NC} %-6s  ${BOLD}Up:${NC} %ss\n" \
+        "${total:-0}" "${active:-0}" "${failed:-0}" "${shed:-0}" "${cache_h:-0}" "${uptime:-?}"
+    fi
+
+    # Top clients
+    if [ -n "$resp" ]; then
+      echo -e "\n  ${BOLD}Top Clients:${NC}"
+      printf "  ${CYAN}%-25s %10s %20s${NC}\n" "CLIENT" "REQUESTS" "LAST SEEN"
+      echo "$resp" | jq -r '.top_clients[:10][] | "\(.client_id) \(.requests) \(.last_seen)"' 2>/dev/null | while read -r cid reqs seen; do
+        local ago_s=""
+        if [ "$seen" != "null" ] && [ -n "$seen" ]; then
+          ago_s=$(echo "$seen" | cut -dT -f2 | cut -d. -f1)
+        fi
+        printf "  %-25s %10s %20s\n" "$cid" "$reqs" "${ago_s:-—}"
+      done
+
+      echo -e "\n  ${BOLD}Top Scopes:${NC}"
+      echo "$resp" | jq -r '.scope_distribution[:8][] | "\(.name) \(.count)"' 2>/dev/null | while read -r name cnt; do
+        printf "  %-30s %8s\n" "$name" "$cnt"
+      done
+    fi
+
+    read -t 3 -n 1 key 2>/dev/null && [ "$key" = "q" ] && { tput cnorm; echo; break; }
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -991,6 +1040,7 @@ case "${1:-}" in
   watch)    shift; cmd_watch "$*" ;;
   diff)     shift; cmd_diff "${1:-today}" "${2:-yesterday}" ;;
   profile)  cmd_profile ;;
+  top)      cmd_top ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

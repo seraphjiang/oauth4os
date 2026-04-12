@@ -49,6 +49,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/apikey"
 	"github.com/seraphjiang/oauth4os/internal/mtls"
 	"github.com/seraphjiang/oauth4os/internal/webhook"
+	"github.com/seraphjiang/oauth4os/internal/cache"
 )
 
 const version = "0.2.0"
@@ -114,6 +115,9 @@ func main() {
 	apiKeyStore := apikey.NewStore()
 
 	analyticsTracker := analytics.New()
+
+	// Response cache for GET requests (5s TTL, 1000 entries max)
+	respCache := cache.New(5*time.Second, 1000)
 
 	// Load persisted clients
 	clientStore, err := token.NewClientStore("data/clients.json", tokenMgr)
@@ -183,10 +187,14 @@ func main() {
 
 	// Connection-pooled transport for upstream
 	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 50,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   50,
+		MaxConnsPerHost:       200,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:  10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
 	}
 	if cfg.TLS.InsecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -700,6 +708,9 @@ func main() {
 		requestsActive.Add(1)
 		defer requestsActive.Add(-1)
 
+		// Request body size limit (10MB)
+		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+
 		// Inject X-Request-ID for tracing
 		reqID := r.Header.Get("X-Request-ID")
 		if reqID == "" {
@@ -850,6 +861,20 @@ func main() {
 		auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
 		logger.Info("request", "request_id", reqID, "client", claims.ClientID, "method", r.Method, "path", r.URL.Path)
 		analyticsTracker.Record(claims.ClientID, claims.Scopes, index)
+
+		// Response cache for GET requests
+		if r.Method == "GET" {
+			cacheKey := claims.ClientID + ":" + r.URL.RequestURI()
+			if cached := respCache.Get(cacheKey); cached != nil {
+				for k, v := range cached.Header {
+					w.Header().Set(k, v)
+				}
+				w.Header().Set("X-Cache", "HIT")
+				w.WriteHeader(cached.StatusCode)
+				w.Write(cached.Body)
+				return
+			}
+		}
 
 		// Span: upstream forwarding
 		ctx, upSpan := tracer.StartSpan(r.Context(), string(tracing.SpanUpstream), map[string]string{"target": r.URL.Path})

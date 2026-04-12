@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/seraphjiang/oauth4os
+  repository: 544277935543.dkr.ecr.us-west-2.amazonaws.com/oauth4os
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -11,31 +11,29 @@ service:
 
 ingress:
   enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: oauth4os.local
-      paths:
-        - path: /
-          pathType: Prefix
+  className: nginx
+  host: oauth4os.example.com
   tls: []
+
+resources:
+  limits:
+    cpu: 256m
+    memory: 512Mi
+  requests:
+    cpu: 128m
+    memory: 256Mi
 
 config:
   upstream:
-    engine: https://opensearch:9200
-    dashboards: https://opensearch-dashboards:5601
+    engine: http://opensearch:9200
+    dashboards: http://opensearch-dashboards:5601
   listen: ":8443"
   providers: []
   scope_mapping: {}
 
-resources:
-  limits:
-    cpu: 200m
-    memory: 256Mi
-  requests:
-    cpu: 100m
-    memory: 128Mi
+env: []
+#  - name: AWS_REGION
+#    value: us-west-2
 
 nodeSelector: {}
 tolerations: []
-affinity: {}

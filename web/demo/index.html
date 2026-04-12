@@ -74,9 +74,43 @@ select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;backgro
 
 .theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text);z-index:10}
 
+/* Loading skeletons */
+.skeleton{background:linear-gradient(90deg,var(--surface) 25%,var(--border) 50%,var(--surface) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skeleton-row{height:14px;margin-bottom:8px;width:80%}
+.skeleton-card{height:60px;border-radius:8px;margin-bottom:10px}
+.skeleton-stat{height:70px;border-radius:8px}
+
+/* Error boundary */
+.error-boundary{background:var(--surface);border:1px solid var(--red);border-radius:12px;padding:40px;text-align:center;max-width:500px;margin:60px auto}
+.error-boundary .icon{font-size:48px;margin-bottom:12px}
+.error-boundary h2{font-size:18px;margin-bottom:8px}
+.error-boundary p{color:var(--muted);font-size:13px;margin-bottom:16px}
+.error-boundary button{padding:8px 20px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;cursor:pointer}
+
+/* Mobile nav */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:20;padding:6px 0}
+.mobile-nav-inner{display:flex;justify-content:space-around}
+.mobile-nav a{text-align:center;font-size:10px;color:var(--muted);text-decoration:none;padding:4px 8px}
+.mobile-nav a .mi{font-size:18px;display:block}
+.mobile-nav a.active{color:var(--accent)}
+
 @media(max-width:768px){
   .sidebar{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
+  .mobile-nav{display:block}
+  .main{padding:16px 12px 72px}
+  .app{display:block}
+}
+@media(max-width:375px){
+  .stats{grid-template-columns:1fr}
+  .stat .value{font-size:18px}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .search-input{min-width:0}
+  .log-table{font-size:10px}
+  .log-table .msg{max-width:160px}
+  .login-card{padding:24px 16px}
+  .login-card h1{font-size:20px}
 }
 </style>
 </head>
@@ -297,6 +331,7 @@ function showApp() {
   document.getElementById('settingsToken').textContent = token.slice(0, 20) + '...' + token.slice(-10);
   document.getElementById('settingsProxy').textContent = PROXY;
   loadServices();
+  showSkeletons();
   doSearch();
   startCountdown();
 }
@@ -477,6 +512,32 @@ if (saved) document.documentElement.dataset.theme = saved;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+// Loading skeletons
+function showSkeletons() {
+  document.getElementById('stats').innerHTML = Array(4).fill('<div class="skeleton skeleton-stat"></div>').join('');
+  document.getElementById('logBody').innerHTML = Array(5).fill('<tr><td colspan="4"><div class="skeleton skeleton-row"></div></td></tr>').join('');
+}
+
+// Error boundary
+window.addEventListener('error', showError);
+window.addEventListener('unhandledrejection', e => showError(e.reason));
+function showError(err) {
+  const msg = err?.message || err?.toString?.() || 'Unknown error';
+  if (msg.includes('Script error') || msg.includes('ResizeObserver')) return;
+  const main = document.querySelector('.main');
+  if (main) main.innerHTML = `<div class="error-boundary"><div class="icon">⚠️</div><h2>Something went wrong</h2><p>${esc(msg)}</p><button onclick="location.reload()">Reload</button></div>`;
+}
+
+// Mobile nav
+document.querySelectorAll('[data-mpage]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('[data-mpage]').forEach(n => n.classList.remove('active'));
+    a.classList.add('active');
+    document.querySelectorAll('[data-page]').forEach(n => { if (n.dataset.page === a.dataset.mpage) n.click(); });
+  });
+});
+
 // Init
 (async () => {
   const params = new URLSearchParams(window.location.search);
@@ -487,5 +548,13 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s || 
   showLogin();
 })();
 </script>
+<div class="mobile-nav">
+  <div class="mobile-nav-inner">
+    <a href="#dashboard" class="active" data-mpage="dashboard"><span class="mi">🔍</span>Search</a>
+    <a href="services.html"><span class="mi">🗺️</span>Map</a>
+    <a href="alerts.html"><span class="mi">🚨</span>Alerts</a>
+    <a href="#settings" data-mpage="settings"><span class="mi">⚙️</span>Settings</a>
+  </div>
+</div>
 </body>
 </html>

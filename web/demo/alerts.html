@@ -47,6 +47,20 @@ select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;backgro
 .alert-meta{display:flex;gap:8px;flex-wrap:wrap}
 .tag{padding:1px 8px;border-radius:10px;font-size:10px;background:var(--border);color:var(--text)}
 .empty{text-align:center;padding:60px;color:var(--muted)}
+.skeleton{background:linear-gradient(90deg,var(--surface) 25%,var(--border) 50%,var(--surface) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skeleton-card{height:80px;border-radius:8px;margin-bottom:10px}
+.error-boundary{background:var(--surface);border:1px solid var(--red);border-radius:12px;padding:40px;text-align:center;max-width:500px;margin:60px auto}
+.error-boundary .icon{font-size:48px;margin-bottom:12px}
+.error-boundary h2{font-size:18px;margin-bottom:8px}
+.error-boundary p{color:var(--muted);font-size:13px;margin-bottom:16px}
+.error-boundary button{padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;cursor:pointer}
+@media(max-width:375px){
+  .summary{grid-template-columns:1fr}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar .actions{flex-wrap:wrap}
+  .alert-header{flex-direction:column;gap:4px}
+}
 </style>
 </head>
 <body>
@@ -252,6 +266,13 @@ const saved = localStorage.getItem('oauth4os_theme');
 if (saved) document.documentElement.dataset.theme = saved;
 
 fetchAlerts();
+window.addEventListener('error', e => {
+  const msg = e?.message || 'Unknown error';
+  if (msg.includes('Script error')) return;
+  document.querySelector('.container').innerHTML = `<div class="error-boundary"><div class="icon">⚠️</div><h2>Something went wrong</h2><p>${esc(msg)}</p><button onclick="location.reload()">Reload</button></div>`;
+});
+// Show skeletons
+document.getElementById('alertList').innerHTML = Array(4).fill('<div class="skeleton skeleton-card"></div>').join('');
 setInterval(fetchAlerts, 30000);
 </script>
 </body>

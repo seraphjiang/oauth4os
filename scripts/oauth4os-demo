@@ -31,6 +31,9 @@ ${BOLD}COMMANDS:${NC}
   status             Check proxy health
   stats              Error counts, latency, top errors by service
   export <q> -f csv|json -o <file>  Export results to file
+  sql <query>          Run SQL query against OpenSearch
+  history              Show last 50 queries
+  bookmark <action>    save|run|delete|list query bookmarks
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
@@ -241,6 +244,7 @@ cmd_search() {
   local query="${1:-*}"
   local dsl
   dsl=$(kql_to_dsl "$query")
+  save_history "$query"
   echo -e "${CYAN}Query:${NC} $query"
   echo -e "${CYAN}DSL:${NC}   $dsl\n"
   local body="{\"query\":${dsl},\"size\":20,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
@@ -439,6 +443,113 @@ cmd_export() {
   echo -e "${GREEN}✓ Exported ${count} records to ${outfile}${NC}"
 }
 
+HISTORY_FILE="${HOME}/.oauth4os-history"
+BOOKMARKS_FILE="${HOME}/.oauth4os-bookmarks"
+
+save_history() {
+  local q="$1"
+  [ -z "$q" ] || [ "$q" = "*" ] && return
+  # Prepend, dedup, keep 50
+  local tmp
+  tmp=$(mktemp)
+  echo "$q" > "$tmp"
+  [ -f "$HISTORY_FILE" ] && grep -vxF "$q" "$HISTORY_FILE" | head -49 >> "$tmp"
+  mv "$tmp" "$HISTORY_FILE"
+}
+
+cmd_sql() {
+  local sql="$1"
+  [ -z "$sql" ] && { echo -e "${YELLOW}Usage: oauth4os-demo sql 'SELECT * FROM logs-demo WHERE level=\\'ERROR\\' LIMIT 10'${NC}"; return 1; }
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}"; return 1; }
+  save_history "sql: $sql"
+  echo -e "${CYAN}SQL:${NC} $sql\n"
+  local body
+  body=$(jq -n --arg q "$sql" '{query:$q}')
+  local resp
+  resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    "${PROXY}/_plugins/_sql" -d "$body" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$resp" ]; then
+    # Fallback: try _sql endpoint without _plugins prefix
+    resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+      "${PROXY}/_sql" -d "$body" 2>/dev/null)
+  fi
+  if [ $? -ne 0 ] || [ -z "$resp" ]; then
+    echo -e "${RED}SQL query failed${NC}"; return 1
+  fi
+  # Check for error
+  local err
+  err=$(echo "$resp" | jq -r '.error.reason // empty' 2>/dev/null)
+  if [ -n "$err" ]; then
+    echo -e "${RED}Error: $err${NC}"; return 1
+  fi
+  # Format: schema + datarows (OpenSearch SQL response format)
+  local has_schema
+  has_schema=$(echo "$resp" | jq 'has("schema")' 2>/dev/null)
+  if [ "$has_schema" = "true" ]; then
+    # Print column headers
+    local headers
+    headers=$(echo "$resp" | jq -r '[.schema[].name] | join("\t")' 2>/dev/null)
+    echo -e "${BOLD}${headers}${NC}"
+    echo "$resp" | jq -r '.datarows[] | [.[] | tostring] | join("\t")' 2>/dev/null
+    local rows
+    rows=$(echo "$resp" | jq '.datarows | length' 2>/dev/null)
+    echo -e "\n${GREEN}${rows} rows${NC}"
+  else
+    # Fallback: pretty print
+    echo "$resp" | jq . 2>/dev/null || echo "$resp"
+  fi
+}
+
+cmd_history() {
+  if [ ! -f "$HISTORY_FILE" ] || [ ! -s "$HISTORY_FILE" ]; then
+    echo -e "${YELLOW}No query history yet${NC}"; return
+  fi
+  echo -e "${BOLD}Recent Queries:${NC}\n"
+  local i=1
+  while IFS= read -r line; do
+    printf "  ${CYAN}%3d${NC}  %s\n" "$i" "$line"
+    i=$((i+1))
+  done < "$HISTORY_FILE"
+}
+
+cmd_bookmark() {
+  local action="${1:-}" name="${2:-}" query="${3:-}"
+  case "$action" in
+    save)
+      [ -z "$name" ] || [ -z "$query" ] && { echo -e "${YELLOW}Usage: oauth4os-demo bookmark save <name> <query>${NC}"; return 1; }
+      # Remove existing with same name, append new
+      [ -f "$BOOKMARKS_FILE" ] && grep -v "^${name}	" "$BOOKMARKS_FILE" > "${BOOKMARKS_FILE}.tmp" && mv "${BOOKMARKS_FILE}.tmp" "$BOOKMARKS_FILE"
+      echo -e "${name}\t${query}" >> "$BOOKMARKS_FILE"
+      echo -e "${GREEN}✓ Saved bookmark '${name}'${NC}: $query"
+      ;;
+    run)
+      [ -z "$name" ] && { echo -e "${YELLOW}Usage: oauth4os-demo bookmark run <name>${NC}"; return 1; }
+      [ ! -f "$BOOKMARKS_FILE" ] && { echo -e "${RED}No bookmarks${NC}"; return 1; }
+      local q
+      q=$(grep "^${name}	" "$BOOKMARKS_FILE" | cut -f2-)
+      [ -z "$q" ] && { echo -e "${RED}Bookmark '${name}' not found${NC}"; return 1; }
+      echo -e "${CYAN}Running bookmark '${name}':${NC} $q\n"
+      cmd_search "$q"
+      ;;
+    delete|rm)
+      [ -z "$name" ] && { echo -e "${YELLOW}Usage: oauth4os-demo bookmark delete <name>${NC}"; return 1; }
+      [ -f "$BOOKMARKS_FILE" ] && grep -v "^${name}	" "$BOOKMARKS_FILE" > "${BOOKMARKS_FILE}.tmp" && mv "${BOOKMARKS_FILE}.tmp" "$BOOKMARKS_FILE"
+      echo -e "${GREEN}✓ Deleted bookmark '${name}'${NC}"
+      ;;
+    list|"")
+      if [ ! -f "$BOOKMARKS_FILE" ] || [ ! -s "$BOOKMARKS_FILE" ]; then
+        echo -e "${YELLOW}No bookmarks yet. Save one: oauth4os-demo bookmark save errors 'level:ERROR'${NC}"; return
+      fi
+      echo -e "${BOLD}Bookmarks:${NC}\n"
+      while IFS=$'\t' read -r n q; do
+        echo -e "  ${CYAN}${n}${NC}  →  $q"
+      done < "$BOOKMARKS_FILE"
+      ;;
+    *) echo -e "${YELLOW}Usage: oauth4os-demo bookmark <save|run|delete|list> [name] [query]${NC}" ;;
+  esac
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -453,6 +564,9 @@ case "${1:-}" in
   status)   cmd_status ;;
   stats)    cmd_stats ;;
   export)   shift; cmd_export "$@" ;;
+  sql)      shift; cmd_sql "$*" ;;
+  history)  cmd_history ;;
+  bookmark) shift; cmd_bookmark "$@" ;;
   help|-h|--help) usage ;;
   "") usage ;;
   *) echo -e "${RED}Unknown command: $1${NC}"; usage ;;

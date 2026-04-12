@@ -1269,8 +1269,9 @@ for arg in "$@"; do
 done
 set -- "${args[@]}"
 case "${1:-}" in
-  login)    cmd_login ;;
+  login)    shift; cmd_login "${1:-read:logs-*}" ;;
   logout)   cmd_logout ;;
+  refresh)  cmd_refresh ;;
   search)   shift; cmd_search "$*" ;;
   services) cmd_services ;;
   indices)  cmd_indices ;;

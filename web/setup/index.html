@@ -118,6 +118,30 @@ curl -s http://localhost:8443/logs-*/_search \
     <a href="admin/">Admin Console</a> ·
     <a href="https://github.com/seraphjiang/oauth4os">GitHub</a>
   </div>
+
+  <div class="path" style="border-color:var(--orange);margin-top:24px">
+    <h2>⚠️ Troubleshooting</h2>
+    <div style="font-size:13px">
+      <p><strong>Docker build fails?</strong></p>
+      <pre><code># Pull the pre-built image instead of building:
+docker pull jianghuan/oauth4os:latest
+docker run -p 8443:8443 jianghuan/oauth4os:latest</code><button class="copy-btn" onclick="copy(this)" aria-label="Copy">📋</button></pre>
+
+      <p style="margin-top:12px"><strong>OpenSearch won't start (Mac/ARM)?</strong></p>
+      <pre><code># Increase Docker memory to 4GB:
+# Docker Desktop → Settings → Resources → Memory → 4GB
+# Then retry:
+docker compose down && docker compose up</code><button class="copy-btn" onclick="copy(this)" aria-label="Copy">📋</button></pre>
+
+      <p style="margin-top:12px"><strong>Port 8443 already in use?</strong></p>
+      <pre><code># Use a different port:
+docker run -p 9443:8443 jianghuan/oauth4os:latest
+# Then open http://localhost:9443</code><button class="copy-btn" onclick="copy(this)" aria-label="Copy">📋</button></pre>
+
+      <p style="margin-top:12px"><strong>"Cannot connect to Docker daemon"?</strong></p>
+      <p style="color:var(--muted)">Start Docker Desktop first, wait for the whale icon to stop animating, then retry.</p>
+    </div>
+  </div>
 </div>
 <script>
 function copy(btn){

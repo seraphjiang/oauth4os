@@ -67,6 +67,7 @@ ${BOLD}COMMANDS:${NC}
   audit [n]            Show last n admin audit events (default 20)
   alerts               Show alert status from proxy metrics
   latency              Show upstream latency and throughput
+  ping [n]             Measure round-trip latency (default 5 pings)
   install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}

@@ -1,13 +1,14 @@
-name: 'oauth4os — Get OpenSearch Token'
-description: 'Get a scoped OAuth token from oauth4os proxy for OpenSearch operations in CI/CD'
+name: 'oauth4os — Get Scoped Token'
+description: 'Get a scoped OAuth token from oauth4os for OpenSearch operations in CI/CD'
 author: 'seraphjiang'
+
 branding:
-  icon: 'key'
+  icon: 'lock'
   color: 'blue'
 
 inputs:
   proxy-url:
-    description: 'oauth4os proxy URL (e.g., https://proxy:8443)'
+    description: 'oauth4os proxy URL (e.g., https://oauth.example.com)'
     required: true
   client-id:
     description: 'OAuth client ID'
@@ -16,57 +17,44 @@ inputs:
     description: 'OAuth client secret'
     required: true
   scope:
-    description: 'OAuth scope (e.g., read:logs-* write:dashboards)'
+    description: 'Requested scope (e.g., "read:logs-* write:logs-*")'
     required: false
-    default: 'read:logs-*'
-  verify-ssl:
-    description: 'Verify SSL certificates'
-    required: false
-    default: 'true'
+    default: 'read:*'
 
 outputs:
   token:
-    description: 'OAuth access token (masked in logs)'
+    description: 'OAuth access token'
   expires-in:
-    description: 'Token expiry in seconds'
-  token-type:
-    description: 'Token type (Bearer)'
+    description: 'Token TTL in seconds'
 
 runs:
   using: 'composite'
   steps:
-    - name: Get OAuth token
+    - name: Get token
       id: get-token
       shell: bash
+      env:
+        PROXY_URL: ${{ inputs.proxy-url }}
+        CLIENT_ID: ${{ inputs.client-id }}
+        CLIENT_SECRET: ${{ inputs.client-secret }}
+        SCOPE: ${{ inputs.scope }}
       run: |
-        SSL_FLAG=""
-        if [ "${{ inputs.verify-ssl }}" = "false" ]; then
-          SSL_FLAG="-k"
-        fi
-
-        RESPONSE=$(curl -s -f $SSL_FLAG -X POST "${{ inputs.proxy-url }}/oauth/token" \
+        RESPONSE=$(curl -sf -X POST "${PROXY_URL}/oauth/token" \
           -d "grant_type=client_credentials" \
-          -d "client_id=${{ inputs.client-id }}" \
-          -d "client_secret=${{ inputs.client-secret }}" \
-          -d "scope=${{ inputs.scope }}")
-
-        if [ $? -ne 0 ]; then
-          echo "::error::Failed to get token from oauth4os proxy"
-          exit 1
-        fi
+          -d "client_id=${CLIENT_ID}" \
+          -d "client_secret=${CLIENT_SECRET}" \
+          -d "scope=${SCOPE}")
 
         TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
         EXPIRES=$(echo "$RESPONSE" | jq -r '.expires_in')
-        TYPE=$(echo "$RESPONSE" | jq -r '.token_type')
 
         if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
-          ERROR=$(echo "$RESPONSE" | jq -r '.error_description // .error // "unknown error"')
-          echo "::error::Token request failed: $ERROR"
+          echo "::error::Failed to get token from oauth4os"
+          echo "$RESPONSE" >&2
           exit 1
         fi
 
-        echo "::add-mask::$TOKEN"
-        echo "token=$TOKEN" >> $GITHUB_OUTPUT
-        echo "expires-in=$EXPIRES" >> $GITHUB_OUTPUT
-        echo "token-type=$TYPE" >> $GITHUB_OUTPUT
-        echo "✅ Got oauth4os token (expires in ${EXPIRES}s, scope: ${{ inputs.scope }})"
+        echo "::add-mask::${TOKEN}"
+        echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+        echo "expires-in=${EXPIRES}" >> "$GITHUB_OUTPUT"
+        echo "✅ Got scoped token (expires in ${EXPIRES}s)"

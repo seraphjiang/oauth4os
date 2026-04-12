@@ -3,6 +3,7 @@ package token
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -215,5 +216,37 @@ func TestMutation_AuthWrongSecret(t *testing.T) {
 	m.RegisterClient("app", "correct-secret", nil, nil)
 	if err := m.AuthenticateClient("app", "wrong-secret"); err == nil {
 		t.Error("must reject wrong secret")
+	}
+}
+
+// Mutation: remove SetRefreshTTL → must configure refresh token lifetime
+func TestMutation_SetRefreshTTL(t *testing.T) {
+	m := NewManager()
+	m.SetRefreshTTL(30*time.Minute, 24*time.Hour)
+	if m.refreshTTL != 30*time.Minute {
+		t.Errorf("expected refreshTTL 30m, got %v", m.refreshTTL)
+	}
+	if m.refreshMaxLife != 24*time.Hour {
+		t.Errorf("expected refreshMaxLife 24h, got %v", m.refreshMaxLife)
+	}
+}
+
+// Mutation: remove refresh rotation → refresh must issue new refresh token
+func TestMutation_RefreshRotation(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	_, refreshTok := m.CreateTokenForClient("app", []string{"read"})
+
+	// Simulate refresh via HTTP
+	body := "grant_type=refresh_token&refresh_token=" + refreshTok + "&client_id=app&client_secret=secret"
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	m.IssueToken(w, r)
+	if w.Code != 200 {
+		t.Fatalf("refresh should succeed, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "refresh_token") {
+		t.Error("refresh response must include new refresh_token")
 	}
 }

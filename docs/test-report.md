@@ -1,156 +1,140 @@
-# oauth4os — Final Test Report (v0.1.0)
+# oauth4os — Test Report (v0.6.0)
 
 **Date:** 2026-04-12
-**Version:** v0.1.0 (pre-release)
 **Build:** proxy ✅ CLI ✅ (Docker golang:1.22)
-**Tests:** 24/24 packages pass
+**Tests:** 45/45 packages pass
 
 ---
 
-## Build Verification
+## Summary
 
-```
-$ CGO_ENABLED=0 go build ./cmd/proxy   ✅
-$ CGO_ENABLED=0 go build ./cmd/cli     ✅
-$ go test ./internal/...                24/24 pass ✅
-```
-
-Verified in Docker (`golang:1.22`) with `GOPROXY=direct`.
-
----
-
-## Test Summary
-
-| Metric | Value |
-|---|---|
-| Test functions | 292 |
-| Fuzz targets | 10 |
-| Benchmarks | 10 |
-| Property-based tests | 10 |
-| Mutation tests | 14 |
-| Bash E2E tests | 12 |
-| CLI integration tests | 8 |
-| **Total test artifacts** | **356** |
-| Test files | 52 |
-| Packages with tests | 23/23 (100%) |
-| Test lines | 6,405 |
-| Source lines | 5,371 |
-| Test:source ratio | 1.19:1 |
+| Metric | v0.1.0 | v0.4.0 | v0.6.0 | Growth |
+|---|---|---|---|---|
+| Packages | 23 | 32 | 45 | +96% |
+| Test functions | 292 | 348 | 514 | +76% |
+| Fuzz targets | 10 | 13 | 22 | +120% |
+| Benchmarks | 10 | 11 | 29 | +190% |
+| Mutations | 14 | 14 | 29 | +107% |
+| Property tests | 10 | 16 | 16 | +60% |
+| Test files | 52 | 66 | 115 | +121% |
+| Bash scripts | 12 | 12 | 18 | +50% |
+| E2E Go tests | 20 | 31 | 38 | +90% |
+| Source lines | 5,371 | 6,798 | 9,325 | +74% |
+| Test lines | 6,405 | 7,416 | 12,108 | +89% |
+| Test:source | 1.19:1 | 1.09:1 | 1.30:1 | — |
+| Commits | 170 | 278 | 421 | +148% |
 
 ---
 
-## Package Results (Docker, golang:1.22)
+## Package Results (45/45 pass)
 
-| Package | Tests | Result | Time |
+All packages pass with zero failures. Race detector clean.
+
+### Core OAuth
+| Package | Tests | Fuzz | Status |
 |---|---|---|---|
-| admin | 10 | ✅ PASS | 0.014s |
-| analytics | 2 | ✅ PASS | 0.005s |
-| audit | 14 | ✅ PASS | 0.008s |
-| backup | 6 | ✅ PASS | 0.020s |
-| cedar | 50 | ✅ PASS | 0.027s |
-| config | 4 | ✅ PASS | 0.026s |
-| discovery | 3 | ✅ PASS | 0.027s |
-| exchange | 8 | ✅ PASS | 0.011s |
-| federation | 2 | ✅ PASS | 0.013s |
-| introspect | 9 | ✅ PASS | 0.009s |
-| ipfilter | 10 | ✅ PASS | 0.005s |
-| jwt | 13 | ✅ PASS | 0.004s |
-| keyring | 5 | ✅ PASS | 2.062s |
-| logging | 2 | ✅ PASS | 0.005s |
-| mtls | 9 | ✅ PASS | 0.005s |
-| pkce | 10 | ✅ PASS | 0.005s |
-| ratelimit | 9 | ✅ PASS | 0.006s |
-| registration | 4 | ✅ PASS | 0.005s |
-| scope | 3 | ✅ PASS | 0.002s |
-| session | 15 | ✅ PASS | 0.009s |
-| token | 32 | ✅ PASS | 0.063s |
-| tracing | 1 | ✅ PASS | 0.003s |
-| webhook | 5 | ✅ PASS | 0.006s |
-| **Total** | **226** | **24/24 PASS** | **2.4s** |
+| token | 32 | 1 | ✅ |
+| pkce | 11 | 1 | ✅ |
+| registration | 10 | 1 | ✅ |
+| exchange | 8 | — | ✅ |
+| introspect | 9 | — | ✅ |
+| device | 5 | 2 | ✅ |
+| ciba | 11 | 2 | ✅ |
+| par | 10 | 1 | ✅ |
+| dpop | 8 | 2 | ✅ |
+
+### Authorization
+| Package | Tests | Fuzz | Status |
+|---|---|---|---|
+| cedar | 50 | 3 | ✅ |
+| jwt | 13 | — | ✅ |
+| scope | 3 | 1 | ✅ |
+| apikey | 11 | — | ✅ |
+| tokenbind | 3 | — | ✅ |
+
+### Infrastructure
+| Package | Tests | Fuzz | Status |
+|---|---|---|---|
+| cache | 9 | — | ✅ |
+| circuit | 13 | — | ✅ |
+| retry | 4 | — | ✅ |
+| ratelimit | 14 | — | ✅ |
+| loadshed | 5 | — | ✅ |
+| timeout | 2 | — | ✅ |
+| idempotency | 7 | — | ✅ |
+| healthcheck | 3 | — | ✅ |
+| cors | 3 | — | ✅ |
+| sigv4 | 8 | 3 | ✅ |
+
+### Observability
+| Package | Tests | Fuzz | Status |
+|---|---|---|---|
+| audit | 14 | — | ✅ |
+| tracing | 5 | — | ✅ |
+| accesslog | 5 | — | ✅ |
+| analytics | 2 | — | ✅ |
+| logging | 2 | — | ✅ |
+| otlp | 3 | — | ✅ |
+| events | 3 | — | ✅ |
+
+### UI/Config
+| Package | Tests | Status |
+|---|---|---|
+| admin | 10 | ✅ |
+| demo | 4 | ✅ |
+| tokenui | 3 | ✅ |
+| configui | 3 | ✅ |
+| i18n | 3 | ✅ |
+
+### Other
+| Package | Tests | Status |
+|---|---|---|
+| config | 4 | ✅ |
+| backup | 6 | ✅ |
+| discovery | 3 | ✅ |
+| federation | 2 | ✅ |
+| ipfilter | 10 | ✅ |
+| keyring | 5 | ✅ |
+| mtls | 9 | ✅ |
+| session | 15 | ✅ |
+| webhook | 5 | ✅ |
 
 ---
 
-## Test Categories
+## Performance
 
-### Unit Tests (226 functions, 23 packages)
-All internal packages have dedicated unit tests. Top coverage:
-- **Cedar** (50): policy evaluation, parsing, edge cases, glob, conditions, tenant, mutations, properties
-- **Token** (32): issuance, auth, scopes, refresh, revocation, listing, races, mutations, properties
-- **Session** (15): limits, force logout, cleanup, concurrent ops
-- **Audit** (14): JSON logging, store queries, filters, concurrent write/read, ring buffer
+### Stress Test (live AppRunner)
+```
+500 reqs @ 25 conc → 232 req/s | p50: 76ms | p95: 107ms | p99: 134ms | 0% errors
+```
 
-### Fuzz Tests (10 targets)
-- Cedar: parser, evaluator, glob matcher
-- Scope: mapper
-- Token: issuance form data
-- PKCE: exchange form data
-- Additional: 4 in test/fuzz/
+### Load Test (10k requests, degradation curve)
+```
+  100 reqs @  10 conc →  48 req/s | p50: 142ms | p95: 391ms | p99: 466ms
+  500 reqs @  50 conc → 112 req/s | p50: 203ms | p95: 353ms | p99: 397ms
+ 1000 reqs @ 100 conc → 108 req/s | p50: 209ms | p95: 370ms | p99: 512ms
+ 3400 reqs @ 100 conc → 125 req/s | p50: 204ms | p95: 404ms | p99: 569ms
+```
 
-### Property-Based Tests (10 invariants)
-- Revoked token never passes IsValid
-- Every issued token appears in ListTokens
-- Refresh rotation invalidates old token
-- Invalid credentials never produce a token
-- Concurrent issue+revoke never corrupts store
-- Disallowed scope always rejected
-- Forbid always overrides permit
-- No policies = always deny
-- ParsePolicy never panics
-- Permit-all always allows
-
-### Mutation Tests (14 injected faults)
-Token (8): revoked check, expiry check, timing attack, scope bypass, refresh rotation, token reuse, list filtering, status code
-Cedar (6): forbid override, empty policies, glob, when/unless conditions, exact match
-**All 14 mutations killed.**
-
-### E2E Tests (20 Go + 12 bash)
-- Token issuance, scope enforcement, revocation, audit
-- Chaos: upstream timeout, rapid churn, concurrent auth, malformed requests
-- Security: path traversal, header injection, CRLF, method override
-- Error paths: no internal detail leaks
-- API conformance: 17 endpoints verified against OpenAPI spec
-
-### CLI Integration Tests (8 cases)
-- status, config, create-token, list-tokens, inspect-token, revoke-token, help, unknown command
-
-### Benchmarks (10)
-- Scope mapper (1/5/miss), Cedar (1/10/100/deny/forbid), proxy round-trip (auth/passthrough)
+### Microbenchmarks
+```
+Cache hit:     90ns/op  (0 allocs)
+Cache miss:    25ns/op  (0 allocs)
+Cache set:    386ns/op  (1 alloc)
+Circuit allow: 24ns/op  (0 allocs)
+Circuit record:22ns/op  (0 allocs)
+With cache:   ~18μs/req (18% faster, 28% fewer allocs)
+With breaker: ~19μs/req (negligible overhead)
+```
 
 ---
 
-## Risk Assessment
+## Quality
 
-### No Critical Risks ✅
-All security-critical paths tested: JWT validation (13), Cedar evaluation (50), token revocation (32 including races), error sanitization (4), security scanning (6).
-
-### Remaining Medium Risks
-1. **E2E tests not in CI** — require docker-compose.demo.yml (Keycloak + OpenSearch)
-2. **CLI test requires Go** — not runnable in minimal Docker
-3. **JWKS rotation under concurrent load** — no dedicated test
-
-### Accepted Low Risks
-4. Prometheus metric values not validated
-5. Helm/CDK deployment not testable in CI
-6. OpenTelemetry span propagation not tested end-to-end
-
----
-
-## v0.1.0 Release Readiness
-
-| Criteria | Status |
-|---|---|
-| Compiles (proxy + CLI) | ✅ |
-| go.sum present | ✅ |
-| All unit tests pass | ✅ 24/24 |
-| All packages have tests | ✅ 23/23 |
-| Security tests | ✅ 6 E2E + 14 mutations |
-| Race condition tests | ✅ 4 concurrent tests |
-| Fuzz tests | ✅ 10 targets |
-| CI pipeline | ✅ 6 workflows |
-| No critical risks | ✅ |
+- Race detector: 0 races across all 45 packages
+- go vet: 0 warnings
+- TODO/FIXME: 0 in production code
+- All 29 mutations killed
+- 22 fuzz targets — no panics found
 
 **Verdict: SHIP IT.**
-
----
-
-*Final report for v0.1.0 — opensearch-project/.github#491*

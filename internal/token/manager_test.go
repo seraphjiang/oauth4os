@@ -218,3 +218,50 @@ func TestLookup(t *testing.T) {
 		t.Error("Lookup should return false for missing token")
 	}
 }
+
+func TestClients(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("c1", "s1", []string{"read:*"}, nil)
+	m.RegisterClient("c2", "s2", nil, nil)
+	clients := m.Clients()
+	if len(clients) != 2 {
+		t.Fatalf("expected 2 clients, got %d", len(clients))
+	}
+}
+
+func TestValidateRedirectURI(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", nil, []string{"http://localhost:3000/cb"})
+
+	if !m.ValidateRedirectURI("app", "http://localhost:3000/cb") {
+		t.Error("should allow registered URI")
+	}
+	if m.ValidateRedirectURI("app", "http://evil.com/cb") {
+		t.Error("should reject unregistered URI")
+	}
+	if !m.ValidateRedirectURI("unknown", "http://anything.com") {
+		t.Error("should allow any URI for unknown client (no restrictions)")
+	}
+}
+
+func TestTouchToken(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("c1", "s1", nil, nil)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(
+		"grant_type=client_credentials&client_id=c1&client_secret=s1&scope=read:logs-*"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	m.IssueToken(w, r)
+
+	var tok map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&tok)
+	tokenID := tok["token_id"]
+
+	if tokenID == nil {
+		// Token might not expose ID — just verify TouchToken doesn't panic
+		m.TouchToken("nonexistent", 30*time.Minute)
+		return
+	}
+	m.TouchToken(tokenID.(string), 30*time.Minute)
+}

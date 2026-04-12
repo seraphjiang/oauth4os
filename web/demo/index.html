@@ -377,6 +377,25 @@ document.querySelectorAll('[data-page]').forEach(a => {
 
 // Search
 let searching = false;
+async function tryRefresh() {
+  const rt = sessionStorage.getItem('oauth4os_refresh');
+  if (!rt) return false;
+  try {
+    const r = await fetch(PROXY + '/oauth/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(rt) + '&client_id=demo-agent'
+    });
+    if (!r.ok) return false;
+    const data = await r.json();
+    if (!data.access_token) return false;
+    token = data.access_token;
+    sessionStorage.setItem('oauth4os_token', token);
+    if (data.refresh_token) sessionStorage.setItem('oauth4os_refresh', data.refresh_token);
+    toast('Token refreshed', 'success');
+    return true;
+  } catch { return false; }
+}
+
 async function doSearch() {
   if (!token || searching) return;
   searching = true;

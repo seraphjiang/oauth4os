@@ -411,8 +411,13 @@ func main() {
 			exchangeHandler.ServeHTTP(w, r)
 			return
 		}
+		grantType := r.FormValue("grant_type")
 		tokenMgr.IssueToken(w, r)
-		notifier.Emit(events.Event{Type: events.TokenIssued, ClientID: r.FormValue("client_id"), Scopes: strings.Split(r.FormValue("scope"), " ")})
+		evtType := events.TokenIssued
+		if grantType == "refresh_token" {
+			evtType = events.TokenRefresh
+		}
+		notifier.Emit(events.Event{Type: evtType, ClientID: r.FormValue("client_id"), Scopes: strings.Split(r.FormValue("scope"), " ")})
 	})
 	mux.HandleFunc("DELETE /oauth/token/{id}", func(w http.ResponseWriter, r *http.Request) {
 		tokenMgr.RevokeToken(w, r)

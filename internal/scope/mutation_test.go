@@ -58,3 +58,14 @@ func TestMutation_UnknownScope(t *testing.T) {
 		t.Errorf("unknown scope should return empty, got %v", roles)
 	}
 }
+
+// Mutation: remove Map expansion → must expand scope aliases
+func TestMutation_MapExpansion(t *testing.T) {
+	m := NewMapper(map[string][]string{
+		"admin": {"read:*", "write:*", "delete:*"},
+	})
+	result := m.Map([]string{"admin"})
+	if len(result) < 3 {
+		t.Errorf("admin scope should expand to 3+ permissions, got %d", len(result))
+	}
+}

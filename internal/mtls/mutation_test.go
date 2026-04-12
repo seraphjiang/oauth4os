@@ -76,3 +76,27 @@ func TestMutation_BearerBypass(t *testing.T) {
 		t.Error("Bearer auth should bypass mTLS and call next handler")
 	}
 }
+
+// Mutation: remove X-Proxy-User header → middleware must inject identity
+func TestMutation_MiddlewareSetsProxyUser(t *testing.T) {
+	m := NewClientMap(map[string]*ClientEntry{
+		"service-a.example.com": {ClientID: "service-a", Scopes: []string{"read"}},
+	})
+	var gotUser string
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser = r.Header.Get("X-Proxy-User")
+		w.WriteHeader(200)
+	})
+	handler := m.Middleware(inner)
+	r := httptest.NewRequest("GET", "/", nil)
+	r.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{
+			{Subject: pkix.Name{CommonName: "service-a.example.com"}},
+		},
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if gotUser != "service-a" {
+		t.Errorf("expected X-Proxy-User 'service-a', got %q", gotUser)
+	}
+}

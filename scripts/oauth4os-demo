@@ -1306,6 +1306,41 @@ cmd_clients() {
   done
 }
 
+cmd_register() {
+  local name="${1:?Usage: oauth4os-demo register <name> [scopes]}"
+  local scopes="${2:-read:logs-*}"
+  local scope_json=$(echo "$scopes" | tr ' ' '\n' | jq -R . | jq -s .)
+  local resp
+  resp=$(curl -sf -X POST "${PROXY}/oauth/register" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${name}\",\"scopes\":${scope_json}}" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Registration failed${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${GREEN}✅ Client registered${NC}\n"
+  echo "$resp" | jq -r '"  Client ID:     \(.client_id // .id)\n  Client Secret:  \(.client_secret // .secret)\n  Scopes:         \(.scopes // [] | join(", "))"' 2>/dev/null
+  echo -e "\n  ${YELLOW}⚠ Save the secret — it won't be shown again${NC}"
+}
+
+cmd_revoke() {
+  local token="${1:-}"
+  if [ -z "$token" ]; then
+    # Revoke current token
+    token=$(get_token 2>/dev/null)
+    if [ -z "$token" ]; then echo -e "${RED}Usage: oauth4os-demo revoke [token]${NC}" >&2; return 1; fi
+  fi
+  local resp
+  resp=$(curl -sf -X POST "${PROXY}/oauth/revoke" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "token=${token}" 2>/dev/null)
+  if [ "$IS_TTY" = "false" ]; then echo "${resp:-{\"status\":\"revoked\"}}"; return; fi
+  echo -e "${GREEN}✅ Token revoked${NC}"
+  # Clear local token if it was the current one
+  if [ -f "$TOKEN_FILE" ] && [ "$(cat "$TOKEN_FILE")" = "$token" ]; then
+    rm -f "$TOKEN_FILE"
+    echo -e "  Local token cleared"
+  fi
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1348,6 +1383,8 @@ case "${1:-}" in
   sessions) cmd_sessions ;;
   tutorial) echo -e "${CYAN}Opening tutorial...${NC}"; _open "${PROXY}/tutorial/" ;;
   clients)  cmd_clients ;;
+  register) shift; cmd_register "$@" ;;
+  revoke)   shift; cmd_revoke "${1:-}" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

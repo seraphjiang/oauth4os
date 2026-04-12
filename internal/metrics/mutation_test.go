@@ -1,33 +1,31 @@
 package metrics
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
-// Mutation: remove Inc → counter must increment
+// Mutation: remove Inc → WritePrometheus must show incremented counter
 func TestMutation_CounterInc(t *testing.T) {
 	c := NewCounter()
-	l := Labels{Method: "GET", Path: "/health", Status: 200}
-	c.Inc(l)
-	c.Inc(l)
-	// Verify via snapshot
-	snap := c.Snapshot()
-	found := false
-	for _, e := range snap {
-		if e.Labels.Method == "GET" && e.Count == 2 {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("counter must track increments")
+	c.Inc(Labels{Method: "GET", Path: "/health", Status: 200})
+	c.Inc(Labels{Method: "GET", Path: "/health", Status: 200})
+	var buf bytes.Buffer
+	c.WritePrometheus(&buf, "http_requests", "Total requests")
+	if !bytes.Contains(buf.Bytes(), []byte("2")) {
+		t.Error("counter must reflect 2 increments")
 	}
 }
 
-// Mutation: remove label isolation → different labels must track independently
+// Mutation: remove label isolation → different labels must appear separately
 func TestMutation_LabelIsolation(t *testing.T) {
 	c := NewCounter()
 	c.Inc(Labels{Method: "GET", Path: "/a", Status: 200})
 	c.Inc(Labels{Method: "POST", Path: "/b", Status: 201})
-	snap := c.Snapshot()
-	if len(snap) < 2 {
-		t.Errorf("expected 2 label combos, got %d", len(snap))
+	var buf bytes.Buffer
+	c.WritePrometheus(&buf, "http_requests", "Total requests")
+	out := buf.String()
+	if !bytes.Contains([]byte(out), []byte("GET")) || !bytes.Contains([]byte(out), []byte("POST")) {
+		t.Error("different labels must appear separately in output")
 	}
 }

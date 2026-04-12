@@ -29,7 +29,7 @@ helm upgrade oauth4os deploy/helm/ \
 # Canary (1 replica, same service)
 helm upgrade oauth4os-canary deploy/helm/ \
   --set replicaCount=1 \
-  --set image.tag=v0.5.0 \
+  --set image.tag=v1.0.0 \
   --set nameOverride=oauth4os-canary \
   --set service.enabled=false
 ```
@@ -71,7 +71,7 @@ curl -s http://prometheus:9090/api/v1/query \
 
 ```bash
 # Promote: scale canary to full, remove stable
-helm upgrade oauth4os deploy/helm/ --set image.tag=v0.5.0
+helm upgrade oauth4os deploy/helm/ --set image.tag=v1.0.0
 helm uninstall oauth4os-canary
 
 # Rollback: remove canary
@@ -86,7 +86,7 @@ AppRunner doesn't support traffic splitting natively. Use Route 53 weighted rout
 # Create canary deployment
 aws apprunner create-service \
   --service-name oauth4os-canary \
-  --source-configuration '{"ImageRepository":{"ImageIdentifier":"ECR_URI:v0.5.0","ImageRepositoryType":"ECR"}}'
+  --source-configuration '{"ImageRepository":{"ImageIdentifier":"ECR_URI:v1.0.0","ImageRepositoryType":"ECR"}}'
 
 # Route 53 weighted records
 aws route53 change-resource-record-sets --hosted-zone-id ZONE_ID --change-batch '{

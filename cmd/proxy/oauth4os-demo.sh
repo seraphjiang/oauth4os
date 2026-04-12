@@ -423,6 +423,8 @@ cmd_stats() {
     echo -e "${RED}Query failed${NC}"; return 1
   fi
 
+  if [ "$IS_TTY" = "false" ]; then echo "$resp" | jq '.aggregations' 2>/dev/null || echo "$resp"; return; fi
+
   # Summary
   local total errs
   total=$(echo "$resp" | jq '.hits.total.value // (.hits.total // 0)' 2>/dev/null)

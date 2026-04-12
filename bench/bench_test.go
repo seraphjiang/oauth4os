@@ -16,8 +16,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/seraphjiang/oauth4os/internal/cache"
 	"github.com/seraphjiang/oauth4os/internal/cedar"
+	"github.com/seraphjiang/oauth4os/internal/circuit"
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/scope"
 )
@@ -216,6 +219,96 @@ func BenchmarkProxyRoundTrip_Passthrough(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		resp.Body.Close()
+	}
+}
+
+// --- Cache Benchmarks ---
+
+func BenchmarkCache_Hit(b *testing.B) {
+	c := cache.New(5*time.Second, 1000)
+	defer c.Stop()
+	c.Put("key", &cache.Entry{Body: []byte(`{"hits":[]}`), StatusCode: 200, ExpiresAt: time.Now().Add(5 * time.Second)})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Get("key")
+	}
+}
+
+func BenchmarkCache_Miss(b *testing.B) {
+	c := cache.New(5*time.Second, 1000)
+	defer c.Stop()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Get("nonexistent")
+	}
+}
+
+func BenchmarkCache_Put(b *testing.B) {
+	c := cache.New(5*time.Second, 10000)
+	defer c.Stop()
+	entry := &cache.Entry{Body: []byte(`{"hits":[]}`), StatusCode: 200, ExpiresAt: time.Now().Add(5 * time.Second)}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Put(fmt.Sprintf("key-%d", i), entry)
+	}
+}
+
+// --- Circuit Breaker Benchmarks ---
+
+func BenchmarkCircuit_Closed(b *testing.B) {
+	cb := circuit.New(5, 10*time.Second)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cb.Allow()
+		cb.RecordSuccess()
+	}
+}
+
+func BenchmarkCircuit_CheckOnly(b *testing.B) {
+	cb := circuit.New(5, 10*time.Second)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cb.Allow()
+	}
+}
+
+// --- Proxy with Cache vs Without ---
+
+func BenchmarkProxyWithCache(b *testing.B) {
+	c := cache.New(5*time.Second, 1000)
+	defer c.Stop()
+	mapper := newMapper(10)
+	engine := newCedarEngine(10)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.URL.Path
+		if entry := c.Get(key); entry != nil {
+			w.WriteHeader(entry.StatusCode)
+			return
+		}
+		_ = mapper.Map([]string{"read:index-0"})
+		engine.Evaluate(cedar.Request{
+			Principal: map[string]string{"scope": "read:index-0"},
+			Action:    r.Method,
+			Resource:  map[string]string{"index": "logs-0-2026"},
+		})
+		c.Put(key, &cache.Entry{Body: nil, StatusCode: 200, ExpiresAt: time.Now().Add(5 * time.Second)})
+		w.WriteHeader(200)
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	client := server.Client()
+
+	// Warm cache
+	req, _ := http.NewRequest("GET", server.URL+"/logs-0-2026/_search", nil)
+	resp, _ := client.Do(req)
+	resp.Body.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resp, _ := client.Do(req)
 		resp.Body.Close()
 	}
 }

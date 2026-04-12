@@ -53,7 +53,10 @@ func TestMutation_RouteForwards(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer backend.Close()
-	r := New([]Cluster{{Name: "test", URL: backend.URL, Patterns: []string{"logs-*"}}}, nil)
+	r := New([]Cluster{
+		{Name: "other", URL: "http://other:9200", Indices: []string{"metrics-*"}},
+		{Name: "test", URL: backend.URL, Indices: []string{"logs-*"}},
+	}, nil)
 	handler := r.Route(httptest.NewRequest("GET", "/logs-2024/_search", nil))
 	if handler == nil {
 		t.Fatal("Route must return handler for matching index")

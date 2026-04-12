@@ -14,7 +14,7 @@ import (
 // Mutation: What if IsValid didn't check Revoked?
 func TestMutation_IsValidIgnoresRevoked(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
@@ -40,7 +40,7 @@ func TestMutation_IsValidIgnoresRevoked(t *testing.T) {
 // Mutation: What if IsValid didn't check ExpiresAt?
 func TestMutation_IsValidIgnoresExpiry(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
@@ -59,7 +59,7 @@ func TestMutation_IsValidIgnoresExpiry(t *testing.T) {
 // Mutation: What if authenticateClient used == instead of constant-time compare?
 func TestMutation_TimingAttackOnAuth(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "correct-secret", nil)
+	m.RegisterClient("c", "correct-secret", nil, nil)
 
 	// Wrong secret with same prefix should still fail
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=correct-secre")
@@ -76,7 +76,7 @@ func TestMutation_TimingAttackOnAuth(t *testing.T) {
 // Mutation: What if validateScopes allowed any scope when client has restrictions?
 func TestMutation_ScopeBypass(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", []string{"read:logs"})
+	m.RegisterClient("c", "s", []string{"read:logs"}, nil)
 
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s&scope=admin")
 	if w.Code == 200 {
@@ -87,7 +87,7 @@ func TestMutation_ScopeBypass(t *testing.T) {
 // Mutation: What if refresh didn't revoke the old token?
 func TestMutation_RefreshKeepsOldValid(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
@@ -104,7 +104,7 @@ func TestMutation_RefreshKeepsOldValid(t *testing.T) {
 // Mutation: What if refresh token could be reused?
 func TestMutation_RefreshTokenReuse(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
@@ -126,7 +126,7 @@ func TestMutation_RefreshTokenReuse(t *testing.T) {
 // Mutation: What if ListTokens included revoked tokens?
 func TestMutation_ListIncludesRevoked(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
@@ -151,7 +151,7 @@ func TestMutation_ListIncludesRevoked(t *testing.T) {
 // Mutation: What if RevokeToken returned 200 instead of 204?
 func TestMutation_RevokeStatusCode(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 	w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)

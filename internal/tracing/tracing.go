@@ -8,19 +8,34 @@ package tracing
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
 // Span represents a trace span for a proxy stage.
 type Span struct {
-	Name      string
-	StartTime time.Time
-	EndTime   time.Time
-	Attrs     map[string]string
-	Status    string // "ok", "error"
-	Children  []*Span
+	TraceID   string            `json:"trace_id,omitempty"`
+	SpanID    string            `json:"span_id,omitempty"`
+	ParentID  string            `json:"parent_id,omitempty"`
+	Name      string            `json:"name"`
+	StartTime time.Time         `json:"start_time"`
+	EndTime   time.Time         `json:"end_time"`
+	Duration  time.Duration     `json:"duration"`
+	Attrs     map[string]string `json:"attrs,omitempty"`
+	Status    string            `json:"status"`
+	Children  []*Span           `json:"children,omitempty"`
+}
+
+// FromContext retrieves the current span from context.
+func FromContext(ctx context.Context) *Span {
+	if s, ok := ctx.Value(spanKey{}).(*Span); ok {
+		return s
+	}
+	return nil
 }
 
 // Tracer creates spans for proxy stages.
@@ -89,4 +104,160 @@ func (t *Tracer) FinishRequest(s *Span, statusCode int) {
 	if t.enabled && t.exportFunc != nil {
 		t.exportFunc(s)
 	}
+}
+
+// ── Interface-based tracing (used by proxy middleware) ─────────────────────────
+
+// SpanKind identifies the type of span.
+type SpanKind string
+
+const (
+	SpanRequest   SpanKind = "request"
+	SpanRateLimit SpanKind = "ratelimit"
+	SpanJWT       SpanKind = "jwt.validate"
+	SpanScope     SpanKind = "scope.map"
+	SpanCedar     SpanKind = "cedar.evaluate"
+	SpanUpstream  SpanKind = "upstream.forward"
+)
+
+// TracerI is the interface for span-based tracing.
+type TracerI interface {
+	StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, *Span)
+	EndSpan(span *Span, status string)
+}
+
+// Alias so main.go can use tracing.Tracer as the interface.
+type Tracer = TracerI
+
+// StdoutTracer exports spans as JSON lines.
+type StdoutTracer struct {
+	w   io.Writer
+	enc *json.Encoder
+	mu  sync.Mutex
+}
+
+func NewStdoutTracer(w io.Writer) *StdoutTracer {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return &StdoutTracer{w: w, enc: enc}
+}
+
+func (t *StdoutTracer) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, *Span) {
+	s := &Span{Name: name, StartTime: time.Now(), Attrs: attrs, Status: "ok"}
+	return context.WithValue(ctx, spanKey{}, s), s
+}
+
+func (t *StdoutTracer) EndSpan(s *Span, status string) {
+	s.EndTime = time.Now()
+	s.Status = status
+	t.mu.Lock()
+	t.enc.Encode(s)
+	t.mu.Unlock()
+}
+
+// NoopTracer does nothing.
+type NoopTracer struct{}
+
+func (NoopTracer) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, *Span) {
+	s := &Span{Name: name, StartTime: time.Now(), Attrs: attrs}
+	return context.WithValue(ctx, spanKey{}, s), s
+}
+
+func (NoopTracer) EndSpan(s *Span, status string) {
+	s.EndTime = time.Now()
+	s.Status = status
+}
+
+// Middleware wraps an http.Handler with request-level tracing.
+func Middleware(next http.Handler, tracer TracerI) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.StartSpan(r.Context(), string(SpanRequest), map[string]string{
+			"http.method": r.Method,
+			"http.path":   r.URL.Path,
+		})
+		r = r.WithContext(ctx)
+		sw := &statusWriter{ResponseWriter: w, status: 200}
+		next.ServeHTTP(sw, r)
+		status := "ok"
+		if sw.status >= 400 {
+			status = "error"
+		}
+		tracer.EndSpan(span, status)
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// SpanKind constants for proxy stages.
+type SpanKind string
+
+const (
+	SpanRequest   SpanKind = "request"
+	SpanRateLimit SpanKind = "ratelimit"
+	SpanJWT       SpanKind = "jwt.validate"
+	SpanScope     SpanKind = "scope.map"
+	SpanCedar     SpanKind = "cedar.evaluate"
+	SpanUpstream  SpanKind = "upstream.forward"
+)
+
+// --- Compatibility interface used by cmd/proxy/main.go ---
+
+// TracerIface is the interface main.go expects.
+type TracerIface interface {
+	StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, *Span)
+	EndSpan(span *Span, status string)
+}
+
+// NoopTracer does nothing.
+type NoopTracer struct{}
+
+func (NoopTracer) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, *Span) {
+	s := &Span{Name: name, StartTime: time.Now(), Attrs: attrs, Status: "ok"}
+	return context.WithValue(ctx, spanKey{}, s), s
+}
+func (NoopTracer) EndSpan(s *Span, status string) {
+	s.EndTime = time.Now()
+	s.Duration = s.EndTime.Sub(s.StartTime)
+	s.Status = status
+}
+
+// StdoutTracer logs spans as JSON to stderr.
+type StdoutTracer struct{ w *os.File }
+
+func NewStdoutTracer(w *os.File) *StdoutTracer { return &StdoutTracer{w: w} }
+
+func (t *StdoutTracer) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, *Span) {
+	s := &Span{Name: name, StartTime: time.Now(), Attrs: attrs}
+	if parent := FromContext(ctx); parent != nil {
+		s.ParentID = parent.SpanID
+		s.TraceID = parent.TraceID
+	}
+	return context.WithValue(ctx, spanKey{}, s), s
+}
+
+func (t *StdoutTracer) EndSpan(s *Span, status string) {
+	s.EndTime = time.Now()
+	s.Duration = s.EndTime.Sub(s.StartTime)
+	s.Status = status
+}
+
+// Middleware wraps an http.Handler with request-level tracing.
+func Middleware(next http.Handler, tracer TracerIface) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.StartSpan(r.Context(), string(SpanRequest), map[string]string{
+			"http.method": r.Method,
+			"http.path":   r.URL.Path,
+		})
+		r = r.WithContext(ctx)
+		next.ServeHTTP(w, r)
+		tracer.EndSpan(span, "ok")
+	})
 }

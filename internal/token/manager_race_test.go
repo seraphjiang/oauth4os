@@ -10,7 +10,7 @@ import (
 
 func TestConcurrentRevocation(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("test", "secret", []string{"admin"})
+	m.RegisterClient("test", "secret", []string{"admin"}, nil)
 
 	// Issue a token
 	req := httptest.NewRequest("POST", "/oauth/token",
@@ -57,7 +57,7 @@ func TestConcurrentRevocation(t *testing.T) {
 
 func TestConcurrentIssueAndRevoke(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("test", "secret", []string{"admin"})
+	m.RegisterClient("test", "secret", []string{"admin"}, nil)
 
 	var wg sync.WaitGroup
 	// Issue and revoke in parallel — must not panic

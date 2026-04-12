@@ -19,7 +19,7 @@ func TestProperty_RevokedTokenNeverValid(t *testing.T) {
 			return true // skip degenerate
 		}
 		m := NewManager()
-		m.RegisterClient(clientID, "s", nil)
+		m.RegisterClient(clientID, "s", nil, nil)
 		w := issueVia(m, "grant_type=client_credentials&client_id="+clientID+"&client_secret=s&scope="+scope)
 		if w.Code != 200 {
 			return true
@@ -46,7 +46,7 @@ func TestProperty_IssuedTokenInList(t *testing.T) {
 	f := func(n uint8) bool {
 		count := int(n%20) + 1
 		m := NewManager()
-		m.RegisterClient("c", "s", nil)
+		m.RegisterClient("c", "s", nil, nil)
 		ids := make(map[string]bool)
 		for i := 0; i < count; i++ {
 			w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
@@ -83,7 +83,7 @@ func TestProperty_IssuedTokenInList(t *testing.T) {
 func TestProperty_RefreshInvalidatesOld(t *testing.T) {
 	f := func(seed int64) bool {
 		m := NewManager()
-		m.RegisterClient("c", "s", nil)
+		m.RegisterClient("c", "s", nil, nil)
 		w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s")
 		var resp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &resp)
@@ -107,7 +107,7 @@ func TestProperty_RefreshInvalidatesOld(t *testing.T) {
 func TestProperty_InvalidCredsNeverIssue(t *testing.T) {
 	f := func(clientID, secret string) bool {
 		m := NewManager()
-		m.RegisterClient("real", "real-secret", nil)
+		m.RegisterClient("real", "real-secret", nil, nil)
 		w := issueVia(m, "grant_type=client_credentials&client_id="+clientID+"&client_secret="+secret)
 		if clientID == "real" && secret == "real-secret" {
 			return true // skip the valid case
@@ -123,7 +123,7 @@ func TestProperty_InvalidCredsNeverIssue(t *testing.T) {
 // Property: Concurrent issue+revoke never corrupts the token store.
 func TestProperty_ConcurrentStoreIntegrity(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("c", "s", nil)
+	m.RegisterClient("c", "s", nil, nil)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -176,7 +176,7 @@ func TestProperty_ScopeValidation(t *testing.T) {
 			return true // skip URL-unsafe
 		}
 		m := NewManager()
-		m.RegisterClient("c", "s", []string{"allowed"})
+		m.RegisterClient("c", "s", []string{"allowed"}, nil)
 		w := issueVia(m, "grant_type=client_credentials&client_id=c&client_secret=s&scope="+scope)
 		if scope == "allowed" || scope == "" {
 			return true // skip valid cases

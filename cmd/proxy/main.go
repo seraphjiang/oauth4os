@@ -75,7 +75,7 @@ func main() {
 	limiter := ratelimit.New(cfg.RateLimits, 600)
 
 	// Tracing — stdout in dev, noop if OAUTH4OS_TRACING=off
-	var tracer tracing.Tracer
+	var tracer tracing.TracerIface
 	if os.Getenv("OAUTH4OS_TRACING") == "off" {
 		tracer = tracing.NoopTracer{}
 	} else {

@@ -11,7 +11,7 @@ import (
 func setup() *Manager {
 	m := NewManager()
 	m.RegisterClient("app", "secret", []string{"read:logs", "write:logs"})
-	m.RegisterClient("admin", "admin-secret", nil) // no scope restriction
+	m.RegisterClient("admin", "admin-secret", nil, nil) // no scope restriction
 	return m
 }
 

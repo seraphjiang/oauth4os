@@ -18,7 +18,7 @@ func FuzzIssueToken(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, form string) {
 		m := NewManager()
-		m.RegisterClient("app", "secret", []string{"read:logs"})
+		m.RegisterClient("app", "secret", []string{"read:logs"}, nil)
 		r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()

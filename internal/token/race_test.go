@@ -12,7 +12,7 @@ import (
 // Run with: go test -race -run TestConcurrent ./internal/token/
 func TestConcurrentRevocation(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("app", "secret", []string{"read:logs"})
+	m.RegisterClient("app", "secret", []string{"read:logs"}, nil)
 
 	// Issue 100 tokens
 	ids := make([]string, 100)
@@ -82,7 +82,7 @@ func TestConcurrentRevocation(t *testing.T) {
 // TestConcurrentIssueAndRevoke issues and revokes tokens simultaneously.
 func TestConcurrentIssueAndRevoke(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("app", "secret", []string{"read:logs"})
+	m.RegisterClient("app", "secret", []string{"read:logs"}, nil)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -132,7 +132,7 @@ func TestConcurrentIssueAndRevoke(t *testing.T) {
 // TestConcurrentRefreshRevoke races refresh against revocation.
 func TestConcurrentRefreshRevoke(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("app", "secret", []string{"read:logs"})
+	m.RegisterClient("app", "secret", []string{"read:logs"}, nil)
 
 	w := issueVia(m, "grant_type=client_credentials&client_id=app&client_secret=secret&scope=read:logs")
 	var resp map[string]interface{}
@@ -168,7 +168,7 @@ func TestConcurrentRefreshRevoke(t *testing.T) {
 // TestDoubleRevoke ensures revoking the same token twice is safe.
 func TestDoubleRevoke(t *testing.T) {
 	m := NewManager()
-	m.RegisterClient("app", "secret", []string{"read:logs"})
+	m.RegisterClient("app", "secret", []string{"read:logs"}, nil)
 
 	w := issueVia(m, "grant_type=client_credentials&client_id=app&client_secret=secret&scope=read:logs")
 	var resp map[string]interface{}

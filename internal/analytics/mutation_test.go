@@ -33,3 +33,14 @@ func TestMutation_ScopeTracking(t *testing.T) {
 		t.Error("snapshot must include scope distribution")
 	}
 }
+
+// Mutation: remove per-client tracking → Snapshot must show client breakdown
+func TestMutation_PerClientTracking(t *testing.T) {
+	tr := NewTracker()
+	tr.Record("client-a", "/logs/_search", 200, 50)
+	tr.Record("client-b", "/logs/_search", 200, 30)
+	snap := tr.Snapshot()
+	if len(snap.ByClient) < 2 {
+		t.Errorf("expected 2 clients in snapshot, got %d", len(snap.ByClient))
+	}
+}

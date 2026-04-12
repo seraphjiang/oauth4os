@@ -43,3 +43,22 @@ func TestMutation_GlobMatch(t *testing.T) {
 		t.Error("logs-* should not match metrics-2024")
 	}
 }
+
+// Mutation: remove Route proxy → must forward to resolved cluster
+func TestMutation_RouteForwards(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Cluster", "test")
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+	r := New([]Cluster{{Name: "test", URL: backend.URL, Patterns: []string{"logs-*"}}}, nil)
+	handler := r.Route(httptest.NewRequest("GET", "/logs-2024/_search", nil))
+	if handler == nil {
+		t.Fatal("Route must return handler for matching index")
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/logs-2024/_search", nil))
+	if w.Header().Get("X-Cluster") != "test" {
+		t.Error("Route must forward to resolved cluster")
+	}
+}

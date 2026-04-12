@@ -45,7 +45,8 @@ a{color:#58a6ff;text-decoration:none}
 </head><body>
 <div class="container">
 <h1>🔐 oauth4os Interactive Tutorial</h1>
-<p class="subtitle">Learn OAuth 2.0 by doing — 5 steps, real API calls, curl equivalents</p>
+<p class="subtitle">Learn OAuth 2.0 by doing — 6 steps, real API calls, curl equivalents</p>
+<div style="margin-bottom:16px"><button class="btn btn-secondary" onclick="resetTutorial()">↺ Reset & Start Over</button></div>
 <div class="progress" id="progress"></div>
 
 <div class="step active" id="step-1" data-step="1">
@@ -186,6 +187,13 @@ function updateProgress(){
 function copyEl(id){
   const t=document.getElementById(id).innerText.replace('Copy','').trim();
   navigator.clipboard.writeText(t);
+}
+function resetTutorial(){
+  state={clientId:'',clientSecret:'',token:'',refreshToken:'',step:1};
+  document.querySelectorAll('.step').forEach(s=>{s.classList.remove('done','active')});
+  document.querySelectorAll('.response-box').forEach(r=>{r.className='response-box';r.textContent=''});
+  document.querySelectorAll('.btn').forEach(b=>{if(b.id!=='btn-1')b.disabled=true;});
+  activateStep(1);
 }
 
 async function runStep1(){

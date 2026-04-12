@@ -34,3 +34,13 @@ func TestMutation_LevelInOutput(t *testing.T) {
 		t.Error("output must contain level name WARN")
 	}
 }
+
+// Mutation: remove debug level → debug messages must be suppressed at info level
+func TestMutation_DebugSuppressed(t *testing.T) {
+	var buf bytes.Buffer
+	l := New(&buf, "info")
+	l.log(0, "test", "debug message") // Level 0 = debug
+	if strings.Contains(buf.String(), "debug message") {
+		t.Error("debug messages must be suppressed at info level")
+	}
+}

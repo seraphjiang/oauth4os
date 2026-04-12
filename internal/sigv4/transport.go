@@ -25,12 +25,12 @@ type Transport struct {
 	Token     string // optional session token
 }
 
-// New creates a SigV4 transport using env vars or provided credentials.
+// New creates a SigV4 transport using env vars, ECS/AppRunner container creds, or provided credentials.
 func New(base http.RoundTripper, region, service string) *Transport {
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	return &Transport{
+	t := &Transport{
 		Base:      base,
 		Region:    region,
 		Service:   service,
@@ -38,6 +38,48 @@ func New(base http.RoundTripper, region, service string) *Transport {
 		SecretKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 		Token:     os.Getenv("AWS_SESSION_TOKEN"),
 	}
+	// If no env vars, try ECS/AppRunner container credentials
+	if t.AccessKey == "" {
+		t.refreshContainerCreds()
+	}
+	return t
+}
+
+func (t *Transport) refreshContainerCreds() {
+	uri := os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+	if uri == "" {
+		return
+	}
+	resp, err := http.Get("http://169.254.170.2" + uri)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	// Parse JSON manually (no deps)
+	t.AccessKey = jsonVal(string(body), "AccessKeyId")
+	t.SecretKey = jsonVal(string(body), "SecretAccessKey")
+	t.Token = jsonVal(string(body), "Token")
+}
+
+func jsonVal(body, key string) string {
+	k := `"` + key + `"`
+	i := strings.Index(body, k)
+	if i < 0 {
+		return ""
+	}
+	rest := body[i+len(k):]
+	// skip :" or " : "
+	i = strings.Index(rest, `"`)
+	if i < 0 {
+		return ""
+	}
+	rest = rest[i+1:]
+	j := strings.Index(rest, `"`)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {

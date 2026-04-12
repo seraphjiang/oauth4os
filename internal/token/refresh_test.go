@@ -171,3 +171,76 @@ func TestRefreshScopeEscalationBlocked(t *testing.T) {
 		t.Fatalf("scope escalation should be blocked, got %v", resp)
 	}
 }
+
+func TestRefreshTokenExpiry(t *testing.T) {
+	m := NewManager()
+	m.SetRefreshTTL(100*time.Millisecond, 90*24*time.Hour)
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+	_, refresh := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+
+	time.Sleep(150 * time.Millisecond)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refresh},
+		"client_id":     {"svc-1"},
+		"client_secret": {"secret"},
+	}.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	m.IssueToken(w, r)
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "invalid_grant" {
+		t.Fatalf("expired refresh should fail, got %v", resp)
+	}
+}
+
+func TestRefreshFamilyAbsoluteLifetime(t *testing.T) {
+	m := NewManager()
+	m.SetRefreshTTL(1*time.Hour, 100*time.Millisecond) // short absolute lifetime
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+	_, refresh := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+
+	time.Sleep(150 * time.Millisecond)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refresh},
+		"client_id":     {"svc-1"},
+		"client_secret": {"secret"},
+	}.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	m.IssueToken(w, r)
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "invalid_grant" {
+		t.Fatalf("family expired should fail, got %v", resp)
+	}
+}
+
+func TestRefreshBeforeExpiry(t *testing.T) {
+	m := NewManager()
+	m.SetRefreshTTL(1*time.Hour, 90*24*time.Hour)
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+	_, refresh := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refresh},
+		"client_id":     {"svc-1"},
+		"client_secret": {"secret"},
+	}.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	m.IssueToken(w, r)
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["access_token"] == nil {
+		t.Fatalf("refresh before expiry should succeed, got %v", resp)
+	}
+}

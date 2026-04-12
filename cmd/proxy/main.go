@@ -882,6 +882,32 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(tokenMgr.ListActiveTokens())
 	})
+	mux.HandleFunc("GET /admin/api/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(policyEngine.ListPolicies())
+	})
+	mux.HandleFunc("POST /admin/api/policies", func(w http.ResponseWriter, r *http.Request) {
+		var p cedar.Policy
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, `{"error":"invalid JSON"}`, 400)
+			return
+		}
+		if p.ID == "" {
+			http.Error(w, `{"error":"id required"}`, 400)
+			return
+		}
+		policyEngine.AddGlobalPolicy(p)
+		w.WriteHeader(201)
+		json.NewEncoder(w).Encode(map[string]string{"status": "created", "id": p.ID})
+	})
+	mux.HandleFunc("DELETE /admin/api/policies/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if policyEngine.RemoveGlobalPolicy(id) {
+			json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "id": id})
+		} else {
+			http.Error(w, `{"error":"not found"}`, 404)
+		}
+	})
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))

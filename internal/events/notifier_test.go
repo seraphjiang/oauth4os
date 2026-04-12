@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestEmitAndReceive(t *testing.T) {
+func TestEmitDelivers(t *testing.T) {
 	received := make(chan Event, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var e Event
@@ -18,21 +18,26 @@ func TestEmitAndReceive(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n := NewNotifier([]string{srv.URL})
-	n.Emit(Event{Type: TokenIssued, ClientID: "svc-a", TokenID: "tok-1"})
+	n := New([]string{srv.URL})
+	n.Emit(Event{Type: TokenIssued, ClientID: "test"})
 
 	select {
 	case e := <-received:
-		if e.Type != TokenIssued || e.ClientID != "svc-a" {
-			t.Fatalf("unexpected event: %+v", e)
+		if e.Type != TokenIssued || e.ClientID != "test" {
+			t.Errorf("unexpected event: %+v", e)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for webhook")
+		t.Fatal("event not delivered")
 	}
 }
 
-func TestNoURLsNoPanic(t *testing.T) {
-	n := NewNotifier(nil)
-	n.Emit(Event{Type: TokenRevoked, ClientID: "x"})
-	// should not panic
+func TestEmitNoURLsNoOp(t *testing.T) {
+	n := New(nil)
+	n.Emit(Event{Type: TokenRevoked, ClientID: "x"}) // should not panic
+}
+
+func TestEmitDropsWhenFull(t *testing.T) {
+	n := &Notifier{urls: []string{"http://unreachable.invalid"}, ch: make(chan Event, 1)}
+	n.Emit(Event{Type: TokenIssued})
+	n.Emit(Event{Type: TokenIssued}) // should drop, not block
 }

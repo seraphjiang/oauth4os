@@ -16,6 +16,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"sync"
 	"os/signal"
 	"strings"
 	"sync/atomic"
@@ -857,6 +858,36 @@ func main() {
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /logs/", serveWebFile("logs/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/feedback", serveWebFile("admin/feedback.html", "text/html; charset=utf-8"))
+
+	// Feedback API — in-memory store
+	var feedbackMu sync.Mutex
+	var feedbackItems []json.RawMessage
+	mux.HandleFunc("POST /feedback", func(w http.ResponseWriter, r *http.Request) {
+		var item json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+			http.Error(w, `{"error":"invalid json"}`, 400)
+			return
+		}
+		feedbackMu.Lock()
+		feedbackItems = append(feedbackItems, item)
+		if len(feedbackItems) > 1000 {
+			feedbackItems = feedbackItems[len(feedbackItems)-500:]
+		}
+		feedbackMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(201)
+		fmt.Fprint(w, `{"status":"ok"}`)
+	})
+	mux.HandleFunc("GET /feedback", func(w http.ResponseWriter, r *http.Request) {
+		feedbackMu.Lock()
+		defer feedbackMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(feedbackItems)
+	})
+
+	// Serve feedback.js widget
+	mux.HandleFunc("GET /web/feedback.js", serveWebFile("feedback.js", "application/javascript"))
 
 	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sessionMgr.Remove(r.PathValue("id"))

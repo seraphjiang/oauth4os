@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os user feedback">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Feedback</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}.container{max-width:800px;margin:0 auto;padding:20px}
+h1{font-size:20px;margin-bottom:16px}
+.item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:8px}
+.item h3{font-size:14px;margin-bottom:4px}.item .meta{font-size:11px;color:var(--muted)}
+.item .desc{font-size:12px;margin-top:6px}
+.badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600}
+.badge-bug{background:#f8514920;color:var(--red)}.badge-feature{background:#58a6ff20;color:var(--accent)}.badge-general{background:#3fb95020;color:var(--green)}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+<div class="container">
+  <h1>💬 User Feedback</h1>
+  <div id="list"><div class="empty">Loading...</div></div>
+</div>
+<script>
+const API=window.location.origin;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+async function load(){
+  try{
+    const r=await fetch(API+'/admin/feedback');const data=await r.json();
+    const items=Array.isArray(data)?data:data.feedback||[];
+    if(!items.length){document.getElementById('list').innerHTML='<div class="empty">No feedback yet</div>';return}
+    document.getElementById('list').innerHTML=items.reverse().map(i=>`<div class="item">
+      <h3><span class="badge badge-${esc(i.type||'general')}">${esc(i.type||'general')}</span> ${esc(i.title)}</h3>
+      <div class="meta">${esc(i.debug?.timestamp||'')} · ${esc(i.debug?.url||'')}</div>
+      ${i.description?'<div class="desc">'+esc(i.description)+'</div>':''}
+    </div>`).join('');
+  }catch(e){document.getElementById('list').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>'}
+}
+load();
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

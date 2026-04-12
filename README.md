@@ -199,44 +199,49 @@ cmd/
   proxy/              — Main proxy binary (with embedded landing page)
   cli/                — CLI tool (login, create-token, revoke, status)
 internal/
+  accesslog/          — Structured JSON access logs per request
   admin/              — Admin REST API (config CRUD, backup/restore)
   analytics/          — Token usage analytics tracker
+  apikey/             — API key authentication
   audit/              — Structured JSON audit logging
   backup/             — Config backup/restore bundles
+  cache/              — TTL-based response cache for GET requests
   cedar/              — Cedar policy engine (multi-tenant)
+  circuit/            — Circuit breaker for upstream failures
   config/             — YAML config loader
+  configui/           — Browser-based config editor (/admin/config)
+  cors/               — CORS middleware
   demo/               — Demo web app backend (PKCE callback)
+  device/             — OAuth 2.0 Device Authorization (RFC 8628)
   discovery/          — OIDC Discovery endpoint
+  dpop/               — DPoP token binding (RFC 9449 prep)
+  events/             — Webhook notifications for token events
   exchange/           — RFC 8693 token exchange
   federation/         — Multi-cluster routing
+  healthcheck/        — Background upstream health checker
+  i18n/               — Consent screen localization (8 languages)
+  idempotency/        — Request deduplication via Idempotency-Key
   introspect/         — RFC 7662 token introspection
   ipfilter/           — Per-client IP allowlist/denylist
   jwt/                — JWT validation + JWKS cache
   keyring/            — RSA key rotation + JWKS
+  loadshed/           — Load shedding (reject when queue full)
   logging/            — Structured logging
   mtls/               — Mutual TLS client auth
+  otlp/               — OpenTelemetry OTLP span exporter
+  par/                — Pushed Authorization Requests
   pkce/               — PKCE authorization + consent screen
   ratelimit/          — Per-client token bucket
   registration/       — Dynamic client registration (RFC 7591)
+  retry/              — Exponential backoff for upstream 5xx
   scope/              — Scope-to-role mapping engine
   session/            — Session management
   sigv4/              — AWS SigV4 signing for AOSS
   token/              — Token lifecycle (issue/refresh/revoke)
+  tokenbind/          — Token-to-client fingerprint binding
+  tokenui/            — Token inspector UI
   tracing/            — OpenTelemetry-style distributed tracing
-  webhook/            — Webhook notifications
-plugins/
-  oauth4os-dashboards/ — OSD plugin (TypeScript/React)
-examples/
-  mcp-server/         — MCP server reference (Python, 7 tools)
-scripts/
-  seed-demo.sh        — Seed 500 sample log entries
-web/
-  index.html          — Landing page
-  analytics.html      — Analytics dashboard
-deploy/
-  cdk/                — AWS CDK stack
-  helm/               — Helm chart
-docs/                 — Architecture, security, ADRs, RFC response
+  webhook/            — Webhook authorizer
 ```
 
 ## Configuration

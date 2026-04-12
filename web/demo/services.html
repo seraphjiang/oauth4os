@@ -16,6 +16,7 @@ header nav{display:flex;gap:12px;align-items:center}
 header nav a{color:var(--muted);font-size:13px}
 .theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
 canvas{display:block;width:100%;height:calc(100vh - 42px)}
+@media(max-width:375px){header nav{gap:6px}header nav a{font-size:11px}}
 #tooltip{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;pointer-events:none;display:none;z-index:10;max-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
 #tooltip h4{font-size:13px;margin-bottom:4px}
 #tooltip .stat{color:var(--muted);margin-bottom:2px}

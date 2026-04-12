@@ -108,6 +108,21 @@ scope_mapping:
 listen: :8443
 ```
 
+### New in v1.1.0: Secrets & Persistence
+
+```yaml
+# Secret references — resolve from env vars or files instead of plaintext
+# Supported schemes: env:VAR_NAME, file:/path/to/secret
+webhook:
+  url: env:WEBHOOK_URL          # reads from $WEBHOOK_URL at startup
+
+# Token persistence — survive restarts (default: memory)
+token_store: file:/var/lib/oauth4os/tokens.json
+
+# Secrets backend (default: env)
+secrets_backend: env             # env or file
+```
+
 ### Deploy
 
 ```bash

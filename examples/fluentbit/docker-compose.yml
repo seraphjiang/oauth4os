@@ -1,0 +1,25 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+    ports:
+      - "9200:9200"
+
+  oauth-proxy:
+    build: ../../
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./config.yaml:/etc/oauth4os/config.yaml
+    depends_on:
+      - opensearch
+
+  fluentbit:
+    image: fluent/fluent-bit:latest
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - /var/log:/var/log:ro
+    depends_on:
+      - oauth-proxy

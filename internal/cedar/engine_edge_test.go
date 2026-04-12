@@ -6,10 +6,14 @@ import (
 	"testing"
 )
 
+func any() Match    { return Match{Any: true} }
+func eq(s string) Match { return Match{Equals: s} }
+func glob(s string) Match { return Match{Pattern: s} }
+
 func TestConcurrentEvaluate(t *testing.T) {
 	e := NewEngine([]Policy{
-		{ID: "p1", Effect: "permit", Principal: "*", Action: "GET", Resource: "logs-*"},
-		{ID: "p2", Effect: "forbid", Principal: "attacker", Action: "*", Resource: "*"},
+		{ID: "p1", Effect: "permit", Principal: any(), Action: eq("GET"), Resource: glob("logs-*")},
+		{ID: "p2", Effect: "forbid", Principal: eq("attacker"), Action: any(), Resource: any()},
 	})
 
 	var wg sync.WaitGroup
@@ -17,12 +21,11 @@ func TestConcurrentEvaluate(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			req := Request{
+			d := e.Evaluate(Request{
 				Principal: map[string]string{"sub": fmt.Sprintf("user-%d", n)},
 				Action:    "GET",
 				Resource:  map[string]string{"index": "logs-app"},
-			}
-			d := e.Evaluate(req)
+			})
 			if !d.Allowed {
 				t.Errorf("user-%d should be allowed", n)
 			}
@@ -33,22 +36,20 @@ func TestConcurrentEvaluate(t *testing.T) {
 
 func TestConcurrentAddAndEvaluate(t *testing.T) {
 	e := NewEngine([]Policy{
-		{ID: "base", Effect: "permit", Principal: "*", Action: "*", Resource: "*"},
+		{ID: "base", Effect: "permit", Principal: any(), Action: any(), Resource: any()},
 	})
 
 	var wg sync.WaitGroup
-	// Writers add policies
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
 			e.AddPolicy(Policy{
 				ID: fmt.Sprintf("dyn-%d", n), Effect: "permit",
-				Principal: fmt.Sprintf("svc-%d", n), Action: "GET", Resource: "logs-*",
+				Principal: eq(fmt.Sprintf("svc-%d", n)), Action: eq("GET"), Resource: glob("logs-*"),
 			})
 		}(i)
 	}
-	// Readers evaluate concurrently
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func() {
@@ -65,9 +66,9 @@ func TestConcurrentAddAndEvaluate(t *testing.T) {
 
 func TestForbidOverridesMultiplePermits(t *testing.T) {
 	e := NewEngine([]Policy{
-		{ID: "p1", Effect: "permit", Principal: "*", Action: "*", Resource: "*"},
-		{ID: "p2", Effect: "permit", Principal: "admin", Action: "*", Resource: "*"},
-		{ID: "p3", Effect: "forbid", Principal: "admin", Action: "DELETE", Resource: "prod-*"},
+		{ID: "p1", Effect: "permit", Principal: any(), Action: any(), Resource: any()},
+		{ID: "p2", Effect: "permit", Principal: eq("admin"), Action: any(), Resource: any()},
+		{ID: "p3", Effect: "forbid", Principal: eq("admin"), Action: eq("DELETE"), Resource: glob("prod-*")},
 	})
 
 	d := e.Evaluate(Request{
@@ -82,8 +83,8 @@ func TestForbidOverridesMultiplePermits(t *testing.T) {
 
 func TestRemovePolicyRestoresAccess(t *testing.T) {
 	e := NewEngine([]Policy{
-		{ID: "allow-all", Effect: "permit", Principal: "*", Action: "*", Resource: "*"},
-		{ID: "block-delete", Effect: "forbid", Principal: "*", Action: "DELETE", Resource: "*"},
+		{ID: "allow-all", Effect: "permit", Principal: any(), Action: any(), Resource: any()},
+		{ID: "block-delete", Effect: "forbid", Principal: any(), Action: eq("DELETE"), Resource: any()},
 	})
 
 	d := e.Evaluate(Request{

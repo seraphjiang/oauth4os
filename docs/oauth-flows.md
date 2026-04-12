@@ -288,6 +288,46 @@ curl -H "X-API-Key: osk_abc123..." \
   https://proxy:8443/logs-demo/_search
 ```
 
+## 9. Pushed Authorization Requests (RFC 9126)
+
+Client pushes auth params server-side before redirecting the user — prevents parameter tampering.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant P as oauth4os Proxy
+    participant U as User Browser
+
+    C->>P: POST /oauth/par (client_id, scope, redirect_uri, code_challenge)
+    P-->>C: 201 {request_uri, expires_in: 60}
+    C->>U: Redirect to /oauth/authorize?request_uri=urn:...
+    U->>P: GET /oauth/authorize?request_uri=urn:...
+    P->>P: Resolve request_uri (one-time use)
+    P-->>U: Consent screen
+    U->>P: POST /oauth/consent (approve)
+    P-->>U: Redirect to redirect_uri?code=...
+```
+
+## 10. Client Initiated Backchannel Authentication (CIBA)
+
+Backend services authenticate users without browser redirects — user approves on a separate device.
+
+```mermaid
+sequenceDiagram
+    participant S as Backend Service
+    participant P as oauth4os Proxy
+    participant U as User (separate device)
+
+    S->>P: POST /oauth/bc-authorize (client_id, login_hint, scope)
+    P-->>S: 200 {auth_req_id, expires_in: 300}
+    P->>U: Notification (approval page)
+    U->>P: POST /oauth/bc-approve (auth_req_id, action=approve)
+    S->>P: POST /oauth/bc-token (auth_req_id) [poll]
+    P-->>S: 400 {error: authorization_pending}
+    S->>P: POST /oauth/bc-token (auth_req_id) [poll again]
+    P-->>S: 200 {access_token, refresh_token}
+```
+
 ## Flow Selection Guide
 
 | Use Case | Flow | Why |
@@ -316,3 +356,5 @@ curl -H "X-API-Key: osk_abc123..." \
 | Registration | Scope allowlist, redirect_uri binding |
 | Device Flow | Short-lived user codes, 10-min expiry, one-time use |
 | API Key | Hashed storage, prefix-based lookup, per-key rate limits |
+| PAR | Server-side param storage, one-time URI, 60s expiry |
+| CIBA | Backchannel auth, 5-min expiry, one-time token issuance |

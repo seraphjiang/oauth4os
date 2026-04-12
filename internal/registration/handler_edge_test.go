@@ -2,14 +2,13 @@ package registration
 
 import (
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 )
 
-func noopRegistrar(id, secret string, scopes, redirectURIs []string) {}
+func edgeRegistrar(id, secret string, scopes, redirectURIs []string) {}
 
 func TestConcurrentRegister(t *testing.T) {
 	h := NewHandler(noopRegistrar, []string{"read:logs-*", "admin"})

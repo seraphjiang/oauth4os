@@ -147,9 +147,13 @@ man oauth4os-demo
 
 ## Pipe Support
 
-When stdout is not a terminal, search outputs raw JSON:
+When stdout is not a terminal or `--json` is passed, commands output raw JSON:
 
 ```bash
+oauth4os-demo --json status | jq .version
+oauth4os-demo --json latency | jq .latency_ms
+oauth4os-demo --json env | jq .proxy_reachable
+oauth4os-demo --json profile | jq .scope
 oauth4os-demo search 'level:ERROR' | jq '.[] | .service' | sort -u
 oauth4os-demo search 'service:payment' | jq length
 oauth4os-demo search 'latency_ms:>500' | jq '.[] | .latency_ms' | sort -n

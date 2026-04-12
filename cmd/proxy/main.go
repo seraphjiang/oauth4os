@@ -52,6 +52,9 @@ const version = "0.1.0"
 //go:embed landing.html
 var landingPage string
 
+//go:embed openapi.yaml
+var openapiSpec string
+
 // Prometheus-style metrics
 var (
 	requestsTotal   atomic.Int64
@@ -419,6 +422,11 @@ func main() {
 		json.NewEncoder(w).Encode(sessionMgr.List(clientID))
 	})
 
+	mux.HandleFunc("GET /developer/analytics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, developerAnalyticsHTML)
+	})
+
 	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sessionMgr.Remove(r.PathValue("id"))
 		w.WriteHeader(http.StatusNoContent)
@@ -466,6 +474,17 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_uptime_seconds Proxy uptime\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_uptime_seconds gauge\n")
 		fmt.Fprintf(w, "oauth4os_uptime_seconds %d\n", int(time.Since(startTime).Seconds()))
+	})
+
+	// Developer docs — Swagger UI
+	mux.HandleFunc("GET /developer/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		fmt.Fprint(w, openapiSpec)
+	})
+	mux.HandleFunc("GET /developer/docs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, swaggerPage)
 	})
 
 	// Serve landing page at root

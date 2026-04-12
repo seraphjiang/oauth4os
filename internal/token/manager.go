@@ -58,6 +58,17 @@ func (m *Manager) RegisterClient(id, secret string, scopes, redirectURIs []strin
 	m.mu.Unlock()
 }
 
+// Clients returns a snapshot of all registered clients.
+func (m *Manager) Clients() []*Client {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*Client, 0, len(m.clients))
+	for _, c := range m.clients {
+		out = append(out, c)
+	}
+	return out
+}
+
 // ValidateRedirectURI checks if a redirect URI is allowed for a client.
 func (m *Manager) ValidateRedirectURI(clientID, uri string) bool {
 	m.mu.RLock()

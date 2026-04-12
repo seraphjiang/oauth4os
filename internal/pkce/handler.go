@@ -28,6 +28,7 @@ type AuthCode struct {
 // Handler manages PKCE authorization code flow.
 type Handler struct {
 	codes            map[string]*AuthCode
+	pending          map[string]*pendingConsent
 	mu               sync.Mutex
 	issuer           func(clientID string, scopes []string) (accessToken, refreshToken string)
 	validateRedirect func(clientID, uri string) bool
@@ -42,26 +43,33 @@ func NewHandler(issuer func(clientID string, scopes []string) (string, string), 
 	}
 }
 
-// Authorize handles GET /oauth/authorize — issues an authorization code.
+// pendingConsent stores an authorize request awaiting user approval.
+type pendingConsent struct {
+	ID                  string
+	ClientID            string
+	Scopes              []string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	RedirectURI         string
+	State               string
+	CreatedAt           time.Time
+}
+
+// Authorize handles GET /oauth/authorize — shows consent screen.
 func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 	clientID := r.URL.Query().Get("client_id")
 	challenge := r.URL.Query().Get("code_challenge")
 	method := r.URL.Query().Get("code_challenge_method")
 	redirectURI := r.URL.Query().Get("redirect_uri")
 	scope := r.URL.Query().Get("scope")
+	state := r.URL.Query().Get("state")
 
 	if clientID == "" || challenge == "" || redirectURI == "" {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "client_id, code_challenge, redirect_uri required")
 		return
 	}
-	// Validate redirect_uri against client's registered allowlist
 	if h.validateRedirect != nil && !h.validateRedirect(clientID, redirectURI) {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "redirect_uri not registered for client")
-		return
-	}
-	// Validate redirect_uri against client allowlist (prevents open redirect)
-	if h.validateRedirect != nil && !h.validateRedirect(clientID, redirectURI) {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "redirect_uri not registered for this client")
 		return
 	}
 	if method == "" {
@@ -72,21 +80,63 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code := generateCode()
+	consentID := generateCode()
 	h.mu.Lock()
-	h.codes[code] = &AuthCode{
-		Code:                code,
-		ClientID:            clientID,
-		Scopes:              splitScopes(scope),
-		CodeChallenge:       challenge,
-		CodeChallengeMethod: method,
-		CreatedAt:           time.Now(),
-		RedirectURI:         redirectURI,
+	if h.pending == nil {
+		h.pending = make(map[string]*pendingConsent)
+	}
+	h.pending[consentID] = &pendingConsent{
+		ID: consentID, ClientID: clientID, Scopes: splitScopes(scope),
+		CodeChallenge: challenge, CodeChallengeMethod: method,
+		RedirectURI: redirectURI, State: state, CreatedAt: time.Now(),
 	}
 	h.mu.Unlock()
 
-	// Redirect with code
-	http.Redirect(w, r, fmt.Sprintf("%s?code=%s", redirectURI, code), http.StatusFound)
+	renderConsent(w, consentID, clientID, splitScopes(scope))
+}
+
+// Consent handles POST /oauth/consent — approve or deny.
+func (h *Handler) Consent(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	consentID := r.FormValue("consent_id")
+	action := r.FormValue("action")
+
+	h.mu.Lock()
+	pc, ok := h.pending[consentID]
+	if ok {
+		delete(h.pending, consentID)
+	}
+	h.mu.Unlock()
+
+	if !ok || time.Since(pc.CreatedAt) > 10*time.Minute {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "consent expired or not found")
+		return
+	}
+
+	sep := "?"
+	if len(pc.RedirectURI) > 0 && pc.RedirectURI[len(pc.RedirectURI)-1] == '?' {
+		sep = ""
+	}
+	stateParam := ""
+	if pc.State != "" {
+		stateParam = "&state=" + pc.State
+	}
+
+	if action != "approve" {
+		http.Redirect(w, r, fmt.Sprintf("%s%serror=access_denied%s", pc.RedirectURI, sep, stateParam), http.StatusFound)
+		return
+	}
+
+	code := generateCode()
+	h.mu.Lock()
+	h.codes[code] = &AuthCode{
+		Code: code, ClientID: pc.ClientID, Scopes: pc.Scopes,
+		CodeChallenge: pc.CodeChallenge, CodeChallengeMethod: pc.CodeChallengeMethod,
+		CreatedAt: time.Now(), RedirectURI: pc.RedirectURI,
+	}
+	h.mu.Unlock()
+
+	http.Redirect(w, r, fmt.Sprintf("%s%scode=%s%s", pc.RedirectURI, sep, code, stateParam), http.StatusFound)
 }
 
 // Exchange handles POST /oauth/token with grant_type=authorization_code.

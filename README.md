@@ -10,8 +10,18 @@
 [![OpenSearch 2.x | 3.x](https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange?logo=opensearch)](https://opensearch.org)
 
 > 🔗 **RFC**: [opensearch-project/.github#491](https://github.com/opensearch-project/.github/issues/491)
-> · 🎯 **Demo**: [oauth4os.huanji.profile.aws.dev](https://f5cmk2hxwx.us-west-2.awsapprunner.com)
+> · 🎯 **Live Demo**: [f5cmk2hxwx.us-west-2.awsapprunner.com](https://f5cmk2hxwx.us-west-2.awsapprunner.com)
 > · 📖 **Docs**: [docs/](docs/)
+
+**Try it now:**
+```bash
+# Health check
+curl https://f5cmk2hxwx.us-west-2.awsapprunner.com/health
+
+# Get a scoped token
+curl -X POST https://f5cmk2hxwx.us-west-2.awsapprunner.com/oauth/token \
+  -d "grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*"
+```
 
 ---
 

@@ -9,7 +9,7 @@
 Hi all — we built a working proof-of-concept for the OAuth 2.0 proxy approach described in this RFC.
 
 **Repo**: [github.com/seraphjiang/oauth4os](https://github.com/seraphjiang/oauth4os)
-**Demo**: [oauth4os.huanji.profile.aws.dev](http://oauth4os.huanji.profile.aws.dev/)
+**Demo**: [f5cmk2hxwx.us-west-2.awsapprunner.com](https://f5cmk2hxwx.us-west-2.awsapprunner.com)
 **License**: Apache 2.0
 
 ### What it does
@@ -123,12 +123,12 @@ docker compose up
 
 ```bash
 # Get a token
-curl -X POST http://localhost:8443/oauth/token \
+curl -X POST https://f5cmk2hxwx.us-west-2.awsapprunner.com/oauth/token \
   -d "grant_type=client_credentials&client_id=demo&client_secret=secret&scope=read:logs-*"
 
 # Query OpenSearch through the proxy
 curl -H "Authorization: Bearer <token>" \
-  http://localhost:8443/logs-*/_search \
+  https://f5cmk2hxwx.us-west-2.awsapprunner.com/logs-*/_search \
   -d '{"query":{"match_all":{}}}'
 ```
 

@@ -1,0 +1,19 @@
+upstream:
+  engine: http://opensearch:9200
+  dashboards: http://opensearch:5601
+
+providers: []
+
+scope_mapping:
+  "write:logs-*":
+    backend_user: fluentbit-writer
+    backend_roles: [logs_write_access]
+  "read:logs-*":
+    backend_user: logs-reader
+    backend_roles: [logs_read_access]
+
+listen: :8443
+
+tls:
+  enabled: false
+  insecure_skip_verify: true

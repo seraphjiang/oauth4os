@@ -1,10 +1,15 @@
 package jwt
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	jwtgo "github.com/golang-jwt/jwt/v5"
 	"github.com/seraphjiang/oauth4os/internal/config"
@@ -190,5 +195,97 @@ func TestResolveJWKSURI_Failure(t *testing.T) {
 	_, err := v.resolveJWKSURI(provider)
 	if err == nil {
 		t.Error("expected error for unreachable issuer")
+	}
+}
+
+func TestValidateFullFlow(t *testing.T) {
+	// Generate RSA key pair
+	privKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	pubKey := &privKey.PublicKey
+
+	// Serve JWKS
+	n := base64.RawURLEncoding.EncodeToString(pubKey.N.Bytes())
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pubKey.E)).Bytes())
+	jwksJSON := fmt.Sprintf(`{"keys":[{"kty":"RSA","kid":"k1","n":"%s","e":"%s","use":"sig","alg":"RS256"}]}`, n, e)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(jwksJSON))
+	}))
+	defer srv.Close()
+
+	// Create a signed JWT
+	now := time.Now()
+	claims := jwtgo.MapClaims{
+		"iss":       "https://test-idp.example.com",
+		"sub":       "user-123",
+		"client_id": "my-client",
+		"scope":     "read:logs-* write:logs-app",
+		"exp":       now.Add(time.Hour).Unix(),
+		"iat":       now.Unix(),
+	}
+	tok := jwtgo.NewWithClaims(jwtgo.SigningMethodRS256, claims)
+	tok.Header["kid"] = "k1"
+	tokenStr, err := tok.SignedString(privKey)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	// Validate
+	v := NewValidator([]config.Provider{{
+		Name:    "test",
+		Issuer:  "https://test-idp.example.com",
+		JWKSURI: srv.URL,
+	}})
+	result, err := v.Validate(tokenStr)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if result.ClientID != "my-client" {
+		t.Errorf("ClientID = %q", result.ClientID)
+	}
+	if result.Subject != "user-123" {
+		t.Errorf("Subject = %q", result.Subject)
+	}
+	if len(result.Scopes) != 2 {
+		t.Errorf("Scopes = %v", result.Scopes)
+	}
+}
+
+func TestResolveKeyRotation(t *testing.T) {
+	// First serve old key, then new key on refresh
+	privKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	pubKey := &privKey.PublicKey
+	n := base64.RawURLEncoding.EncodeToString(pubKey.N.Bytes())
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pubKey.E)).Bytes())
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		// Always return the key with kid "new-key"
+		fmt.Fprintf(w, `{"keys":[{"kty":"RSA","kid":"new-key","n":"%s","e":"%s","use":"sig","alg":"RS256"}]}`, n, e)
+	}))
+	defer srv.Close()
+
+	provider := &config.Provider{Name: "test", Issuer: "https://test.example.com", JWKSURI: srv.URL}
+	v := NewValidator([]config.Provider{*provider})
+
+	// Request with kid "new-key" — should find it
+	key, err := v.resolveKey(provider, "new-key")
+	if err != nil {
+		t.Fatalf("resolveKey: %v", err)
+	}
+	if key == nil {
+		t.Fatal("expected non-nil key")
+	}
+
+	// Request with unknown kid — should trigger refresh retry
+	_, err = v.resolveKey(provider, "unknown-kid")
+	if err == nil {
+		t.Error("expected error for unknown kid")
+	}
+	if calls < 2 {
+		t.Error("expected JWKS refresh retry")
 	}
 }

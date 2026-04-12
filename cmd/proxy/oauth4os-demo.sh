@@ -50,8 +50,9 @@ ${BOLD}FLAGS:${NC}
   --json             Force JSON output (machine-readable)
 
 ${BOLD}COMMANDS:${NC}
-  login              Authenticate via browser (PKCE flow)
+  login [scope]        Authenticate via browser (PKCE flow)
   logout             Clear cached token
+  refresh            Refresh access token using saved refresh token
   search <query>     Search logs with KQL (e.g. 'level:ERROR')
   tail [service]     Live tail — poll every 2s, show new entries
   services           List indexed services
@@ -229,7 +230,7 @@ print(code[0] or '')
 }
 
 cmd_logout() {
-  rm -f "$TOKEN_FILE"
+  rm -f "$TOKEN_FILE" "${TOKEN_FILE}.refresh"
   echo -e "${GREEN}Logged out${NC}"
 }
 

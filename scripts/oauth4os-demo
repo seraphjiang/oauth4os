@@ -50,8 +50,9 @@ ${BOLD}FLAGS:${NC}
   --json             Force JSON output (machine-readable)
 
 ${BOLD}COMMANDS:${NC}
-  login              Authenticate via browser (PKCE flow)
+  login [scope]        Authenticate via browser (PKCE flow)
   logout             Clear cached token
+  refresh            Refresh access token using saved refresh token
   search <query>     Search logs with KQL (e.g. 'level:ERROR')
   tail [service]     Live tail — poll every 2s, show new entries
   services           List indexed services
@@ -146,7 +147,8 @@ cmd_login() {
   CODE_CHALLENGE=$(printf '%s' "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr '+/' '-_' | tr -d '=')
   STATE=$(head -c 16 /dev/urandom | base64 | tr -d '=+/' | head -c 16)
 
-  AUTH_URL="${PROXY}/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&scope=read:logs&state=${STATE}"
+  local scope="${1:-read:logs-*}"
+  AUTH_URL="${PROXY}/oauth/authorize?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&scope=${scope}&state=${STATE}"
 
   echo -e "${CYAN}Opening browser for login...${NC}"
   echo -e "If browser doesn't open, visit:\n${AUTH_URL}\n"
@@ -215,12 +217,20 @@ print(code[0] or '')
 
   echo "$ACCESS_TOKEN" > "$TOKEN_FILE"
   chmod 600 "$TOKEN_FILE"
+
+  # Save refresh token if present
+  local REFRESH_TOKEN=$(echo "$RESPONSE" | jq -r '.refresh_token // empty')
+  if [ -n "$REFRESH_TOKEN" ]; then
+    echo "$REFRESH_TOKEN" > "${TOKEN_FILE}.refresh"
+    chmod 600 "${TOKEN_FILE}.refresh"
+  fi
+
   echo -e "${GREEN}✅ Logged in successfully${NC}"
   echo -e "Token saved to ${TOKEN_FILE}"
 }
 
 cmd_logout() {
-  rm -f "$TOKEN_FILE"
+  rm -f "$TOKEN_FILE" "${TOKEN_FILE}.refresh"
   echo -e "${GREEN}Logged out${NC}"
 }
 
@@ -1219,6 +1229,34 @@ cmd_changelog() {
   echo "$resp" | jq -r '"  Version: \(.version // "unknown")\n  Commit:  \(.commit // "unknown")\n  Built:   \(.built // "unknown")"' 2>/dev/null || echo "$resp"
 }
 
+cmd_refresh() {
+  local refresh_file="${TOKEN_FILE}.refresh"
+  if [ ! -f "$refresh_file" ]; then
+    echo -e "${RED}No refresh token. Run: oauth4os-demo login${NC}" >&2; return 1
+  fi
+  local refresh_tok=$(cat "$refresh_file")
+  local resp
+  resp=$(curl -sf -X POST "${PROXY}/oauth/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=refresh_token&refresh_token=${refresh_tok}&client_id=${CLIENT_ID}" 2>/dev/null)
+  local new_tok=$(echo "$resp" | jq -r '.access_token // empty')
+  if [ -z "$new_tok" ]; then
+    echo -e "${RED}Refresh failed: ${resp}${NC}" >&2
+    echo -e "${YELLOW}Try: oauth4os-demo login${NC}" >&2
+    return 1
+  fi
+  echo "$new_tok" > "$TOKEN_FILE"
+  chmod 600 "$TOKEN_FILE"
+  # Update refresh token if rotated
+  local new_refresh=$(echo "$resp" | jq -r '.refresh_token // empty')
+  if [ -n "$new_refresh" ]; then
+    echo "$new_refresh" > "$refresh_file"
+    chmod 600 "$refresh_file"
+  fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${GREEN}✅ Token refreshed${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1232,8 +1270,9 @@ for arg in "$@"; do
 done
 set -- "${args[@]}"
 case "${1:-}" in
-  login)    cmd_login ;;
+  login)    shift; cmd_login "${1:-read:logs-*}" ;;
   logout)   cmd_logout ;;
+  refresh)  cmd_refresh ;;
   search)   shift; cmd_search "$*" ;;
   services) cmd_services ;;
   indices)  cmd_indices ;;

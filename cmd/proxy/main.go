@@ -70,6 +70,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/secrets"
 	"github.com/seraphjiang/oauth4os/internal/store"
 	"github.com/seraphjiang/oauth4os/internal/timeout"
+	"github.com/seraphjiang/oauth4os/internal/tlsreload"
 )
 
 var (
@@ -1398,7 +1399,16 @@ func main() {
 	logger.Info("upstream", "dashboards", cfg.Upstream.Dashboards)
 
 	if cfg.TLS.Enabled && cfg.TLS.CertFile != "" && cfg.TLS.KeyFile != "" {
-		err = srv.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile)
+		certReloader, tlsErr := tlsreload.New(cfg.TLS.CertFile, cfg.TLS.KeyFile, 30*time.Second)
+		if tlsErr != nil {
+			log.Fatalf("Failed to load TLS cert: %v", tlsErr)
+		}
+		defer certReloader.Stop()
+		certReloader.OnReload = func() {
+			logger.Info("TLS certificate reloaded")
+		}
+		srv.TLSConfig = &tls.Config{GetCertificate: certReloader.GetCertificate}
+		err = srv.ListenAndServeTLS("", "")
 	} else {
 		err = srv.ListenAndServe()
 	}

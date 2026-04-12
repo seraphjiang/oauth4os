@@ -16,8 +16,8 @@ web/
 ├── analytics/index.html # Token analytics dashboard
 ├── benchmark/index.html # Performance benchmark tool
 ├── changelog/index.html # Release history (parses CHANGELOG.md)
-├── demo/
-│   ├── index.html      # Log viewer dashboard (PWA)
+├── logs/index.html     # Live access log viewer (terminal-style)
+├── demo/│   ├── index.html      # Log viewer dashboard (PWA)
 │   ├── services.html   # Service map (canvas)
 │   ├── alerts.html     # Alert feed
 │   ├── trace.html      # Trace waterfall viewer

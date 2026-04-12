@@ -82,3 +82,14 @@ func TestRegisterRoutes(t *testing.T) {
 		t.Errorf("/demo/callback: expected 200, got %d", w.Code)
 	}
 }
+
+func TestRandomHex(t *testing.T) {
+	h := randomHex(16)
+	if len(h) != 32 {
+		t.Errorf("expected 32 hex chars, got %d", len(h))
+	}
+	h2 := randomHex(16)
+	if h == h2 {
+		t.Error("expected unique values")
+	}
+}

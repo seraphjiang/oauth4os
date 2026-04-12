@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os setup wizard — get running in 3 steps">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Setup Wizard</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+.container{max-width:600px;margin:0 auto;padding:24px 20px}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+.steps{counter-reset:step}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:12px;position:relative;counter-increment:step}
+.step::before{content:counter(step);position:absolute;top:20px;left:-12px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.step.done::before{content:'✓';background:var(--green)}
+.step h3{font-size:14px;margin-bottom:6px}
+.step p{font-size:13px;color:var(--muted);margin-bottom:8px}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;overflow-x:auto;position:relative}
+.copy-btn{position:absolute;top:6px;right:6px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--text)}
+.copy-btn:hover{border-color:var(--accent)}
+.check{margin-top:8px}
+.check button{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.check button:hover{border-color:var(--accent)}
+.check .result{font-size:12px;margin-left:8px}
+.ok{color:var(--green)}.err{color:var(--red)}
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:375px){.step::before{display:none}.step{padding:16px}}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+<div class="container" id="main">
+  <h1>🚀 Setup Wizard</h1>
+  <p class="sub">Get oauth4os running in 3 steps. <a href="./">← Back</a></p>
+  <div class="steps">
+    <div class="step" id="s1">
+      <h3>Start the proxy</h3>
+      <p>Run with Docker (no install needed):</p>
+      <pre><code>docker run -p 8443:8443 jianghuan/oauth4os:latest</code><button class="copy-btn" onclick="copy(this)" aria-label="Copy command">📋</button></pre>
+      <div class="check"><button onclick="checkHealth()" aria-label="Check proxy health">Check health</button><span class="result" id="r1"></span></div>
+    </div>
+    <div class="step" id="s2">
+      <h3>Get a token</h3>
+      <p>Use client credentials to get an access token:</p>
+      <pre><code>curl -X POST http://localhost:8443/oauth/token \
+  -d 'grant_type=client_credentials&amp;client_id=demo-agent&amp;client_secret=demo-secret&amp;scope=read:logs-*'</code><button class="copy-btn" onclick="copy(this)" aria-label="Copy command">📋</button></pre>
+      <div class="check"><button onclick="getToken()" aria-label="Get token">Try it</button><span class="result" id="r2"></span></div>
+    </div>
+    <div class="step" id="s3">
+      <h3>Query OpenSearch</h3>
+      <p>Use the token to search through the proxy:</p>
+      <pre><code>curl http://localhost:8443/logs-*/_search \
+  -H 'Authorization: Bearer &lt;token&gt;' \
+  -d '{"query":{"match_all":{}},"size":5}'</code><button class="copy-btn" onclick="copy(this)" aria-label="Copy command">📋</button></pre>
+      <div class="check"><button onclick="trySearch()" aria-label="Try search">Try it</button><span class="result" id="r3"></span></div>
+    </div>
+  </div>
+  <div style="text-align:center;margin-top:20px;font-size:13px;color:var(--muted)">
+    Next: <a href="demo/">Open the demo dashboard</a> · <a href="developer/">Register an OAuth app</a> · <a href="admin/">Admin console</a>
+  </div>
+</div>
+<script>
+const API=window.location.origin;
+let token='';
+
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+function copy(btn){
+  const code=btn.previousElementSibling.textContent;
+  navigator.clipboard.writeText(code).then(()=>{btn.textContent='✅';setTimeout(()=>btn.textContent='📋',1500)});
+}
+
+async function checkHealth(){
+  const r1=document.getElementById('r1');
+  try{
+    const r=await fetch(API+'/health');
+    if(r.ok){r1.innerHTML='<span class="ok">✅ Proxy is running</span>';document.getElementById('s1').classList.add('done');}
+    else r1.innerHTML='<span class="err">❌ Status '+r.status+'</span>';
+  }catch(e){r1.innerHTML='<span class="err">❌ Cannot reach proxy</span>';}
+}
+
+async function getToken(){
+  const r2=document.getElementById('r2');
+  try{
+    const r=await fetch(API+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'});
+    const d=await r.json();
+    if(d.access_token){token=d.access_token;r2.innerHTML='<span class="ok">✅ Got token ('+esc(token.slice(0,20))+'...)</span>';document.getElementById('s2').classList.add('done');}
+    else r2.innerHTML='<span class="err">❌ '+esc(d.error||'No token')+'</span>';
+  }catch(e){r2.innerHTML='<span class="err">❌ '+esc(e.message)+'</span>';}
+}
+
+async function trySearch(){
+  const r3=document.getElementById('r3');
+  if(!token){r3.innerHTML='<span class="err">⚠️ Get a token first (step 2)</span>';return;}
+  try{
+    const r=await fetch(API+'/logs-*/_search',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:'{"query":{"match_all":{}},"size":1}'});
+    const d=await r.json();
+    const hits=d.hits?.total?.value??d.hits?.total??0;
+    r3.innerHTML='<span class="ok">✅ Search returned '+hits+' hits</span>';document.getElementById('s3').classList.add('done');
+  }catch(e){r3.innerHTML='<span class="err">❌ '+esc(e.message)+'</span>';}
+}
+
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

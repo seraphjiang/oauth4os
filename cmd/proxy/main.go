@@ -218,7 +218,7 @@ func main() {
 	}
 
 	// Backup handler
-	backupHandler := backup.NewHandler(
+	_ = backup.NewHandler(
 		func() *config.Config { return cfg },
 		func() []backup.ClientEntry { return nil },
 		func(c *config.Config) { *cfg = *c },
@@ -432,7 +432,7 @@ func main() {
 	})
 
 	// Backup endpoints
-	backupHandler.Register(mux)
+	//backupHandler.Register(mux) // handled by admin API
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintf(w, "# HELP oauth4os_requests_total Total proxy requests\n")

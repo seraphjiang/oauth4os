@@ -783,6 +783,41 @@ COMP
   esac
 }
 
+cmd_watch() {
+  local query="${1:-*}" interval="${WATCH_INTERVAL:-5}" last_count=-1
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}"; return 1; }
+  local dsl
+  dsl=$(kql_to_dsl "$query")
+  echo -e "${BOLD}👁 Watching:${NC} $query  (every ${interval}s, Ctrl+C to stop)\n"
+
+  trap 'echo -e "\n${NC}Stopped."; exit 0' INT
+  while true; do
+    local body="{\"query\":${dsl},\"size\":5,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}"
+    local resp
+    resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+      "${PROXY}/${DEFAULT_INDEX}/_search" -d "$body" 2>/dev/null)
+    if [ $? -ne 0 ]; then sleep "$interval"; continue; fi
+
+    local count
+    count=$(echo "$resp" | jq '.hits.total.value // 0' 2>/dev/null)
+
+    if [ "$last_count" -ge 0 ] 2>/dev/null && [ "$count" -gt "$last_count" ]; then
+      local new=$(( count - last_count ))
+      local ts=$(date '+%H:%M:%S')
+      echo -e "${RED}🔔 [${ts}] ALERT: ${new} new match(es) (${last_count}→${count})${NC}"
+      echo "$resp" | jq -r '.hits.hits[:3][]._source | "   \(.["@timestamp"] // "?") [\(.level // "?")] \(.service // "?"): \(.message // "")"' 2>/dev/null | while IFS= read -r line; do
+        echo -e "  ${YELLOW}${line}${NC}"
+      done
+      echo ""
+    elif [ "$last_count" -eq -1 ]; then
+      echo -e "${CYAN}Baseline: ${count} matches${NC}\n"
+    fi
+    last_count=$count
+    sleep "$interval"
+  done
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -801,6 +836,7 @@ case "${1:-}" in
   history)  cmd_history ;;
   bookmark) shift; cmd_bookmark "$@" ;;
   dashboard|dash) cmd_dashboard ;;
+  watch)    shift; cmd_watch "$*" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;
   completion) shift; cmd_completion "${1:-bash}" ;;

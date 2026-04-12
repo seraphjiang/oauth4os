@@ -36,6 +36,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/keyring"
 	"github.com/seraphjiang/oauth4os/internal/logging"
+	"github.com/seraphjiang/oauth4os/internal/otlp"
 	"github.com/seraphjiang/oauth4os/internal/pkce"
 	"github.com/seraphjiang/oauth4os/internal/ratelimit"
 	"github.com/seraphjiang/oauth4os/internal/registration"

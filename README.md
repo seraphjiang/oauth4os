@@ -147,6 +147,11 @@ oauth4os revoke <token-id>
 - **AWS SigV4 signing** for OpenSearch Serverless (AOSS)
 - **Multi-tenant** by OIDC issuer — each provider gets its own scope mappings and policies
 - **Client CRUD** — create, list, update, delete clients with secret rotation
+- **API key authentication** — X-API-Key header support with per-key rate limits
+- **Circuit breaker** — automatic upstream failure detection and recovery
+- **Response caching** — TTL-based GET cache, configurable per-route
+- **Load shedding** — reject requests when queue depth exceeds threshold
+- **Request retry** — exponential backoff for upstream 5xx (max 3 retries)
 
 ### Developer Experience
 - **Developer portal** — `/developer/docs` (OpenAPI), `/developer/analytics`
@@ -155,7 +160,17 @@ oauth4os revoke <token-id>
 - **CLI tool** — `oauth4os login`, `create-token`, `revoke`, `status`
 - **MCP server** — reference integration for AI agents (7 tools)
 - **OSD plugin** — token management UI in OpenSearch Dashboards
-- **Consent screen** — shows app name, requested scopes, approve/deny
+- **Consent screen** — localized in 8 languages (en, es, fr, de, ja, zh, pt, ko)
+- **Token inspector UI** — `/admin/tokens` visual token details
+- **Config editor UI** — `/admin/config` edit config from browser
+
+### Resilience
+- **CORS middleware** — configurable origin allowlist
+- **Idempotency** — request deduplication via Idempotency-Key header
+- **DPoP token binding** — bind tokens to client fingerprint (RFC 9449 prep)
+- **Device authorization flow** — for CLI/IoT devices without browser (RFC 8628)
+- **OTLP export** — send spans to OpenTelemetry Collector
+- **Structured access logs** — JSON per request with method, path, status, latency
 
 ### Deployment
 - **Docker** + docker-compose

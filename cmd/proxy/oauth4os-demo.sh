@@ -34,6 +34,7 @@ ${BOLD}COMMANDS:${NC}
   sql <query>          Run SQL query against OpenSearch
   history              Show last 50 queries
   bookmark <action>    save|run|delete|list query bookmarks
+  dashboard            Live terminal dashboard (htop for logs)
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
@@ -666,6 +667,7 @@ case "${1:-}" in
   sql)      shift; cmd_sql "$*" ;;
   history)  cmd_history ;;
   bookmark) shift; cmd_bookmark "$@" ;;
+  dashboard|dash) cmd_dashboard ;;
   help|-h|--help) usage ;;
   "") usage ;;
   *) echo -e "${RED}Unknown command: $1${NC}"; usage ;;

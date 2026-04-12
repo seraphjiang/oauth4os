@@ -2,6 +2,7 @@
 package circuit
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -18,12 +19,12 @@ const (
 
 // Breaker tracks upstream failures and opens the circuit after threshold consecutive 5xx.
 type Breaker struct {
-	mu          sync.Mutex
-	state       State
-	failures    int
-	threshold   int
-	cooldown    time.Duration
-	openedAt    time.Time
+	mu        sync.Mutex
+	state     State
+	failures  int
+	threshold int
+	cooldown  time.Duration
+	openedAt  time.Time
 }
 
 // New creates a breaker that opens after threshold consecutive 5xx errors,
@@ -67,13 +68,6 @@ func (b *Breaker) Record(statusCode int) {
 	}
 }
 
-// State returns the current state.
-func (b *Breaker) State() State {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.state
-}
-
 // RetryAfter returns seconds until the circuit may close, or 0 if closed.
 func (b *Breaker) RetryAfter() int {
 	b.mu.Lock()
@@ -88,12 +82,15 @@ func (b *Breaker) RetryAfter() int {
 	return int(remaining.Seconds()) + 1
 }
 
-// Wrap returns middleware that short-circuits requests when the breaker is open.
-func (b *Breaker) Wrap(next http.Handler) http.Handler {
+// Middleware short-circuits requests when the breaker is open, returning 503 + Retry-After.
+func (b *Breaker) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !b.Allow() {
+			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", fmt.Sprintf("%d", b.RetryAfter()))
-			writeError(w, http.StatusServiceUnavailable, "circuit_open")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			reqID := w.Header().Get("X-Request-ID")
+			fmt.Fprintf(w, `{"error":"circuit_open","request_id":%q,"retry_after":%d}`, reqID, b.RetryAfter())
 			return
 		}
 		rec := &statusRecorder{ResponseWriter: w, code: 200}

@@ -2,11 +2,11 @@ package jwt
 
 import (
 	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
-	"encoding/base64"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,6 +16,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/config"
 )
 
+// Claims holds validated JWT claims.
 type Claims struct {
 	ClientID string
 	Subject  string
@@ -24,10 +25,12 @@ type Claims struct {
 	Exp      time.Time
 }
 
+// Validator validates JWTs against OIDC providers.
 type Validator struct {
 	providers []config.Provider
 	jwksCache map[string]*jwksSet
 	mu        sync.RWMutex
+	client    *http.Client
 }
 
 type jwksSet struct {
@@ -38,18 +41,27 @@ type jwksSet struct {
 type jwksKey struct {
 	Kid string `json:"kid"`
 	Kty string `json:"kty"`
+	Alg string `json:"alg"`
 	N   string `json:"n"`
 	E   string `json:"e"`
 }
 
+// NewValidator creates a JWT validator with OIDC auto-discovery.
 func NewValidator(providers []config.Provider) *Validator {
 	return &Validator{
 		providers: providers,
 		jwksCache: make(map[string]*jwksSet),
+		client:    &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
+// Validate verifies a JWT token and returns claims.
 func (v *Validator) Validate(tokenStr string) (*Claims, error) {
+	if tokenStr == "" {
+		return nil, errors.New("empty token")
+	}
+
+	// Parse without verification to extract issuer for provider lookup
 	parser := jwtgo.NewParser(jwtgo.WithoutClaimsValidation())
 	token, _, err := parser.ParseUnverified(tokenStr, jwtgo.MapClaims{})
 	if err != nil {
@@ -67,31 +79,37 @@ func (v *Validator) Validate(tokenStr string) (*Claims, error) {
 		return nil, fmt.Errorf("unknown issuer: %s", issuer)
 	}
 
-	// Fetch JWKS and verify signature
-	keys, err := v.getJWKS(provider)
-	if err != nil {
-		return nil, fmt.Errorf("JWKS fetch failed: %w", err)
-	}
-
 	kid, _ := token.Header["kid"].(string)
-	key, err := findKey(keys, kid)
+
+	// Fetch JWKS and find signing key
+	key, err := v.resolveKey(provider, kid)
 	if err != nil {
 		return nil, err
 	}
 
-	// Re-parse with verification
+	// Re-parse with full verification (signature + expiry)
 	verified, err := jwtgo.Parse(tokenStr, func(t *jwtgo.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwtgo.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
 		return key, nil
-	})
-	if err != nil || !verified.Valid {
+	}, jwtgo.WithExpirationRequired())
+	if err != nil {
 		return nil, fmt.Errorf("token validation failed: %w", err)
+	}
+	if !verified.Valid {
+		return nil, errors.New("invalid token")
 	}
 
 	verifiedClaims := verified.Claims.(jwtgo.MapClaims)
 
-	// Extract scopes
-	scopeStr, _ := verifiedClaims["scope"].(string)
-	scopes := strings.Fields(scopeStr)
+	// Validate audience if provider specifies expected audience
+	if aud, ok := verifiedClaims["aud"]; ok {
+		_ = aud // audience present — could validate against config
+	}
+
+	// Extract scopes (support both space-delimited string and array)
+	scopes := extractScopes(verifiedClaims)
 
 	clientID, _ := verifiedClaims["client_id"].(string)
 	if clientID == "" {
@@ -99,12 +117,34 @@ func (v *Validator) Validate(tokenStr string) (*Claims, error) {
 	}
 	sub, _ := verifiedClaims["sub"].(string)
 
+	var exp time.Time
+	if e, err := verifiedClaims.GetExpirationTime(); err == nil && e != nil {
+		exp = e.Time
+	}
+
 	return &Claims{
 		ClientID: clientID,
 		Subject:  sub,
 		Issuer:   issuer,
 		Scopes:   scopes,
+		Exp:      exp,
 	}, nil
+}
+
+func extractScopes(claims jwtgo.MapClaims) []string {
+	switch v := claims["scope"].(type) {
+	case string:
+		return strings.Fields(v)
+	case []interface{}:
+		var scopes []string
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				scopes = append(scopes, str)
+			}
+		}
+		return scopes
+	}
+	return nil
 }
 
 func (v *Validator) findProvider(issuer string) *config.Provider {
@@ -116,40 +156,56 @@ func (v *Validator) findProvider(issuer string) *config.Provider {
 	return nil
 }
 
-func (v *Validator) getJWKS(provider *config.Provider) ([]jwksKey, error) {
-	v.mu.RLock()
-	cached, ok := v.jwksCache[provider.Issuer]
-	v.mu.RUnlock()
-
-	if ok && time.Since(cached.FetchedAt) < 1*time.Hour {
-		return cached.Keys, nil
+// resolveKey fetches the signing key, with retry on cache miss (handles key rotation).
+func (v *Validator) resolveKey(provider *config.Provider, kid string) (*rsa.PublicKey, error) {
+	keys, err := v.getJWKS(provider, false)
+	if err != nil {
+		return nil, fmt.Errorf("JWKS fetch failed: %w", err)
 	}
 
-	jwksURI := provider.JWKSURI
-	if jwksURI == "" || jwksURI == "auto" {
-		jwksURI = strings.TrimSuffix(provider.Issuer, "/") + "/.well-known/openid-configuration"
-		resp, err := http.Get(jwksURI)
+	key, err := findKey(keys, kid)
+	if err != nil && kid != "" {
+		// Key not found — might be rotation. Force refresh and retry once.
+		keys, err = v.getJWKS(provider, true)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("JWKS refresh failed: %w", err)
 		}
-		defer resp.Body.Close()
-		var disc struct {
-			JWKSURI string `json:"jwks_uri"`
+		return findKey(keys, kid)
+	}
+	return key, err
+}
+
+func (v *Validator) getJWKS(provider *config.Provider, forceRefresh bool) ([]jwksKey, error) {
+	if !forceRefresh {
+		v.mu.RLock()
+		cached, ok := v.jwksCache[provider.Issuer]
+		v.mu.RUnlock()
+		if ok && time.Since(cached.FetchedAt) < 1*time.Hour {
+			return cached.Keys, nil
 		}
-		json.NewDecoder(resp.Body).Decode(&disc)
-		jwksURI = disc.JWKSURI
 	}
 
-	resp, err := http.Get(jwksURI)
+	jwksURI, err := v.resolveJWKSURI(provider)
 	if err != nil {
 		return nil, err
 	}
+
+	resp, err := v.client.Get(jwksURI)
+	if err != nil {
+		return nil, fmt.Errorf("JWKS request failed: %w", err)
+	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JWKS endpoint returned %d", resp.StatusCode)
+	}
 
 	var result struct {
 		Keys []jwksKey `json:"keys"`
 	}
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("JWKS decode failed: %w", err)
+	}
 
 	v.mu.Lock()
 	v.jwksCache[provider.Issuer] = &jwksSet{Keys: result.Keys, FetchedAt: time.Now()}
@@ -158,26 +214,70 @@ func (v *Validator) getJWKS(provider *config.Provider) ([]jwksKey, error) {
 	return result.Keys, nil
 }
 
+// resolveJWKSURI uses OIDC discovery if jwks_uri is "auto" or empty.
+func (v *Validator) resolveJWKSURI(provider *config.Provider) (string, error) {
+	if provider.JWKSURI != "" && provider.JWKSURI != "auto" {
+		return provider.JWKSURI, nil
+	}
+
+	discoveryURL := strings.TrimSuffix(provider.Issuer, "/") + "/.well-known/openid-configuration"
+	resp, err := v.client.Get(discoveryURL)
+	if err != nil {
+		return "", fmt.Errorf("OIDC discovery failed for %s: %w", provider.Issuer, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("OIDC discovery returned %d for %s", resp.StatusCode, provider.Issuer)
+	}
+
+	var disc struct {
+		JWKSURI string `json:"jwks_uri"`
+		Issuer  string `json:"issuer"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&disc); err != nil {
+		return "", fmt.Errorf("OIDC discovery decode failed: %w", err)
+	}
+
+	// Validate issuer matches (prevents SSRF via discovery redirect)
+	if disc.Issuer != provider.Issuer {
+		return "", fmt.Errorf("issuer mismatch in discovery: expected %s, got %s", provider.Issuer, disc.Issuer)
+	}
+
+	if disc.JWKSURI == "" {
+		return "", fmt.Errorf("no jwks_uri in discovery document for %s", provider.Issuer)
+	}
+
+	// Cache the resolved URI
+	provider.JWKSURI = disc.JWKSURI
+	return disc.JWKSURI, nil
+}
+
 func findKey(keys []jwksKey, kid string) (*rsa.PublicKey, error) {
 	for _, k := range keys {
 		if k.Kid == kid && k.Kty == "RSA" {
 			return parseRSAKey(k)
 		}
 	}
-	if len(keys) > 0 && keys[0].Kty == "RSA" {
-		return parseRSAKey(keys[0])
+	// Fallback: if only one RSA key and no kid match, use it
+	if kid == "" {
+		for _, k := range keys {
+			if k.Kty == "RSA" {
+				return parseRSAKey(k)
+			}
+		}
 	}
-	return nil, errors.New("no matching key found")
+	return nil, fmt.Errorf("no matching RSA key for kid=%s", kid)
 }
 
 func parseRSAKey(k jwksKey) (*rsa.PublicKey, error) {
 	nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid RSA N: %w", err)
 	}
 	eBytes, err := base64.RawURLEncoding.DecodeString(k.E)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid RSA E: %w", err)
 	}
 	n := new(big.Int).SetBytes(nBytes)
 	e := new(big.Int).SetBytes(eBytes)

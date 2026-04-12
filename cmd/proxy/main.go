@@ -111,6 +111,7 @@ var (
 	cacheMisses     atomic.Int64
 	circuitOpens    atomic.Int64
 	startTime       = time.Now()
+	shuttingDown    atomic.Bool
 )
 
 func main() {

@@ -57,3 +57,20 @@ func TestMutation_NoOriginSkips(t *testing.T) {
 		t.Error("no Origin header should skip CORS headers")
 	}
 }
+
+// Mutation: remove preflight handling → OPTIONS must return CORS headers
+func TestMutation_PreflightHeaders(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
+	handler := Middleware(Config{Origins: []string{"https://app.example.com"}})(inner)
+	r := httptest.NewRequest("OPTIONS", "/api/query", nil)
+	r.Header.Set("Origin", "https://app.example.com")
+	r.Header.Set("Access-Control-Request-Method", "POST")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if w.Header().Get("Access-Control-Allow-Origin") == "" {
+		t.Error("preflight must set Access-Control-Allow-Origin")
+	}
+	if w.Header().Get("Access-Control-Allow-Methods") == "" {
+		t.Error("preflight must set Access-Control-Allow-Methods")
+	}
+}

@@ -55,10 +55,13 @@ func TestClientStore_CorruptionRecovery(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "clients.json")
 
-	// Write valid backup
+	// First save
 	mgr := NewManager()
 	mgr.RegisterClient("backup-client", "s", []string{"read"}, nil)
 	store, _ := NewClientStore(path, mgr)
+	store.Save(mgr)
+
+	// Second save creates .bak from first save
 	store.Save(mgr)
 
 	// Corrupt the main file

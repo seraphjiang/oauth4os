@@ -28,10 +28,12 @@ func Fingerprint(r *http.Request) string {
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
-// Bind associates a token with a fingerprint. Called on token issuance.
+// Bind associates a token with a fingerprint on first use only.
 func (b *Binder) Bind(tokenPrefix, fingerprint string) {
 	b.mu.Lock()
-	b.bindings[tokenPrefix] = fingerprint
+	if _, exists := b.bindings[tokenPrefix]; !exists {
+		b.bindings[tokenPrefix] = fingerprint
+	}
 	b.mu.Unlock()
 }
 

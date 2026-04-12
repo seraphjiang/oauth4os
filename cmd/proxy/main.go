@@ -682,6 +682,7 @@ func main() {
 	// Demo web app (log viewer with PKCE login)
 	demoApp := demo.NewHandler(issuerURL, "demo-app")
 	demoApp.Register(mux)
+	deviceHandler.Register(mux)
 
 	// Token inspector page
 	tokenInspector := tokenui.New(issuerURL)
@@ -834,6 +835,15 @@ func main() {
 		}
 		sessionMgr.Touch(tokenStr[:16])
 		tokenMgr.TouchToken(tokenStr, 1*time.Hour) // sliding window
+
+		// Token binding — verify fingerprint
+		fp := tokenbind.Fingerprint(r)
+		if !tokenBinder.Verify(tokenStr[:16], fp) {
+			authFailed.Add(1)
+			http.Error(w, `{"error":"token_binding_mismatch"}`, http.StatusUnauthorized)
+			return
+		}
+		tokenBinder.Bind(tokenStr[:16], fp) // bind on first use
 
 		// Span: scope mapping
 		ctx, scopeSpan := tracer.StartSpan(r.Context(), string(tracing.SpanScope), map[string]string{"issuer": claims.Issuer})

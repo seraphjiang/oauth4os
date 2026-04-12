@@ -41,6 +41,8 @@ func (s *State) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/rate-limits", s.listRateLimits)
 	mux.HandleFunc("PUT /admin/rate-limits", s.updateRateLimits)
 	mux.HandleFunc("GET /admin/config", s.getConfig)
+	mux.HandleFunc("GET /admin/backup", s.exportBackup)
+	mux.HandleFunc("POST /admin/restore", s.importBackup)
 }
 
 func (s *State) listScopeMappings(w http.ResponseWriter, r *http.Request) {
@@ -260,6 +262,70 @@ func (s *State) rebuildCedar() {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// ── Backup / Restore ──────────────────────────────────────────────────────────
+
+// ConfigBundle is the full exportable/importable configuration.
+type ConfigBundle struct {
+	Version      string                   `json:"version"`
+	ScopeMapping map[string]config.Role   `json:"scope_mapping"`
+	Providers    []config.Provider        `json:"providers"`
+	Tenants      map[string]config.Tenant `json:"tenants,omitempty"`
+	RateLimits   map[string]int           `json:"rate_limits,omitempty"`
+	CedarPolicies []cedar.Policy          `json:"cedar_policies,omitempty"`
+}
+
+func (s *State) exportBackup(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	bundle := ConfigBundle{
+		Version:       "1",
+		ScopeMapping:  s.cfg.ScopeMapping,
+		Providers:     s.cfg.Providers,
+		Tenants:       s.cfg.Tenants,
+		RateLimits:    s.cfg.RateLimits,
+		CedarPolicies: s.cedarEng.ListPolicies(),
+	}
+	s.mu.RUnlock()
+	w.Header().Set("Content-Disposition", "attachment; filename=oauth4os-backup.json")
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.Encode(bundle)
+}
+
+func (s *State) importBackup(w http.ResponseWriter, r *http.Request) {
+	var bundle ConfigBundle
+	if err := json.NewDecoder(r.Body).Decode(&bundle); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if bundle.Version == "" {
+		writeErr(w, http.StatusBadRequest, "missing version field")
+		return
+	}
+	s.mu.Lock()
+	if bundle.ScopeMapping != nil {
+		s.cfg.ScopeMapping = bundle.ScopeMapping
+	}
+	if bundle.Providers != nil {
+		s.cfg.Providers = bundle.Providers
+	}
+	if bundle.Tenants != nil {
+		s.cfg.Tenants = bundle.Tenants
+	}
+	if bundle.RateLimits != nil {
+		s.cfg.RateLimits = bundle.RateLimits
+	}
+	if bundle.CedarPolicies != nil {
+		for _, p := range bundle.CedarPolicies {
+			s.cedarEng.AddGlobalPolicy(p)
+		}
+	}
+	s.rebuildMapper()
+	s.rebuildCedar()
+	s.mu.Unlock()
+	writeJSON(w, map[string]string{"status": "restored", "version": bundle.Version})
 }
 
 func writeErr(w http.ResponseWriter, status int, msg string) {

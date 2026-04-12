@@ -191,3 +191,82 @@ func TestRateLimitCRUD(t *testing.T) {
 		t.Fatalf("admin limit = %d, want 30", limits["admin"])
 	}
 }
+
+func TestBackupExport(t *testing.T) {
+	_, mux := setup()
+	req := httptest.NewRequest("GET", "/admin/backup", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if cd := w.Header().Get("Content-Disposition"); cd == "" {
+		t.Fatal("missing Content-Disposition")
+	}
+	var bundle ConfigBundle
+	if err := json.NewDecoder(w.Body).Decode(&bundle); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if bundle.Version != "1" {
+		t.Fatalf("version = %s", bundle.Version)
+	}
+	if _, ok := bundle.ScopeMapping["admin"]; !ok {
+		t.Fatal("expected admin scope in backup")
+	}
+}
+
+func TestBackupRestoreRoundTrip(t *testing.T) {
+	_, mux := setup()
+	// Export
+	req := httptest.NewRequest("GET", "/admin/backup", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	exported := w.Body.Bytes()
+
+	// Modify config
+	body, _ := json.Marshal(map[string]config.Role{
+		"read:only": {BackendRoles: []string{"reader"}},
+	})
+	req = httptest.NewRequest("PUT", "/admin/scope-mappings", bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Restore original
+	req = httptest.NewRequest("POST", "/admin/restore", bytes.NewReader(exported))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("restore: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify restored
+	req = httptest.NewRequest("GET", "/admin/scope-mappings", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var scopes map[string]config.Role
+	json.NewDecoder(w.Body).Decode(&scopes)
+	if _, ok := scopes["admin"]; !ok {
+		t.Fatal("admin scope should be restored")
+	}
+}
+
+func TestRestoreInvalidJSON(t *testing.T) {
+	_, mux := setup()
+	req := httptest.NewRequest("POST", "/admin/restore", bytes.NewReader([]byte("not json")))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestRestoreMissingVersion(t *testing.T) {
+	_, mux := setup()
+	body, _ := json.Marshal(map[string]interface{}{"scope_mapping": map[string]interface{}{}})
+	req := httptest.NewRequest("POST", "/admin/restore", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}

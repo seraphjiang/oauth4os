@@ -1,0 +1,56 @@
+name: 'oauth4os — Get OpenSearch Token'
+description: 'Authenticate with oauth4os proxy and get a scoped access token for OpenSearch operations in CI.'
+author: 'seraphjiang'
+
+branding:
+  icon: 'lock'
+  color: 'blue'
+
+inputs:
+  server:
+    description: 'oauth4os proxy URL'
+    required: true
+  client-id:
+    description: 'OAuth client ID'
+    required: true
+  client-secret:
+    description: 'OAuth client secret'
+    required: true
+  scope:
+    description: 'Requested scope (e.g. read:logs-* write:metrics-*)'
+    required: false
+    default: 'admin'
+
+outputs:
+  token:
+    description: 'Access token for OpenSearch'
+  expires-at:
+    description: 'Token expiry (ISO 8601)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get token
+      id: auth
+      shell: bash
+      run: |
+        RESPONSE=$(curl -sf -X POST "${{ inputs.server }}/oauth/token" \
+          -d "grant_type=client_credentials" \
+          -d "client_id=${{ inputs.client-id }}" \
+          -d "client_secret=${{ inputs.client-secret }}" \
+          -d "scope=${{ inputs.scope }}")
+
+        TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
+        EXPIRES_IN=$(echo "$RESPONSE" | jq -r '.expires_in')
+        EXPIRES_AT=$(date -u -d "+${EXPIRES_IN} seconds" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+          || date -u -v+${EXPIRES_IN}S +%Y-%m-%dT%H:%M:%SZ)
+
+        if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+          echo "::error::Failed to get token from oauth4os"
+          exit 1
+        fi
+
+        echo "::add-mask::$TOKEN"
+        echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+        echo "expires-at=$EXPIRES_AT" >> "$GITHUB_OUTPUT"
+        echo "Token acquired (expires $EXPIRES_AT)"

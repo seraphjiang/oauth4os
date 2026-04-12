@@ -89,7 +89,7 @@ func (e *Engine) Evaluate(req Request) Decision {
 		if !evalConditions(p.When, req) {
 			continue
 		}
-		if evalConditions(p.Unless, req) {
+		if len(p.Unless) > 0 && evalConditions(p.Unless, req) {
 			continue // unless matched = skip this policy
 		}
 

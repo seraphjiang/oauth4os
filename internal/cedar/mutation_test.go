@@ -79,6 +79,7 @@ func TestMutation_UnlessConditionIgnored(t *testing.T) {
 // Mutation: What if exact match used Contains instead of ==?
 func TestMutation_ExactMatchLoose(t *testing.T) {
 	e := NewEngine([]Policy{
+		{ID: "allow", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}},
 		{ID: "deny", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Equals: "secret"}},
 	})
 	d := e.Evaluate(Request{

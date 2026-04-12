@@ -33,6 +33,7 @@ type Notifier struct {
 	urls   []string
 	client *http.Client
 	ch     chan Event
+	done   chan struct{}
 }
 
 // New creates a notifier that posts events to the given URLs.
@@ -42,9 +43,16 @@ func New(urls []string) *Notifier {
 		urls:   urls,
 		client: &http.Client{Timeout: 5 * time.Second},
 		ch:     make(chan Event, 100),
+		done:   make(chan struct{}),
 	}
 	go n.drain()
 	return n
+}
+
+// Stop closes the event channel and waits for drain to finish.
+func (n *Notifier) Stop() {
+	close(n.ch)
+	<-n.done
 }
 
 // Emit queues an event for delivery. Non-blocking; drops if buffer full.
@@ -60,6 +68,7 @@ func (n *Notifier) Emit(e Event) {
 }
 
 func (n *Notifier) drain() {
+	defer close(n.done)
 	for e := range n.ch {
 		body, _ := json.Marshal(e)
 		for _, u := range n.urls {

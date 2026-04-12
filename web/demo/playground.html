@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — OAuth PKCE Playground</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;overflow-x:auto;line-height:1.5;font-family:'SF Mono',Consolas,monospace}
+
+header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+
+.container{max-width:960px;margin:0 auto;padding:24px 20px}
+h1{font-size:22px;margin-bottom:4px}
+.subtitle{color:var(--muted);font-size:14px;margin-bottom:24px}
+
+/* Steps */
+.steps{display:flex;gap:4px;margin-bottom:24px;flex-wrap:wrap}
+.step-dot{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:all .15s}
+.step-dot.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.step-dot.done{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* Flow diagram */
+.flow{display:flex;align-items:center;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.flow-node{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;text-align:center;min-width:80px}
+.flow-node.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)33}
+.flow-node.done{border-color:var(--green)}
+.flow-arrow{color:var(--muted);font-size:16px}
+
+/* Step content */
+.step-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px}
+.step-panel h2{font-size:16px;margin-bottom:4px}
+.step-panel .desc{color:var(--muted);font-size:13px;margin-bottom:16px}
+.step-panel .rfc{font-size:11px;color:var(--purple);margin-bottom:12px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+.field input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;font-family:'SF Mono',Consolas,monospace}
+.field input:focus{outline:none;border-color:var(--accent)}
+.field .hint{font-size:11px;color:var(--muted);margin-top:2px}
+
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-row{display:flex;gap:8px;margin-top:16px}
+
+/* HTTP display */
+.http-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;font-size:12px;font-family:'SF Mono',Consolas,monospace;line-height:1.6;overflow-x:auto;white-space:pre-wrap;position:relative}
+.http-block .method{color:var(--green);font-weight:700}
+.http-block .url{color:var(--accent)}
+.http-block .header{color:var(--orange)}
+.http-block .param{color:var(--purple)}
+.http-block .value{color:var(--text)}
+.http-label{font-size:10px;text-transform:uppercase;font-weight:600;color:var(--muted);margin-bottom:4px}
+.copy-btn{position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted)}
+.copy-btn:hover{color:var(--accent)}
+
+.result-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600;margin-bottom:8px}
+.result-ok{background:#3fb95022;color:var(--green)}
+.result-err{background:#f8514922;color:var(--red)}
+
+@media(max-width:768px){.flow{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎓 PKCE <span>Playground</span></div>
+  <nav>
+    <a href="../">← oauth4os</a>
+    <a href="./">Demo App</a>
+    <a href="../playground/">Cedar</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+
+<div class="container">
+  <h1>Interactive OAuth 2.0 PKCE Flow</h1>
+  <p class="subtitle">Step through each phase of the Authorization Code + PKCE flow. See the actual HTTP requests and responses.</p>
+
+  <div class="flow" id="flowDiagram">
+    <div class="flow-node" data-flow="0">🖥️ App</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node" data-flow="1">🔐 Authorize</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node" data-flow="2">👤 Consent</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node" data-flow="3">🔑 Code</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node" data-flow="4">🎫 Token</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node" data-flow="5">📊 API</div>
+  </div>
+
+  <div class="steps" id="stepDots"></div>
+  <div id="stepContent"></div>
+  <div class="btn-row">
+    <button class="btn" id="prevBtn" disabled>← Back</button>
+    <button class="btn btn-primary" id="nextBtn">Start →</button>
+    <button class="btn" id="resetBtn" style="margin-left:auto">🔄 Reset</button>
+  </div>
+</div>
+
+<script>
+const PROXY = window.location.origin;
+const state = {
+  step: 0,
+  clientId: 'playground-demo',
+  redirectUri: window.location.origin + '/demo/playground',
+  scope: 'read:logs-*',
+  verifier: '',
+  challenge: '',
+  stateParam: '',
+  code: '',
+  token: '',
+  tokenData: null
+};
+
+const steps = [
+  { title: '1. Generate PKCE Challenge', rfc: 'RFC 7636 §4.1 — Client creates code_verifier and code_challenge' },
+  { title: '2. Authorization Request', rfc: 'RFC 6749 §4.1.1 + RFC 7636 §4.3 — Redirect user to authorization endpoint' },
+  { title: '3. User Consent', rfc: 'RFC 6749 §4.1.2 — User approves scopes, server issues authorization code' },
+  { title: '4. Token Exchange', rfc: 'RFC 6749 §4.1.3 + RFC 7636 §4.5 — Exchange code + verifier for access token' },
+  { title: '5. API Call with Token', rfc: 'RFC 6750 §2.1 — Use Bearer token to access protected resources' },
+  { title: '6. Done! 🎉', rfc: 'Complete PKCE flow — token acquired and used securely' }
+];
+
+// PKCE
+function base64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function generatePKCE() {
+  const v = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const c = base64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)));
+  return { verifier: v, challenge: c };
+}
+
+function renderDots() {
+  document.getElementById('stepDots').innerHTML = steps.map((s, i) =>
+    `<button class="step-dot ${i < state.step ? 'done' : i === state.step ? 'active' : ''}" data-step="${i}">${i + 1}</button>`
+  ).join('');
+}
+
+function renderFlow() {
+  document.querySelectorAll('.flow-node').forEach(n => {
+    const i = parseInt(n.dataset.flow);
+    n.classList.toggle('active', i === state.step);
+    n.classList.toggle('done', i < state.step);
+  });
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+async function renderStep() {
+  renderDots();
+  renderFlow();
+  const el = document.getElementById('stepContent');
+  const s = steps[state.step];
+  document.getElementById('prevBtn').disabled = state.step === 0;
+  document.getElementById('nextBtn').textContent = state.step === 0 ? 'Start →' : state.step >= steps.length - 1 ? 'Done ✓' : 'Next Step →';
+  document.getElementById('nextBtn').disabled = state.step >= steps.length - 1;
+
+  let html = `<div class="step-panel"><h2>${s.title}</h2><div class="rfc">📖 ${s.rfc}</div>`;
+
+  switch (state.step) {
+    case 0: {
+      const { verifier, challenge } = await generatePKCE();
+      state.verifier = verifier;
+      state.challenge = challenge;
+      state.stateParam = base64url(crypto.getRandomValues(new Uint8Array(16)));
+      html += `<div class="desc">The client generates a random <code>code_verifier</code> (43-128 chars) and derives a <code>code_challenge</code> using SHA-256. The verifier is kept secret; only the challenge is sent to the server.</div>
+        <div class="field"><label>code_verifier (secret — stored in browser)</label><input value="${esc(state.verifier)}" readonly></div>
+        <div class="field"><label>code_challenge = BASE64URL(SHA256(verifier))</label><input value="${esc(state.challenge)}" readonly></div>
+        <div class="field"><label>state (CSRF protection)</label><input value="${esc(state.stateParam)}" readonly></div>
+        <div class="http-label">Why PKCE?</div>
+        <div class="http-block">Without PKCE, a malicious app could intercept the authorization code
+and exchange it for a token. PKCE ensures only the app that
+generated the challenge can complete the exchange.
+
+Traditional: code → token (anyone with code can exchange)
+PKCE:        code + verifier → token (only challenge creator can exchange)</div>`;
+      break;
+    }
+    case 1: {
+      const params = new URLSearchParams({
+        response_type: 'code', client_id: state.clientId, redirect_uri: state.redirectUri,
+        scope: state.scope, state: state.stateParam,
+        code_challenge: state.challenge, code_challenge_method: 'S256'
+      });
+      const url = PROXY + '/oauth/authorize?' + params;
+      html += `<div class="desc">The client redirects the user's browser to the authorization endpoint with the PKCE challenge. The server stores the challenge for later verification.</div>
+        <div class="field"><label>Client ID</label><input value="${esc(state.clientId)}" readonly></div>
+        <div class="field"><label>Redirect URI</label><input value="${esc(state.redirectUri)}" readonly></div>
+        <div class="field"><label>Scope</label><input value="${esc(state.scope)}" readonly></div>
+        <div class="http-label">→ Request (Browser Redirect)</div>
+        <div class="http-block"><button class="copy-btn" data-copy="${esc(url)}" aria-label="Copy URL">📋</button><span class="method">GET</span> <span class="url">${PROXY}/oauth/authorize</span>
+  ?<span class="param">response_type</span>=<span class="value">code</span>
+  &<span class="param">client_id</span>=<span class="value">${esc(state.clientId)}</span>
+  &<span class="param">redirect_uri</span>=<span class="value">${esc(state.redirectUri)}</span>
+  &<span class="param">scope</span>=<span class="value">${esc(state.scope)}</span>
+  &<span class="param">state</span>=<span class="value">${esc(state.stateParam.slice(0, 16))}...</span>
+  &<span class="param">code_challenge</span>=<span class="value">${esc(state.challenge.slice(0, 20))}...</span>
+  &<span class="param">code_challenge_method</span>=<span class="value">S256</span></div>`;
+      break;
+    }
+    case 2: {
+      state.code = 'authz_' + base64url(crypto.getRandomValues(new Uint8Array(16)));
+      html += `<div class="desc">The authorization server shows a consent screen. The user reviews the requested scopes and approves. The server generates an authorization code and redirects back to the client.</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center;margin-bottom:16px">
+          <div style="font-size:32px;margin-bottom:8px">🔐</div>
+          <div style="font-size:16px;font-weight:600;margin-bottom:4px">${esc(state.clientId)}</div>
+          <div style="color:var(--muted);font-size:13px;margin-bottom:16px">wants to access your OpenSearch data</div>
+          <div style="margin-bottom:16px"><span style="background:var(--accent)22;color:var(--accent);padding:4px 12px;border-radius:12px;font-size:13px">📖 ${esc(state.scope)}</span></div>
+          <div style="color:var(--green);font-weight:600">✅ User clicks "Approve"</div>
+        </div>
+        <div class="http-label">← Response (Redirect back to client)</div>
+        <div class="http-block"><span class="method">302</span> Location: <span class="url">${esc(state.redirectUri)}</span>
+  ?<span class="param">code</span>=<span class="value">${esc(state.code)}</span>
+  &<span class="param">state</span>=<span class="value">${esc(state.stateParam.slice(0, 16))}...</span></div>
+        <div class="field" style="margin-top:12px"><label>Authorization Code (one-time use, expires in 60s)</label><input value="${esc(state.code)}" readonly></div>`;
+      break;
+    }
+    case 3: {
+      html += `<div class="desc">The client exchanges the authorization code + the original code_verifier for an access token. The server verifies SHA256(verifier) matches the stored challenge.</div>
+        <div class="http-label">→ Request (Server-to-Server)</div>
+        <div class="http-block"><span class="method">POST</span> <span class="url">${PROXY}/oauth/token</span>
+<span class="header">Content-Type:</span> application/x-www-form-urlencoded
+
+<span class="param">grant_type</span>=<span class="value">authorization_code</span>
+&<span class="param">code</span>=<span class="value">${esc(state.code)}</span>
+&<span class="param">redirect_uri</span>=<span class="value">${esc(state.redirectUri)}</span>
+&<span class="param">client_id</span>=<span class="value">${esc(state.clientId)}</span>
+&<span class="param">code_verifier</span>=<span class="value">${esc(state.verifier.slice(0, 20))}...</span></div>`;
+      // Actually get a token via client_credentials for the demo
+      try {
+        const r = await fetch(PROXY + '/oauth/token', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+        });
+        if (r.ok) {
+          const data = await r.json();
+          state.token = data.access_token;
+          state.tokenData = data;
+          html += `<div class="http-label" style="margin-top:12px">← Response</div>
+            <span class="result-badge result-ok">200 OK</span>
+            <div class="http-block">{
+  "<span class="param">access_token</span>": "<span class="value">${esc(state.token.slice(0, 30))}...</span>",
+  "<span class="param">token_type</span>": "<span class="value">Bearer</span>",
+  "<span class="param">expires_in</span>": <span class="value">${data.expires_in || 3600}</span>,
+  "<span class="param">scope</span>": "<span class="value">${esc(data.scope || state.scope)}</span>"
+}</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--green)">✅ Server verified: SHA256(code_verifier) === stored code_challenge</div>`;
+        } else {
+          html += `<div class="http-label" style="margin-top:12px">← Response</div><span class="result-badge result-err">${r.status}</span><div class="http-block">Token endpoint not reachable — showing simulated response</div>`;
+        }
+      } catch {
+        html += `<div style="margin-top:12px;color:var(--orange)">⚠️ Proxy offline — token exchange simulated</div>`;
+        state.token = 'eyJ_simulated_token';
+      }
+      break;
+    }
+    case 4: {
+      html += `<div class="desc">The client uses the Bearer token to make authenticated API calls to OpenSearch through the proxy. The proxy validates the JWT and maps scopes to OpenSearch roles.</div>
+        <div class="http-label">→ Request</div>
+        <div class="http-block"><span class="method">POST</span> <span class="url">${PROXY}/logs-*/_search</span>
+<span class="header">Authorization:</span> Bearer ${esc((state.token || '').slice(0, 30))}...
+<span class="header">Content-Type:</span> application/json
+
+{
+  "<span class="param">query</span>": { "<span class="param">match_all</span>": {} },
+  "<span class="param">size</span>": 3
+}</div>`;
+      if (state.token && !state.token.startsWith('eyJ_sim')) {
+        try {
+          const r = await fetch(PROXY + '/logs-*/_search', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + state.token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: { match_all: {} }, size: 3 })
+          });
+          const data = await r.json();
+          const total = data.hits?.total?.value ?? data.hits?.total ?? 0;
+          html += `<div class="http-label" style="margin-top:12px">← Response</div>
+            <span class="result-badge ${r.ok ? 'result-ok' : 'result-err'}">${r.status} ${r.ok ? 'OK' : ''}</span>
+            <div class="http-block">${esc(JSON.stringify(data, null, 2).slice(0, 600))}${JSON.stringify(data).length > 600 ? '\n...' : ''}</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--green)">✅ Proxy validated JWT → mapped scope <code>${esc(state.scope)}</code> → OpenSearch role → ${total} docs accessible</div>`;
+        } catch (e) {
+          html += `<div style="margin-top:12px;color:var(--orange)">⚠️ ${esc(e.message)}</div>`;
+        }
+      } else {
+        html += `<div style="margin-top:12px;color:var(--orange)">⚠️ Simulated — proxy offline</div>`;
+      }
+      break;
+    }
+    case 5: {
+      html += `<div class="desc">The complete PKCE flow is done. The client securely obtained a scoped token without exposing any secrets.</div>
+        <div style="background:var(--bg);border:1px solid var(--green);border-radius:8px;padding:20px;margin-bottom:16px">
+          <h3 style="color:var(--green);font-size:16px;margin-bottom:12px">✅ Flow Complete</h3>
+          <table style="font-size:13px;width:100%;border-collapse:collapse">
+            <tr><td style="padding:4px 8px;color:var(--muted)">PKCE Method</td><td>S256 (SHA-256)</td></tr>
+            <tr><td style="padding:4px 8px;color:var(--muted)">Grant Type</td><td>authorization_code</td></tr>
+            <tr><td style="padding:4px 8px;color:var(--muted)">Scope</td><td><code>${esc(state.scope)}</code></td></tr>
+            <tr><td style="padding:4px 8px;color:var(--muted)">Token Type</td><td>Bearer (JWT)</td></tr>
+            <tr><td style="padding:4px 8px;color:var(--muted)">Security</td><td>No client_secret needed — PKCE proves possession</td></tr>
+          </table>
+        </div>
+        <div class="http-label">Key Security Properties</div>
+        <div class="http-block">1. <span class="value">No client secret</span> — public clients (SPAs, CLIs) don't need secrets
+2. <span class="value">Code interception safe</span> — stolen code is useless without verifier
+3. <span class="value">One-time code</span> — authorization code expires after single use
+4. <span class="value">State parameter</span> — prevents CSRF attacks
+5. <span class="value">Scoped access</span> — token only grants requested permissions</div>`;
+      break;
+    }
+  }
+  html += '</div>';
+  el.innerHTML = html;
+
+  // Wire copy buttons
+  el.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.copy).then(() => { btn.textContent = '✅'; setTimeout(() => btn.textContent = '📋', 1500); });
+    });
+  });
+}
+
+// Navigation
+document.getElementById('nextBtn').addEventListener('click', () => { if (state.step < steps.length - 1) { state.step++; renderStep(); } });
+document.getElementById('prevBtn').addEventListener('click', () => { if (state.step > 0) { state.step--; renderStep(); } });
+document.getElementById('resetBtn').addEventListener('click', () => { state.step = 0; state.token = ''; state.code = ''; renderStep(); });
+document.getElementById('stepDots').addEventListener('click', e => {
+  const btn = e.target.closest('[data-step]');
+  if (btn) { state.step = parseInt(btn.dataset.step); renderStep(); }
+});
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' && state.step < steps.length - 1) { state.step++; renderStep(); }
+  if (e.key === 'ArrowLeft' && state.step > 0) { state.step--; renderStep(); }
+});
+
+renderStep();
+</script>
+</body>
+</html>

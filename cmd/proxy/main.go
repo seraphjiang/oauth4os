@@ -727,9 +727,9 @@ func main() {
 	mux.HandleFunc("GET /analytics", analyticsHandler)
 	mux.HandleFunc("GET /analytics/", analyticsHandler)
 
-	playgroundHTML, _ := os.ReadFile("web/demo/playground.html")
+	playgroundHTML, _ := os.ReadFile("/web/demo/playground.html")
 	if len(playgroundHTML) == 0 {
-		playgroundHTML, _ = os.ReadFile("web/playground.html")
+		playgroundHTML, _ = os.ReadFile("/web/playground.html")
 	}
 	playgroundHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

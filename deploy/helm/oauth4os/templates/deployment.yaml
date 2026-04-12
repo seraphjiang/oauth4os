@@ -15,6 +15,9 @@ spec:
         app: {{ .Release.Name }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8443"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: oauth4os
@@ -32,7 +35,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8443
             initialDelaySeconds: 3
             periodSeconds: 5

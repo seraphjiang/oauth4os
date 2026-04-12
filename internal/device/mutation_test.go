@@ -109,11 +109,11 @@ func TestMutation_ApproveFlow(t *testing.T) {
 
 // Mutation: remove user_code → device auth response must include user_code
 func TestMutation_UserCodeReturned(t *testing.T) {
-	h := NewHandler(nil)
+	h := NewHandler(func(c string, s []string) (string, string) { return "t", "r" })
 	mux := http.NewServeMux()
 	h.Register(mux)
 	body := "client_id=app"
-	r := httptest.NewRequest("POST", "/device/authorize", strings.NewReader(body))
+	r := httptest.NewRequest("POST", "/oauth/device/code", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)
@@ -124,11 +124,11 @@ func TestMutation_UserCodeReturned(t *testing.T) {
 
 // Mutation: remove interval → response must include polling interval
 func TestMutation_IntervalReturned(t *testing.T) {
-	h := NewHandler(nil)
+	h := NewHandler(func(c string, s []string) (string, string) { return "t", "r" })
 	mux := http.NewServeMux()
 	h.Register(mux)
 	body := "client_id=app"
-	r := httptest.NewRequest("POST", "/device/authorize", strings.NewReader(body))
+	r := httptest.NewRequest("POST", "/oauth/device/code", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, r)

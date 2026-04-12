@@ -966,6 +966,48 @@ components:
                 items:
                   type: object
 
+  /ready:
+    get:
+      tags: [System]
+      summary: Readiness probe
+      responses:
+        '200': { description: Proxy ready to accept traffic }
+
+  /analytics/:
+    get:
+      tags: [UI]
+      summary: Token analytics dashboard
+      responses:
+        '200': { description: HTML analytics page }
+
+  /playground/:
+    get:
+      tags: [UI]
+      summary: Cedar policy playground
+      responses:
+        '200': { description: HTML playground page }
+
+  /developer/docs:
+    get:
+      tags: [Developer]
+      summary: API documentation page
+      responses:
+        '200': { description: HTML API docs }
+
+  /developer/openapi.yaml:
+    get:
+      tags: [Developer]
+      summary: OpenAPI specification
+      responses:
+        '200': { description: OpenAPI 3.0 YAML }
+
+  /developer/analytics:
+    get:
+      tags: [Developer]
+      summary: Developer analytics page
+      responses:
+        '200': { description: HTML developer analytics }
+
   /version:
     get:
       tags: [Operations]

@@ -245,3 +245,22 @@ func TestRefreshBeforeExpiry(t *testing.T) {
 		t.Fatalf("refresh before expiry should succeed, got %v", resp)
 	}
 }
+
+func BenchmarkRefreshToken(b *testing.B) {
+	m := NewManager()
+	m.RegisterClient("bench", "secret", []string{"read:logs-*"}, nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, refresh := m.CreateTokenForClient("bench", []string{"read:logs-*"})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(url.Values{
+			"grant_type":    {"refresh_token"},
+			"refresh_token": {refresh},
+			"client_id":     {"bench"},
+			"client_secret": {"secret"},
+		}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		m.IssueToken(w, r)
+	}
+}

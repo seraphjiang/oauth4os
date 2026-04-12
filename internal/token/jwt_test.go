@@ -116,3 +116,33 @@ func TestJWTSignatureValid(t *testing.T) {
 		t.Fatalf("signature verification failed: %v", err)
 	}
 }
+
+func TestJWTTokenLookupByFullJWT(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager()
+	m.EnableJWT("https://auth.example.com", &testKeyProvider{key: key})
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*"}, nil)
+
+	tok, _ := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+
+	// The JWT string IS the token ID — lookup should work
+	clientID, scopes, _, expiresAt, revoked, ok := m.Lookup(tok.ID)
+	if !ok {
+		t.Fatal("JWT token should be findable by Lookup")
+	}
+	if clientID != "svc-1" {
+		t.Fatalf("expected svc-1, got %s", clientID)
+	}
+	if len(scopes) == 0 || scopes[0] != "read:logs-*" {
+		t.Fatalf("expected read:logs-*, got %v", scopes)
+	}
+	if revoked {
+		t.Fatal("should not be revoked")
+	}
+	if expiresAt.IsZero() {
+		t.Fatal("should have expiry")
+	}
+}

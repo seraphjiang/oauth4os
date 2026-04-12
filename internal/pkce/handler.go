@@ -264,8 +264,12 @@ type consentStrings struct {
 	Title, Subtitle, AppLabel, Permissions, WriteWarn, Deny, Approve, Footer string
 }
 
-func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []string) {
-	s := consentStrings{
+func renderConsent(w http.ResponseWriter, r *http.Request, consentID, clientID string, scopes []string) {
+	lang := detectLang(r)
+	s, ok := consentI18n[lang]
+	if !ok {
+		s = consentI18n["en"]
+	}
 		Title: "Authorize — oauth4os", Subtitle: "An application is requesting access",
 		AppLabel: "Application", Permissions: "Requested permissions",
 		WriteWarn: "This app is requesting write access", Deny: "Deny", Approve: "Approve",
@@ -275,7 +279,7 @@ func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []s
 	fmt.Fprintf(w, `<!DOCTYPE html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.card{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:40px;max-width:440px;width:100%;margin:20px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:40px;max-width:440px;width:100%%;margin:20px}
 .logo{text-align:center;font-size:24px;font-weight:700;margin-bottom:8px}
 .logo span{color:#58a6ff}
 .subtitle{text-align:center;color:#8b949e;font-size:14px;margin-bottom:28px}

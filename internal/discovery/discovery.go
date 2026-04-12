@@ -43,18 +43,24 @@ func Handler(cfg Config, scopes []string) http.HandlerFunc {
 		base = cfg.Issuer
 	}
 	meta := Metadata{
-		Issuer:                cfg.Issuer,
-		TokenEndpoint:         base + "/oauth/token",
-		IntrospectionEndpoint: base + "/oauth/introspect",
-		RevocationEndpoint:    base + "/oauth/revoke",
-		JWKSURI:               base + "/.well-known/jwks.json",
-		AuthorizationEndpoint: base + "/oauth/authorize",
+		Issuer:                 cfg.Issuer,
+		TokenEndpoint:          base + "/oauth/token",
+		IntrospectionEndpoint:  base + "/oauth/introspect",
+		RevocationEndpoint:     base + "/oauth/revoke",
+		JWKSURI:                base + "/.well-known/jwks.json",
+		AuthorizationEndpoint:  base + "/oauth/authorize",
+		UserinfoEndpoint:       base + "/oauth/userinfo",
+		DeviceAuthEndpoint:     base + "/oauth/device/code",
+		PAREndpoint:            base + "/oauth/par",
+		BackchannelAuthEndpoint: base + "/oauth/bc-authorize",
+		RegistrationEndpoint:   base + "/oauth/register",
 		ResponseTypesSupported: []string{"code"},
-		GrantTypesSupported:   []string{"client_credentials", "authorization_code", "urn:ietf:params:oauth:grant-type:token-exchange"},
-		TokenEndpointAuth:     []string{"client_secret_post", "none"},
-		ScopesSupported:       scopes,
-		CodeChallengeMethods:  []string{"S256"},
-		IntrospectionAuth:     []string{"client_secret_post"},
+		GrantTypesSupported:    []string{"client_credentials", "authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:token-exchange"},
+		TokenEndpointAuth:      []string{"client_secret_post", "client_secret_basic", "none"},
+		ScopesSupported:        scopes,
+		CodeChallengeMethods:   []string{"S256"},
+		IntrospectionAuth:      []string{"client_secret_post", "client_secret_basic"},
+		DPoPSigningAlgs:        []string{"RS256"},
 	}
 	body, _ := json.MarshalIndent(meta, "", "  ")
 

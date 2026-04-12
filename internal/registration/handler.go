@@ -160,3 +160,91 @@ func writeErr(w http.ResponseWriter, status int, code, desc string) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": code, "error_description": desc})
 }
+
+// List handles GET /oauth/register — returns all clients (secrets redacted).
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	clients := make([]Response, 0, len(h.clients))
+	for _, c := range h.clients {
+		safe := *c
+		safe.ClientSecret = ""
+		clients = append(clients, safe)
+	}
+	h.mu.RUnlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(clients)
+}
+
+// Delete handles DELETE /oauth/register/{client_id}.
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	clientID := r.PathValue("client_id")
+	h.mu.Lock()
+	_, ok := h.clients[clientID]
+	delete(h.clients, clientID)
+	h.mu.Unlock()
+	if !ok {
+		writeErr(w, 404, "invalid_client", "client not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// RotateSecret handles POST /oauth/register/{client_id}/rotate.
+func (h *Handler) RotateSecret(w http.ResponseWriter, r *http.Request) {
+	clientID := r.PathValue("client_id")
+	h.mu.Lock()
+	client, ok := h.clients[clientID]
+	if !ok {
+		h.mu.Unlock()
+		writeErr(w, 404, "invalid_client", "client not found")
+		return
+	}
+	newSecret := randomHex(32)
+	client.ClientSecret = newSecret
+	h.mu.Unlock()
+
+	// Re-register with token manager
+	var scopes []string
+	if client.Scope != "" {
+		scopes = splitScope(client.Scope)
+	}
+	h.register(clientID, newSecret, scopes, client.RedirectURIs)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"client_id":     clientID,
+		"client_secret": newSecret,
+	})
+}
+
+// Update handles PUT /oauth/register/{client_id} — update client_name, redirect_uris, scope.
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	clientID := r.PathValue("client_id")
+	var req Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, 400, "invalid_client_metadata", "malformed JSON")
+		return
+	}
+	h.mu.Lock()
+	client, ok := h.clients[clientID]
+	if !ok {
+		h.mu.Unlock()
+		writeErr(w, 404, "invalid_client", "client not found")
+		return
+	}
+	if req.ClientName != "" {
+		client.ClientName = req.ClientName
+	}
+	if req.RedirectURIs != nil {
+		client.RedirectURIs = req.RedirectURIs
+	}
+	if req.Scope != "" {
+		client.Scope = req.Scope
+	}
+	h.mu.Unlock()
+
+	safe := *client
+	safe.ClientSecret = ""
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(safe)
+}

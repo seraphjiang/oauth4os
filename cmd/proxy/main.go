@@ -279,7 +279,11 @@ func main() {
 	// Dynamic Client Registration (RFC 7591)
 	regHandler := registration.NewHandler(tokenMgr.RegisterClient, nil)
 	mux.HandleFunc("POST /oauth/register", regHandler.Register)
+	mux.HandleFunc("GET /oauth/register", regHandler.List)
 	mux.HandleFunc("GET /oauth/register/{client_id}", regHandler.Get)
+	mux.HandleFunc("PUT /oauth/register/{client_id}", regHandler.Update)
+	mux.HandleFunc("DELETE /oauth/register/{client_id}", regHandler.Delete)
+	mux.HandleFunc("POST /oauth/register/{client_id}/rotate", regHandler.RotateSecret)
 
 	// Admin API — runtime config management
 	adminState := admin.NewState(cfg, mapper, policyEngine)

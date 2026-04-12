@@ -94,7 +94,6 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.Token != "" {
 		r.Header.Set("x-amz-security-token", t.Token)
 	}
-	r.Header.Set("host", r.URL.Host)
 
 	// Read and hash body
 	var bodyHash string
@@ -142,19 +141,53 @@ func canonicalURI(r *http.Request) string {
 	if path == "" {
 		path = "/"
 	}
-	return path
+	// URI-encode each path segment per RFC 3986, then rejoin
+	segments := strings.Split(path, "/")
+	for i, s := range segments {
+		segments[i] = uriEncode(s, false)
+	}
+	return strings.Join(segments, "/")
 }
 
 func canonicalQueryString(r *http.Request) string {
-	return r.URL.RawQuery
+	params := r.URL.Query()
+	if len(params) == 0 {
+		return ""
+	}
+	var keys []string
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var parts []string
+	for _, k := range keys {
+		vs := params[k]
+		sort.Strings(vs)
+		for _, v := range vs {
+			parts = append(parts, uriEncode(k, true)+"="+uriEncode(v, true))
+		}
+	}
+	return strings.Join(parts, "&")
 }
 
 func canonicalHeaderStr(r *http.Request) (signed, canonical string) {
 	headers := make(map[string]string)
 	var keys []string
+
+	// Host is special in Go — it's in r.Host, not r.Header
+	host := r.Host
+	if host == "" {
+		host = r.URL.Host
+	}
+	headers["host"] = host
+	keys = append(keys, "host")
+
 	for k := range r.Header {
 		lk := strings.ToLower(k)
-		if lk == "host" || strings.HasPrefix(lk, "x-amz-") || lk == "content-type" {
+		if lk == "host" {
+			continue // already handled above
+		}
+		if strings.HasPrefix(lk, "x-amz-") || lk == "content-type" {
 			headers[lk] = strings.TrimSpace(r.Header.Get(k))
 			keys = append(keys, lk)
 		}
@@ -165,6 +198,21 @@ func canonicalHeaderStr(r *http.Request) (signed, canonical string) {
 		parts = append(parts, k+":"+headers[k]+"\n")
 	}
 	return strings.Join(keys, ";"), strings.Join(parts, "")
+}
+
+// uriEncode encodes a string per RFC 3986. If encodeSlash is false, '/' is preserved.
+func uriEncode(s string, encodeSlash bool) string {
+	var b strings.Builder
+	for _, c := range []byte(s) {
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '~' || c == '.' {
+			b.WriteByte(c)
+		} else if c == '/' && !encodeSlash {
+			b.WriteByte(c)
+		} else {
+			fmt.Fprintf(&b, "%%%02X", c)
+		}
+	}
+	return b.String()
 }
 
 func hashSHA256(data []byte) string {

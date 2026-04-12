@@ -820,6 +820,26 @@ func main() {
 	mux.HandleFunc("GET /tutorial", tutorialHandler)
 	mux.HandleFunc("GET /tutorial/", tutorialHandler)
 
+	// Admin UI pages — serve from web/ directory
+	serveWebFile := func(filePath, contentType string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			for _, base := range []string{"/web/", "web/", "./web/"} {
+				if data, err := os.ReadFile(base + filePath); err == nil {
+					w.Header().Set("Content-Type", contentType)
+					w.Write(data)
+					return
+				}
+			}
+			http.NotFound(w, r)
+		}
+	}
+	mux.HandleFunc("GET /register/", serveWebFile("register/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/clients", serveWebFile("admin/clients.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/tokens", serveWebFile("admin/tokens.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /logs/", serveWebFile("logs/index.html", "text/html; charset=utf-8"))
+
 	mux.HandleFunc("DELETE /admin/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		sessionMgr.Remove(r.PathValue("id"))
 		w.WriteHeader(http.StatusNoContent)

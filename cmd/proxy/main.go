@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/seraphjiang/oauth4os/internal/audit"
+	"github.com/seraphjiang/oauth4os/internal/cedar"
 	"github.com/seraphjiang/oauth4os/internal/config"
 	"github.com/seraphjiang/oauth4os/internal/jwt"
 	"github.com/seraphjiang/oauth4os/internal/scope"
@@ -31,6 +32,17 @@ func main() {
 	mapper := scope.NewMapper(cfg.ScopeMapping)
 	tokenMgr := token.NewManager()
 	auditor := audit.NewAuditor(os.Stdout)
+
+	// Cedar policy engine — default policies if none configured
+	defaultPolicies := []cedar.Policy{
+		{ID: "default-permit", Effect: cedar.Permit,
+			Principal: cedar.Match{Any: true}, Action: cedar.Match{Any: true},
+			Resource: cedar.Match{Any: true}},
+		{ID: "forbid-security-index", Effect: cedar.Forbid,
+			Principal: cedar.Match{Any: true}, Action: cedar.Match{Any: true},
+			Resource: cedar.Match{Equals: ".opendistro_security"}},
+	}
+	policyEngine := cedar.NewEngine(defaultPolicies)
 
 	// Transport for upstream connections (handles self-signed certs)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -81,6 +93,18 @@ func main() {
 			return
 		}
 
+		// Cedar policy evaluation
+		index := extractIndex(r.URL.Path)
+		decision := policyEngine.Evaluate(cedar.Request{
+			Principal: map[string]string{"sub": claims.ClientID, "scope": strings.Join(claims.Scopes, ",")},
+			Action:    r.Method,
+			Resource:  map[string]string{"index": index, "path": r.URL.Path},
+		})
+		if !decision.Allowed {
+			http.Error(w, `{"error":"forbidden","reason":"`+decision.Reason+`","policy":"`+decision.Policy+`"}`, http.StatusForbidden)
+			return
+		}
+
 		r.Header.Del("Authorization")
 		r.Header.Set("X-Proxy-User", claims.ClientID)
 		r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
@@ -108,4 +132,14 @@ func main() {
 	} else {
 		log.Fatal(http.ListenAndServe(addr, mux))
 	}
+}
+
+// extractIndex pulls the index name from an OpenSearch URL path.
+// e.g., "/logs-2026.04/_search" → "logs-2026.04"
+func extractIndex(path string) string {
+	path = strings.TrimPrefix(path, "/")
+	if idx := strings.IndexByte(path, '/'); idx > 0 {
+		return path[:idx]
+	}
+	return path
 }

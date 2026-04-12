@@ -26,6 +26,13 @@ REDIRECT_URI="http://localhost:${REDIRECT_PORT}/callback"
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 
+# Disable colors and output raw JSON when piped
+IS_TTY=true
+if [ ! -t 1 ]; then
+  IS_TTY=false
+  RED=''; GREEN=''; CYAN=''; YELLOW=''; BOLD=''; NC=''
+fi
+
 usage() {
   cat <<EOF
 ${BOLD}oauth4os-demo${NC} — OAuth 2.0 proxy CLI

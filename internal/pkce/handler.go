@@ -272,7 +272,7 @@ func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []s
 		Footer: "Authorizing will redirect you back to the application",
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, `<!DOCTYPE html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title><style>
+	fmt.Fprintf(w, `<!DOCTYPE html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:40px;max-width:440px;width:100%;margin:20px}

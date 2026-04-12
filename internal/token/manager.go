@@ -382,6 +382,20 @@ func (m *Manager) revokeFamily(clientID string) {
 	}
 }
 
+// RevokeByClient revokes all tokens for a client. Returns count revoked.
+func (m *Manager) RevokeByClient(clientID string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	count := 0
+	for _, tokID := range m.families[clientID] {
+		if tok, ok := m.tokens[tokID]; ok && !tok.Revoked {
+			tok.Revoked = true
+			count++
+		}
+	}
+	return count
+}
+
 // Cleanup removes expired and revoked tokens from memory.
 func (m *Manager) Cleanup() int {
 	m.mu.Lock()

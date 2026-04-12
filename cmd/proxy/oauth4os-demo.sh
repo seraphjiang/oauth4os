@@ -589,11 +589,11 @@ cmd_sql() {
   local body
   body=$(jq -n --arg q "$sql" '{query:$q}')
   local resp
-  resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+  resp=$(authed_curl -H "Content-Type: application/json" \
     "${PROXY}/_plugins/_sql" -d "$body" 2>/dev/null)
   if [ $? -ne 0 ] || [ -z "$resp" ]; then
     # Fallback: try _sql endpoint without _plugins prefix
-    resp=$(curl -sf -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+    resp=$(authed_curl -H "Content-Type: application/json" \
       "${PROXY}/_sql" -d "$body" 2>/dev/null)
   fi
   if [ $? -ne 0 ] || [ -z "$resp" ]; then

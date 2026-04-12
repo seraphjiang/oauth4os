@@ -39,6 +39,12 @@ check "AND has must"        "service:payment AND level:ERROR" '"must"'
 check "NOT term"            "service:auth AND NOT level:INFO" '"must_not"'
 check "OR term"             "level:ERROR OR level:WARN"  '"should"'
 check "free text"           "timeout"                    '"multi_match"'
+check "quoted value"        'message:"connection refused"' '"match"'
+check "multiple words"      "connection timeout"         '"multi_match"'
+check "wildcard prefix"     "service:*-prod"             '"wildcard"'
+check "range with AND"      "latency_ms:>100 AND level:ERROR" '"must"'
+check "triple AND"          "a:1 AND b:2 AND c:3"       '"must"'
+check "NOT only"            "NOT level:DEBUG"            '"must_not"'
 
 echo ""
 echo "---"

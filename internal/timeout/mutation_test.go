@@ -9,14 +9,21 @@ import (
 
 // Mutation: remove context cancellation → context must be cancelled after timeout
 func TestMutation_ContextCancelled(t *testing.T) {
+	done := make(chan struct{})
 	var ctxErr error
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 		ctxErr = r.Context().Err()
+		close(done)
 	})
 	handler := Middleware(inner, 20*time.Millisecond)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not complete")
+	}
 	if ctxErr == nil {
 		t.Error("context must be cancelled on timeout")
 	}

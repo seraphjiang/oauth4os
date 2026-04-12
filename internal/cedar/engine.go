@@ -107,6 +107,29 @@ func (e *Engine) Evaluate(req Request) Decision {
 	return Decision{Allowed: false, Reason: "no matching permit policy"}
 }
 
+// Policies returns a copy of all policies.
+func (e *Engine) Policies() []Policy {
+	out := make([]Policy, len(e.policies))
+	copy(out, e.policies)
+	return out
+}
+
+// AddPolicy appends a policy.
+func (e *Engine) AddPolicy(p Policy) {
+	e.policies = append(e.policies, p)
+}
+
+// RemovePolicy removes a policy by ID. Returns true if found.
+func (e *Engine) RemovePolicy(id string) bool {
+	for i, p := range e.policies {
+		if p.ID == id {
+			e.policies = append(e.policies[:i], e.policies[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 func matchesTarget(m Match, value string) bool {
 	if m.Any {
 		return true

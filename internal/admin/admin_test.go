@@ -116,3 +116,78 @@ func TestUpdateAndRemoveTenant(t *testing.T) {
 		t.Fatalf("expected 204, got %d", w.Code)
 	}
 }
+
+func TestCedarPolicyCRUD(t *testing.T) {
+	_, mux := setup()
+	// List (should have defaults from setup)
+	req := httptest.NewRequest("GET", "/admin/cedar-policies", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("list: expected 200, got %d", w.Code)
+	}
+
+	// Add forbid policy
+	body, _ := json.Marshal(CedarPolicyInput{ID: "block-secret", Effect: "forbid", Resource: ".secret-index"})
+	req = httptest.NewRequest("POST", "/admin/cedar-policies", bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 201 {
+		t.Fatalf("add: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Add without ID → 400
+	body, _ = json.Marshal(CedarPolicyInput{Effect: "permit"})
+	req = httptest.NewRequest("POST", "/admin/cedar-policies", bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("add no id: expected 400, got %d", w.Code)
+	}
+
+	// Remove
+	req = httptest.NewRequest("DELETE", "/admin/cedar-policies/block-secret", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 204 {
+		t.Fatalf("remove: expected 204, got %d", w.Code)
+	}
+
+	// Remove again → 404
+	req = httptest.NewRequest("DELETE", "/admin/cedar-policies/block-secret", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 404 {
+		t.Fatalf("remove again: expected 404, got %d", w.Code)
+	}
+}
+
+func TestRateLimitCRUD(t *testing.T) {
+	_, mux := setup()
+	// List
+	req := httptest.NewRequest("GET", "/admin/rate-limits", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("list: expected 200, got %d", w.Code)
+	}
+
+	// Update
+	body, _ := json.Marshal(map[string]int{"read:logs-*": 1000, "admin": 30})
+	req = httptest.NewRequest("PUT", "/admin/rate-limits", bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("update: expected 200, got %d", w.Code)
+	}
+
+	// Verify
+	req = httptest.NewRequest("GET", "/admin/rate-limits", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var limits map[string]int
+	json.NewDecoder(w.Body).Decode(&limits)
+	if limits["admin"] != 30 {
+		t.Fatalf("admin limit = %d, want 30", limits["admin"])
+	}
+}

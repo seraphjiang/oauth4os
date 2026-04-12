@@ -125,3 +125,49 @@ func TestRefreshConcurrent(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestRefreshScopeDownscope(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*", "admin"}, nil)
+	_, refresh := m.CreateTokenForClient("svc-1", []string{"read:logs-*", "admin"})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refresh},
+		"client_id":     {"svc-1"},
+		"client_secret": {"secret"},
+		"scope":         {"read:logs-*"},
+	}.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	m.IssueToken(w, r)
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["scope"] != "read:logs-*" {
+		t.Fatalf("expected narrowed scope, got %v", resp["scope"])
+	}
+}
+
+func TestRefreshScopeEscalationBlocked(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("svc-1", "secret", []string{"read:logs-*", "admin"}, nil)
+	_, refresh := m.CreateTokenForClient("svc-1", []string{"read:logs-*"})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refresh},
+		"client_id":     {"svc-1"},
+		"client_secret": {"secret"},
+		"scope":         {"read:logs-* admin"},
+	}.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	m.IssueToken(w, r)
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "invalid_scope" {
+		t.Fatalf("scope escalation should be blocked, got %v", resp)
+	}
+}

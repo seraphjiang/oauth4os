@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Admin Console</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
+
+.app{display:flex;min-height:100vh}
+.sidebar{width:200px;background:var(--surface);border-right:1px solid var(--border);padding:16px}
+.sidebar .brand{font-size:16px;font-weight:700;margin-bottom:20px}.brand span{color:var(--accent)}
+.sidebar nav a{display:block;padding:6px 10px;border-radius:6px;color:var(--muted);font-size:13px;margin-bottom:2px;cursor:pointer}
+.sidebar nav a:hover,.sidebar nav a.active{background:var(--bg);color:var(--text)}
+.main{flex:1;padding:20px;overflow-y:auto}
+h2{font-size:18px;margin-bottom:16px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
+.card h3{font-size:14px;margin-bottom:8px}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12px}
+.kv .k{color:var(--muted)}.kv .v{font-family:'SF Mono',Consolas,monospace;word-break:break-all}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:600}
+.badge{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-ok{background:#3fb95022;color:var(--green)}
+.badge-warn{background:#f0883e22;color:var(--orange)}
+.badge-err{background:#f8514922;color:var(--red)}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn-danger{color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:3px 8px;font-size:10px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.theme-btn{position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text);z-index:10}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.skeleton{background:linear-gradient(90deg,var(--surface) 25%,var(--border) 50%,var(--surface) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px;height:14px;margin-bottom:6px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(max-width:768px){.sidebar{display:none}.main{padding:12px}}
+@media(max-width:375px){.kv{grid-template-columns:1fr}table{font-size:10px}}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">⚙️ Admin <span>Console</span></div>
+    <nav>
+      <a class="active" data-tab="health">🟢 Health</a>
+      <a data-tab="sessions">👥 Sessions</a>
+      <a data-tab="audit">📋 Audit Log</a>
+      <a data-tab="clusters">🌐 Clusters</a>
+      <a data-tab="apikeys">🔑 API Keys</a>
+    </nav>
+    <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
+      <a href="../">← oauth4os</a><br>
+      <a href="../demo/">Demo App</a>
+    </div>
+  </div>
+  <div class="main" id="content"></div>
+</div>
+<script>
+const API = window.location.origin;
+let tab = 'health';
+
+// Nav
+document.querySelectorAll('[data-tab]').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('[data-tab]').forEach(n => n.classList.remove('active'));
+    a.classList.add('active');
+    tab = a.dataset.tab;
+    loadTab();
+  });
+});
+
+async function api(path) {
+  try {
+    const r = await fetch(API + path);
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
+async function loadTab() {
+  const el = document.getElementById('content');
+  el.innerHTML = Array(3).fill('<div class="card"><div class="skeleton"></div><div class="skeleton" style="width:60%"></div></div>').join('');
+
+  switch (tab) {
+    case 'health': await renderHealth(el); break;
+    case 'sessions': await renderSessions(el); break;
+    case 'audit': await renderAudit(el); break;
+    case 'clusters': await renderClusters(el); break;
+    case 'apikeys': await renderApiKeys(el); break;
+  }
+}
+
+async function renderHealth(el) {
+  const [health, metrics] = await Promise.all([api('/health'), api('/admin/health')]);
+  const h = health || {};
+  const deep = metrics || {};
+  el.innerHTML = `<h2>System Health</h2>
+    <div class="card"><h3>Proxy Status</h3><div class="kv">
+      <div class="k">Status</div><div class="v"><span class="badge ${h.status === 'ok' ? 'badge-ok' : 'badge-err'}">${h.status || 'unknown'}</span></div>
+      <div class="k">Version</div><div class="v">${esc(h.version || '—')}</div>
+      <div class="k">Uptime</div><div class="v">${esc(h.uptime || '—')}</div>
+      <div class="k">Go Version</div><div class="v">${esc(h.go_version || '—')}</div>
+    </div></div>
+    <div class="card"><h3>Deep Health</h3><div class="kv">
+      <div class="k">Upstream</div><div class="v"><span class="badge ${deep.upstream === 'ok' ? 'badge-ok' : 'badge-err'}">${esc(deep.upstream || '—')}</span></div>
+      <div class="k">JWKS</div><div class="v"><span class="badge ${deep.jwks === 'ok' ? 'badge-ok' : 'badge-warn'}">${esc(deep.jwks || '—')}</span></div>
+      <div class="k">Clients</div><div class="v">${deep.clients ?? '—'}</div>
+      <div class="k">Active Tokens</div><div class="v">${deep.active_tokens ?? '—'}</div>
+    </div></div>`;
+}
+
+async function renderSessions(el) {
+  const sessions = await api('/admin/sessions') || [];
+  el.innerHTML = `<div class="toolbar"><h2>Active Sessions</h2><button class="btn btn-danger btn-sm" id="logoutAll">Logout All</button></div>`;
+  if (!sessions.length && !Array.isArray(sessions)) {
+    el.innerHTML += '<div class="empty">No active sessions</div>'; return;
+  }
+  const rows = (Array.isArray(sessions) ? sessions : Object.values(sessions));
+  el.innerHTML += `<div class="card"><table><thead><tr><th>Client</th><th>Scope</th><th>Created</th><th>Action</th></tr></thead><tbody>
+    ${rows.map(s => `<tr><td>${esc(s.client_id || s.sub || '—')}</td><td><code>${esc(s.scope || '—')}</code></td><td>${esc(s.created_at || s.iat || '—')}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="revokeSession('${esc(s.id || s.session_id || '')}')">Revoke</button></td></tr>`).join('')}
+  </tbody></table></div>`;
+  document.getElementById('logoutAll')?.addEventListener('click', async () => {
+    await fetch(API + '/admin/sessions/logout', { method: 'POST' });
+    loadTab();
+  });
+}
+
+async function revokeSession(id) {
+  if (!id) return;
+  await fetch(API + '/admin/sessions/' + id, { method: 'DELETE' });
+  loadTab();
+}
+
+async function renderAudit(el) {
+  const audit = await api('/admin/audit') || [];
+  el.innerHTML = `<div class="toolbar"><h2>Audit Log</h2><a href="${API}/admin/audit/export?format=csv" class="btn btn-sm">📥 Export CSV</a></div>`;
+  const rows = Array.isArray(audit) ? audit : audit.entries || [];
+  if (!rows.length) { el.innerHTML += '<div class="empty">No audit entries</div>'; return; }
+  el.innerHTML += `<div class="card"><table><thead><tr><th>Time</th><th>Action</th><th>Client</th><th>Detail</th></tr></thead><tbody>
+    ${rows.slice(0, 50).map(a => `<tr><td style="white-space:nowrap;font-size:11px">${esc(a.timestamp || a.time || '—')}</td>
+      <td><span class="badge ${a.action?.includes('revoke') || a.action?.includes('delete') ? 'badge-err' : 'badge-ok'}">${esc(a.action || a.event || '—')}</span></td>
+      <td>${esc(a.client_id || a.sub || '—')}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(a.detail || a.path || '—')}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+async function renderClusters(el) {
+  const clusters = await api('/admin/clusters') || [];
+  el.innerHTML = '<h2>Upstream Clusters</h2>';
+  const items = Array.isArray(clusters) ? clusters : [clusters];
+  if (!items.length || !items[0]) { el.innerHTML += '<div class="empty">No clusters configured</div>'; return; }
+  items.forEach(c => {
+    el.innerHTML += `<div class="card"><h3>${esc(c.name || c.url || 'Primary')}</h3><div class="kv">
+      <div class="k">URL</div><div class="v">${esc(c.url || c.endpoint || '—')}</div>
+      <div class="k">Status</div><div class="v"><span class="badge ${c.status === 'ok' || c.healthy ? 'badge-ok' : 'badge-err'}">${esc(c.status || (c.healthy ? 'ok' : 'unknown'))}</span></div>
+      <div class="k">Auth</div><div class="v">${esc(c.auth || c.auth_method || 'SigV4')}</div>
+      <div class="k">Region</div><div class="v">${esc(c.region || '—')}</div>
+    </div></div>`;
+  });
+}
+
+async function renderApiKeys(el) {
+  const keys = await api('/admin/apikeys') || [];
+  el.innerHTML = '<div class="toolbar"><h2>API Keys</h2></div>';
+  const rows = Array.isArray(keys) ? keys : Object.values(keys);
+  if (!rows.length) { el.innerHTML += '<div class="empty">No API keys</div>'; return; }
+  el.innerHTML += `<div class="card"><table><thead><tr><th>ID</th><th>Client</th><th>Scopes</th><th>Created</th><th>Action</th></tr></thead><tbody>
+    ${rows.map(k => `<tr><td><code>${esc((k.id || '').slice(0, 12))}...</code></td><td>${esc(k.client_id || '—')}</td>
+      <td><code>${esc(k.scope || k.scopes || '—')}</code></td><td>${esc(k.created_at || '—')}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteKey('${esc(k.id || '')}')">Delete</button></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+async function deleteKey(id) {
+  if (!id) return;
+  await fetch(API + '/admin/apikeys/' + id, { method: 'DELETE' });
+  loadTab();
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+// Theme
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('oauth4os_theme', t);
+});
+const saved = localStorage.getItem('oauth4os_theme');
+if (saved) document.documentElement.dataset.theme = saved;
+
+loadTab();
+setInterval(loadTab, 30000);
+</script>
+</body>
+</html>

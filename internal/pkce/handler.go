@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"sync"
 	"time"
@@ -208,6 +209,120 @@ func generateCode() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// scopeDescriptions maps scope prefixes to human-readable descriptions.
+var scopeDescriptions = map[string]string{
+	"read":     "Read data from indices",
+	"write":    "Write and modify data in indices",
+	"admin":    "Manage cluster settings and configuration",
+	"delete":   "Delete documents and indices",
+	"monitor":  "View cluster health and metrics",
+	"search":   "Search across indices",
+	"create":   "Create new indices and mappings",
+	"manage":   "Manage index settings and aliases",
+	"openid":   "Access your user profile",
+	"profile":  "View your profile information",
+	"email":    "View your email address",
+	"offline_access": "Maintain access when you're not present",
+}
+
+func describeScope(s string) string {
+	if d, ok := scopeDescriptions[s]; ok {
+		return d
+	}
+	// Try prefix match: "read:logs-*" → "read"
+	for i := 0; i < len(s); i++ {
+		if s[i] == ':' {
+			if d, ok := scopeDescriptions[s[:i]]; ok {
+				return d + " (" + s[i+1:] + ")"
+			}
+			break
+		}
+	}
+	return "Access: " + s
+}
+
+func scopeIcon(s string) string {
+	switch {
+	case len(s) >= 4 && s[:4] == "read":
+		return "👁"
+	case len(s) >= 5 && s[:5] == "write":
+		return "✏️"
+	case len(s) >= 5 && s[:5] == "admin":
+		return "⚙️"
+	case len(s) >= 6 && s[:6] == "delete":
+		return "🗑"
+	case len(s) >= 7 && s[:7] == "monitor":
+		return "📊"
+	default:
+		return "🔑"
+	}
+}
+
+func renderConsent(w http.ResponseWriter, consentID, clientID string, scopes []string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize — oauth4os</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:40px;max-width:440px;width:100%;margin:20px}
+.logo{text-align:center;font-size:24px;font-weight:700;margin-bottom:8px}
+.logo span{color:#58a6ff}
+.subtitle{text-align:center;color:#8b949e;font-size:14px;margin-bottom:28px}
+.app-name{background:#1c2128;border:1px solid #30363d;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.app-icon{width:40px;height:40px;background:linear-gradient(135deg,#58a6ff,#bc8cff);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.app-label{font-size:12px;color:#8b949e}
+.app-id{font-size:15px;font-weight:600}
+h3{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.scopes{list-style:none;margin-bottom:28px}
+.scopes li{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#1c2128;border:1px solid #30363d;border-radius:8px;margin-bottom:6px}
+.scope-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.scope-name{font-size:13px;font-weight:600;color:#e6edf3}
+.scope-desc{font-size:12px;color:#8b949e;margin-top:2px}
+.warn{background:#1c1507;border-color:#533d08;border-radius:8px;padding:10px 14px;font-size:12px;color:#f0883e;margin-bottom:24px;display:flex;align-items:center;gap:8px}
+.buttons{display:flex;gap:10px}
+.btn{flex:1;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-approve{background:#238636;color:#fff}
+.btn-approve:hover{background:#2ea043}
+.btn-deny{background:#21262d;color:#c9d1d9;border:1px solid #30363d}
+.btn-deny:hover{background:#30363d}
+.footer{text-align:center;margin-top:20px;font-size:11px;color:#484f58}
+</style></head><body><div class="card">
+<div class="logo">🔐 oauth<span>4os</span></div>
+<div class="subtitle">An application is requesting access</div>
+<div class="app-name"><div class="app-icon">🔗</div><div><div class="app-label">Application</div><div class="app-id">`)
+	// Escape clientID
+	for _, c := range clientID {
+		switch c {
+		case '<':
+			fmt.Fprint(w, "&lt;")
+		case '>':
+			fmt.Fprint(w, "&gt;")
+		case '&':
+			fmt.Fprint(w, "&amp;")
+		case '"':
+			fmt.Fprint(w, "&quot;")
+		default:
+			fmt.Fprintf(w, "%c", c)
+		}
+	}
+	fmt.Fprint(w, `</div></div></div><h3>Requested permissions</h3><ul class="scopes">`)
+	hasWrite := false
+	for _, s := range scopes {
+		if len(s) >= 5 && (s[:5] == "write" || s[:5] == "admin") {
+			hasWrite = true
+		}
+		fmt.Fprintf(w, `<li><span class="scope-icon">%s</span><div><div class="scope-name">%s</div><div class="scope-desc">%s</div></div></li>`,
+			scopeIcon(s), template.HTMLEscapeString(s), template.HTMLEscapeString(describeScope(s)))
+	}
+	fmt.Fprint(w, `</ul>`)
+	if hasWrite {
+		fmt.Fprint(w, `<div class="warn">⚠️ This app is requesting write access to your data</div>`)
+	}
+	fmt.Fprintf(w, `<form method="POST" action="/oauth/consent"><input type="hidden" name="consent_id" value="%s">`, consentID)
+	fmt.Fprint(w, `<div class="buttons"><button type="submit" name="action" value="deny" class="btn btn-deny">Deny</button><button type="submit" name="action" value="approve" class="btn btn-approve">Approve</button></div></form>`)
+	fmt.Fprint(w, `<div class="footer">Authorizing will redirect you back to the application</div></div></body></html>`)
 }
 
 func splitScopes(s string) []string {

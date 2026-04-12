@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -24,16 +25,38 @@ func testHandler() *Handler {
 	})
 }
 
+var consentIDRe = regexp.MustCompile(`name="consent_id"\s+value="([^"]+)"`)
+
+// authorizeAndConsent performs the two-step authorize+consent flow, returns redirect Location.
+func authorizeAndConsent(t *testing.T, h *Handler, query string) (int, string) {
+	t.Helper()
+	// Step 1: Authorize → consent page
+	ar := httptest.NewRequest("GET", "/oauth/authorize?"+query, nil)
+	aw := httptest.NewRecorder()
+	h.Authorize(aw, ar)
+	if aw.Code != 200 {
+		return aw.Code, aw.Body.String()
+	}
+	m := consentIDRe.FindStringSubmatch(aw.Body.String())
+	if len(m) < 2 {
+		t.Fatal("consent_id not found in consent page")
+	}
+	// Step 2: Approve
+	form := "consent_id=" + m[1] + "&action=approve"
+	cr := httptest.NewRequest("POST", "/oauth/consent", strings.NewReader(form))
+	cr.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	cw := httptest.NewRecorder()
+	h.Consent(cw, cr)
+	return cw.Code, cw.Header().Get("Location")
+}
+
 func TestAuthorize_Success(t *testing.T) {
 	h := testHandler()
 	challenge := makeChallenge("my-verifier")
-	r := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&scope=read:logs", nil)
-	w := httptest.NewRecorder()
-	h.Authorize(w, r)
-	if w.Code != http.StatusFound {
-		t.Fatalf("expected 302, got %d: %s", w.Code, w.Body.String())
+	code, loc := authorizeAndConsent(t, h, "client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&scope=read:logs")
+	if code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", code)
 	}
-	loc := w.Header().Get("Location")
 	if !strings.HasPrefix(loc, "http://localhost/cb?code=") {
 		t.Errorf("unexpected redirect: %s", loc)
 	}
@@ -64,14 +87,9 @@ func TestExchange_Success(t *testing.T) {
 	verifier := "my-verifier-string-for-pkce-test"
 	challenge := makeChallenge(verifier)
 
-	// Authorize
-	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&scope=read:logs", nil)
-	aw := httptest.NewRecorder()
-	h.Authorize(aw, ar)
-	loc := aw.Header().Get("Location")
+	_, loc := authorizeAndConsent(t, h, "client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&scope=read:logs")
 	code := strings.TrimPrefix(loc, "http://localhost/cb?code=")
 
-	// Exchange
 	form := "grant_type=authorization_code&code=" + code + "&code_verifier=" + verifier + "&redirect_uri=http://localhost/cb"
 	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
 	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -91,10 +109,8 @@ func TestExchange_BadVerifier(t *testing.T) {
 	h := testHandler()
 	challenge := makeChallenge("correct-verifier")
 
-	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
-	aw := httptest.NewRecorder()
-	h.Authorize(aw, ar)
-	code := strings.TrimPrefix(aw.Header().Get("Location"), "http://localhost/cb?code=")
+	_, loc := authorizeAndConsent(t, h, "client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb")
+	code := strings.TrimPrefix(loc, "http://localhost/cb?code=")
 
 	form := "code=" + code + "&code_verifier=wrong-verifier&redirect_uri=http://localhost/cb"
 	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
@@ -111,12 +127,9 @@ func TestExchange_CodeReuse(t *testing.T) {
 	verifier := "reuse-test-verifier"
 	challenge := makeChallenge(verifier)
 
-	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
-	aw := httptest.NewRecorder()
-	h.Authorize(aw, ar)
-	code := strings.TrimPrefix(aw.Header().Get("Location"), "http://localhost/cb?code=")
+	_, loc := authorizeAndConsent(t, h, "client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb")
+	code := strings.TrimPrefix(loc, "http://localhost/cb?code=")
 
-	// First exchange succeeds
 	form := "code=" + code + "&code_verifier=" + verifier + "&redirect_uri=http://localhost/cb"
 	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
 	er.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -126,7 +139,6 @@ func TestExchange_CodeReuse(t *testing.T) {
 		t.Fatalf("first exchange should succeed, got %d", ew.Code)
 	}
 
-	// Second exchange fails (one-time use)
 	er2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
 	er2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	ew2 := httptest.NewRecorder()
@@ -141,10 +153,8 @@ func TestExchange_RedirectMismatch(t *testing.T) {
 	verifier := "redirect-test"
 	challenge := makeChallenge(verifier)
 
-	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb", nil)
-	aw := httptest.NewRecorder()
-	h.Authorize(aw, ar)
-	code := strings.TrimPrefix(aw.Header().Get("Location"), "http://localhost/cb?code=")
+	_, loc := authorizeAndConsent(t, h, "client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb")
+	code := strings.TrimPrefix(loc, "http://localhost/cb?code=")
 
 	form := "code=" + code + "&code_verifier=" + verifier + "&redirect_uri=http://evil.com/cb"
 	er := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
@@ -188,10 +198,9 @@ func TestAuthorize_OpenRedirectBlocked(t *testing.T) {
 	h := NewHandler(func(clientID string, scopes []string) (string, string) {
 		return "tok", "rtk"
 	}, func(clientID, uri string) bool {
-		return uri == "http://localhost/callback" // only allow localhost
+		return uri == "http://localhost/callback"
 	})
 
-	// Attempt open redirect to evil.com
 	req := httptest.NewRequest(http.MethodGet,
 		"/oauth/authorize?client_id=app&code_challenge=abc&code_challenge_method=S256&redirect_uri=https://evil.com/steal", nil)
 	w := httptest.NewRecorder()
@@ -199,5 +208,33 @@ func TestAuthorize_OpenRedirectBlocked(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for unregistered redirect_uri, got %d", w.Code)
+	}
+}
+
+func TestConsent_Deny(t *testing.T) {
+	h := testHandler()
+	challenge := makeChallenge("deny-test")
+
+	// Authorize → consent page
+	ar := httptest.NewRequest("GET", "/oauth/authorize?client_id=app&code_challenge="+challenge+"&code_challenge_method=S256&redirect_uri=http://localhost/cb&state=xyz", nil)
+	aw := httptest.NewRecorder()
+	h.Authorize(aw, ar)
+	m := consentIDRe.FindStringSubmatch(aw.Body.String())
+	if len(m) < 2 {
+		t.Fatal("consent_id not found")
+	}
+
+	// Deny
+	form := "consent_id=" + m[1] + "&action=deny"
+	cr := httptest.NewRequest("POST", "/oauth/consent", strings.NewReader(form))
+	cr.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	cw := httptest.NewRecorder()
+	h.Consent(cw, cr)
+	if cw.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", cw.Code)
+	}
+	loc := cw.Header().Get("Location")
+	if !strings.Contains(loc, "error=access_denied") {
+		t.Errorf("expected access_denied in redirect, got %s", loc)
 	}
 }

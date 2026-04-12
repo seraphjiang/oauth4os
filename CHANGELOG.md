@@ -3,6 +3,31 @@
 All notable changes to oauth4os are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [v0.8.0] — 2026-04-12
+
+### Added
+- Security headers middleware: HSTS, X-Content-Type-Options nosniff, X-Frame-Options DENY
+- CLI `latency` command — 26 total CLI commands, all 47 race-clean
+- Setup wizard (3-step with live checks) + Open Graph meta tags
+- CLI `alerts` command + LoadShedding Prometheus alert rule
+- Changelog web page, sitemap (13 URLs), full link audit
+- Operator runbook — incidents, token ops, scaling
+- Bytes in/out metrics, ADR-014 W3C Traceparent, ADR-015 Multi-Tier Rate Limiting
+- Grafana dashboard: all 16 Prometheus metrics (cache, circuit breaker, loadshed, upstream)
+- Man page updated for all 26 commands
+- Fuzz tests: config (101K executions), client store (7K executions), 0 panics
+- Mutation tests: 87 mutations killed (accesslog, events, CORS, compress, healthcheck, retry, webhook, timeout, CIBA)
+- 673 tests across 46+ packages
+
+### Fixed
+- CRITICAL: Cedar policy engine data race — added RWMutex on hot path
+- Timeout middleware data race — atomic.Bool for written flag
+- Dockerfile GOFLAGS=-insecure → GONOSUMCHECK + GOINSECURE
+- Referrer policy on 12 pages
+
+### Performance
+- Cedar permit: 110ns, introspection cache hit: 63ns
+
 ## [v0.7.0] — 2026-04-12
 
 ### Added

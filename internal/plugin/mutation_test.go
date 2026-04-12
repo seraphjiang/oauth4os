@@ -47,7 +47,6 @@ func TestMutation_PluginDenies(t *testing.T) {
 
 // M4: First denial wins — second plugin not called.
 func TestMutation_FirstDenialWins(t *testing.T) {
-	called := false
 	reg := NewRegistry()
 	reg.Register(&mockAuth{name: "deny", err: errors.New("no")})
 	reg.Register(&mockAuth{name: "spy", err: func() error { called = true; return nil }()})

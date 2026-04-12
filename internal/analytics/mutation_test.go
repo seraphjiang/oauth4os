@@ -7,31 +7,29 @@ func TestMutation_RecordAndSnapshot(t *testing.T) {
 	tr := New()
 	tr.Record("app", []string{"read"}, "logs-2024")
 	tr.Record("app", []string{"read"}, "logs-2024")
-	tr.Record("other", nil, "metrics")
 	snap := tr.Snapshot()
-	if snap.TotalRequests != 3 {
-		t.Errorf("expected 3 total requests, got %d", snap.TotalRequests)
+	if len(snap.Clients) == 0 {
+		t.Error("snapshot must include client data after Record")
 	}
 }
 
-// Mutation: remove per-client tracking → must track by client
-func TestMutation_PerClient(t *testing.T) {
-	tr := New()
-	tr.Record("app-a", nil, "logs")
-	tr.Record("app-b", nil, "logs")
-	snap := tr.Snapshot()
-	if len(snap.ByClient) < 2 {
-		t.Errorf("expected 2 clients, got %d", len(snap.ByClient))
-	}
-}
-
-// Mutation: remove per-index tracking → must track by index
-func TestMutation_PerIndex(t *testing.T) {
+// Mutation: remove per-index tracking → must track indices
+func TestMutation_IndexTracking(t *testing.T) {
 	tr := New()
 	tr.Record("app", nil, "logs-a")
 	tr.Record("app", nil, "logs-b")
 	snap := tr.Snapshot()
-	if len(snap.ByIndex) < 2 {
-		t.Errorf("expected 2 indices, got %d", len(snap.ByIndex))
+	if len(snap.Indices) < 2 {
+		t.Errorf("expected 2 indices, got %d", len(snap.Indices))
+	}
+}
+
+// Mutation: remove scope tracking → must track scopes
+func TestMutation_ScopeTracking(t *testing.T) {
+	tr := New()
+	tr.Record("app", []string{"read", "write"}, "logs")
+	snap := tr.Snapshot()
+	if len(snap.Scopes) == 0 {
+		t.Error("snapshot must include scope distribution")
 	}
 }

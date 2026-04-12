@@ -61,6 +61,8 @@ ${BOLD}COMMANDS:${NC}
   config <action>      show|set|get|reset proxy settings
   alias <action>       add|rm|run|list command aliases
   completion <shell>   Generate bash/zsh completions
+  profile              Formatted token claims, scopes, expiry
+  install-man          Install man page to system
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
@@ -902,6 +904,72 @@ cmd_diff() {
   done
 }
 
+cmd_profile() {
+  local tok
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+  # Decode JWT payload
+  local payload
+  payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null) || payload='{}'
+
+  echo -e "${BOLD}🔐 Token Profile${NC}\n"
+  local client sub iss exp iat scope
+  client=$(echo "$payload" | jq -r '.client_id // .azp // "—"' 2>/dev/null)
+  sub=$(echo "$payload" | jq -r '.sub // "—"' 2>/dev/null)
+  iss=$(echo "$payload" | jq -r '.iss // "—"' 2>/dev/null)
+  exp=$(echo "$payload" | jq -r '.exp // 0' 2>/dev/null)
+  iat=$(echo "$payload" | jq -r '.iat // 0' 2>/dev/null)
+  scope=$(echo "$payload" | jq -r '.scope // (.scp | join(" ")) // "—"' 2>/dev/null)
+
+  echo -e "  ${BOLD}Client:${NC}  ${CYAN}${client}${NC}"
+  echo -e "  ${BOLD}Subject:${NC} ${sub}"
+  echo -e "  ${BOLD}Issuer:${NC}  ${iss}"
+  echo -e "  ${BOLD}Scopes:${NC}  ${CYAN}${scope}${NC}"
+
+  if [ "$exp" -gt 0 ] 2>/dev/null; then
+    local now=$(date +%s) remaining=$(( exp - now ))
+    local exp_fmt=$(date -d "@$exp" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -r "$exp" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$exp")
+    echo -e "  ${BOLD}Expires:${NC} ${exp_fmt}"
+    if [ $remaining -gt 0 ]; then
+      echo -e "  ${BOLD}TTL:${NC}     ${GREEN}${remaining}s remaining${NC}"
+    else
+      echo -e "  ${BOLD}TTL:${NC}     ${RED}EXPIRED ($(( -remaining ))s ago)${NC}"
+    fi
+  fi
+  if [ "$iat" -gt 0 ] 2>/dev/null; then
+    local iat_fmt=$(date -d "@$iat" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -r "$iat" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$iat")
+    echo -e "  ${BOLD}Issued:${NC}  ${iat_fmt}"
+  fi
+
+  # Scope breakdown
+  if [ "$scope" != "—" ]; then
+    echo -e "\n  ${BOLD}Scope Breakdown:${NC}"
+    for s in $scope; do
+      local icon="🔑"
+      echo "$s" | grep -q 'write\|admin' && icon="✏️"
+      echo "$s" | grep -q 'read' && icon="👁"
+      echo -e "    ${icon}  ${s}"
+    done
+  fi
+}
+
+cmd_install_man() {
+  local mandir="${1:-/usr/local/share/man/man1}"
+  local src="${PROXY}/docs/oauth4os-demo.1"
+  echo -e "${CYAN}Installing man page...${NC}"
+  mkdir -p "$mandir" 2>/dev/null || { echo -e "${YELLOW}Need sudo: sudo oauth4os-demo install-man${NC}"; return 1; }
+  curl -sf "$src" -o "${mandir}/oauth4os-demo.1" 2>/dev/null || {
+    # Fallback: generate inline
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    if [ -f "${script_dir}/../../docs/oauth4os-demo.1" ]; then
+      cp "${script_dir}/../../docs/oauth4os-demo.1" "${mandir}/oauth4os-demo.1"
+    else
+      echo -e "${RED}Could not download man page${NC}"; return 1
+    fi
+  }
+  echo -e "${GREEN}✓ Installed to ${mandir}/oauth4os-demo.1${NC}"
+  echo "  Run: man oauth4os-demo"
+}
+
 # Main
 ensure_deps
 case "${1:-}" in
@@ -922,6 +990,8 @@ case "${1:-}" in
   dashboard|dash) cmd_dashboard ;;
   watch)    shift; cmd_watch "$*" ;;
   diff)     shift; cmd_diff "${1:-today}" "${2:-yesterday}" ;;
+  profile)  cmd_profile ;;
+  install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;
   completion) shift; cmd_completion "${1:-bash}" ;;

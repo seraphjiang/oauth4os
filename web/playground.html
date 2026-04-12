@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>oauth4os — Cedar Policy Playground</title>
+<style>
+:root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --dim: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; background: var(--bg); color: var(--text); padding: 20px; }
+h1 { font-size: 1.4em; margin-bottom: 4px; }
+.subtitle { color: var(--dim); font-size: 0.85em; margin-bottom: 20px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.panel h2 { font-size: 0.9em; color: var(--accent); margin-bottom: 8px; }
+textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 10px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; resize: vertical; }
+.policies { min-height: 200px; }
+.request { min-height: 120px; }
+label { display: block; font-size: 0.8em; color: var(--dim); margin: 8px 0 4px; }
+input[type=text] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-family: monospace; font-size: 13px; }
+button { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 10px 24px; font-size: 14px; cursor: pointer; font-weight: 600; }
+button:hover { opacity: 0.9; }
+.result { padding: 16px; border-radius: 8px; font-family: monospace; font-size: 14px; margin-top: 12px; }
+.result.permit { background: #0d2818; border: 1px solid var(--green); color: var(--green); }
+.result.deny { background: #2d1215; border: 1px solid var(--red); color: var(--red); }
+.result.error { background: #2d2000; border: 1px solid var(--yellow); color: var(--yellow); }
+.examples { margin-top: 12px; }
+.examples button { background: var(--surface); border: 1px solid var(--border); color: var(--dim); padding: 4px 10px; font-size: 12px; margin-right: 6px; margin-bottom: 4px; border-radius: 4px; }
+.examples button:hover { color: var(--text); border-color: var(--accent); }
+footer { text-align: center; color: var(--dim); font-size: 0.8em; margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<h1>🌲 Cedar Policy Playground</h1>
+<p class="subtitle">Test oauth4os Cedar policies before deploying. Evaluation runs in your browser — nothing sent to a server.</p>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Policies</h2>
+    <textarea id="policies" class="policies" spellcheck="false">permit(*, GET, logs-*)
+  when { principal.scope == "read:logs-*" };
+
+forbid(*, *, .opendistro_security);</textarea>
+    <div class="examples">
+      <button onclick="loadExample('readonly')">Read-only</button>
+      <button onclick="loadExample('multitenant')">Multi-tenant</button>
+      <button onclick="loadExample('admin')">Admin override</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Request</h2>
+    <label>Principal (sub)</label>
+    <input type="text" id="sub" value="ci-agent">
+    <label>Scope</label>
+    <input type="text" id="scope" value="read:logs-*">
+    <label>Issuer</label>
+    <input type="text" id="iss" value="https://keycloak.example.com">
+    <label>Action (HTTP method)</label>
+    <input type="text" id="action" value="GET">
+    <label>Resource (index)</label>
+    <input type="text" id="resource" value="logs-2026.04">
+  </div>
+</div>
+
+<div style="text-align:center">
+  <button onclick="evaluate()">▶ Evaluate</button>
+</div>
+
+<div id="result"></div>
+
+<footer>oauth4os Cedar Policy Playground — <a href="https://github.com/seraphjiang/oauth4os" style="color:var(--accent)">GitHub</a></footer>
+
+<script>
+// Minimal Cedar evaluator (matches Go engine semantics)
+function parsePolicies(text) {
+  const policies = [];
+  const blocks = text.split(';').map(s => s.trim()).filter(Boolean);
+  for (const block of blocks) {
+    try { policies.push(parsePolicy(block)); } catch(e) { policies.push({error: e.message, raw: block}); }
+  }
+  return policies;
+}
+
+function parsePolicy(text) {
+  const m = text.match(/^(permit|forbid)\s*\(([^)]+)\)/);
+  if (!m) throw new Error('Expected permit(...) or forbid(...)');
+  const effect = m[1];
+  const targets = m[2].split(',').map(s => s.trim());
+  if (targets.length !== 3) throw new Error('Expected 3 targets');
+  const rest = text.slice(m[0].length).trim();
+  const when = parseCondBlock(rest, 'when');
+  const unless = parseCondBlock(rest, 'unless');
+  return { effect, principal: parseMatcher(targets[0]), action: parseMatcher(targets[1]), resource: parseMatcher(targets[2]), when, unless };
+}
+
+function parseMatcher(s) {
+  if (s === '*') return {any: true};
+  if (s.includes('*')) return {pattern: s};
+  return {equals: s};
+}
+
+function parseCondBlock(text, keyword) {
+  const idx = text.indexOf(keyword);
+  if (idx < 0) return [];
+  const start = text.indexOf('{', idx);
+  const end = text.indexOf('}', start);
+  if (start < 0 || end < 0) return [];
+  return text.slice(start+1, end).split('&&').map(s => s.trim()).filter(Boolean).map(parseCond);
+}
+
+function parseCond(s) {
+  for (const op of ['!=', '==', ' contains ', ' in ']) {
+    const idx = s.indexOf(op);
+    if (idx >= 0) return {field: s.slice(0, idx).trim(), op: op.trim(), value: s.slice(idx+op.length).trim().replace(/"/g, '')};
+  }
+  return {field: s, op: '==', value: ''};
+}
+
+function matchTarget(m, value) {
+  if (m.any) return true;
+  if (m.equals !== undefined) return m.equals === value;
+  if (m.pattern) return globMatch(m.pattern, value);
+  return false;
+}
+
+function globMatch(pattern, value) {
+  if (pattern === '*') return true;
+  if (!pattern.includes('*')) return pattern === value;
+  const parts = pattern.split('*');
+  if (parts.length === 2) return value.startsWith(parts[0]) && value.endsWith(parts[1]);
+  return false;
+}
+
+function resolveField(field, req) {
+  const [ns, key] = field.split('.', 2);
+  if (ns === 'principal') return req.principal[key] || '';
+  if (ns === 'resource') return req.resource[key] || '';
+  if (ns === 'action') return req.action;
+  return '';
+}
+
+function evalConds(conds, req) {
+  for (const c of conds) {
+    const val = resolveField(c.field, req);
+    if (c.op === '==' && val !== c.value) return false;
+    if (c.op === '!=' && val === c.value) return false;
+    if (c.op === 'contains' && !val.includes(c.value)) return false;
+    if (c.op === 'in' && !c.value.split(',').map(s=>s.trim()).includes(val)) return false;
+  }
+  return true;
+}
+
+function evaluate() {
+  const policies = parsePolicies(document.getElementById('policies').value);
+  const req = {
+    principal: { sub: document.getElementById('sub').value, scope: document.getElementById('scope').value, iss: document.getElementById('iss').value },
+    action: document.getElementById('action').value,
+    resource: { index: document.getElementById('resource').value }
+  };
+
+  const errors = policies.filter(p => p.error);
+  if (errors.length) {
+    showResult('error', '⚠ Parse error: ' + errors[0].error + '\n→ ' + errors[0].raw);
+    return;
+  }
+
+  let permitMatch = null;
+  for (const p of policies) {
+    if (!matchTarget(p.principal, req.principal.sub)) continue;
+    if (!matchTarget(p.action, req.action)) continue;
+    if (!matchTarget(p.resource, req.resource.index)) continue;
+    if (!evalConds(p.when, req)) continue;
+    if (evalConds(p.unless, req)) continue;
+    if (p.effect === 'forbid') { showResult('deny', '✗ DENIED by forbid policy'); return; }
+    if (!permitMatch) permitMatch = p;
+  }
+
+  if (permitMatch) showResult('permit', '✓ PERMITTED');
+  else showResult('deny', '✗ DENIED — no matching permit policy');
+}
+
+function showResult(cls, msg) {
+  document.getElementById('result').innerHTML = '<div class="result ' + cls + '">' + msg + '</div>';
+}
+
+const examples = {
+  readonly: { policies: 'permit(*, GET, logs-*)\n  when { principal.scope == "read:logs-*" };\n\nforbid(*, *, .opendistro_security);', sub: 'reader', scope: 'read:logs-*', iss: '', action: 'GET', resource: 'logs-2026' },
+  multitenant: { policies: 'permit(*, GET, logs-*)\n  when { principal.iss == "https://tenant-a.example.com" };\n\npermit(*, *, *)\n  when { principal.iss == "https://admin.example.com" };', sub: 'agent', scope: 'read:logs-*', iss: 'https://tenant-a.example.com', action: 'GET', resource: 'logs-2026' },
+  admin: { policies: 'permit(*, *, *)\n  when { principal.scope == "admin" };\n\nforbid(*, DELETE, *)\n  unless { principal.scope == "admin" };', sub: 'admin-user', scope: 'admin', iss: '', action: 'DELETE', resource: 'logs-2026' }
+};
+
+function loadExample(name) {
+  const e = examples[name];
+  document.getElementById('policies').value = e.policies;
+  document.getElementById('sub').value = e.sub;
+  document.getElementById('scope').value = e.scope;
+  document.getElementById('iss').value = e.iss;
+  document.getElementById('action').value = e.action;
+  document.getElementById('resource').value = e.resource;
+  document.getElementById('result').innerHTML = '';
+}
+</script>
+</body>
+</html>

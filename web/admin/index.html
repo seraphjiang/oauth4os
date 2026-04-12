@@ -96,6 +96,7 @@ async function loadTab() {
     case 'audit': await renderAudit(el); break;
     case 'clusters': await renderClusters(el); break;
     case 'apikeys': await renderApiKeys(el); break;
+    case 'webhooks': await renderWebhooks(el); break;
   }
 }
 
@@ -185,6 +186,52 @@ async function deleteKey(id) {
   if (!id) return;
   await fetch(API + '/admin/apikeys/' + id, { method: 'DELETE' });
   loadTab();
+}
+
+async function renderWebhooks(el) {
+  const events = ['token.issued','token.revoked','token.refreshed','client.registered','client.deleted'];
+  el.innerHTML = `<div class="toolbar"><h2>Webhook Notifications</h2></div>
+    <div class="card"><h3>Event Types</h3>
+      <table><thead><tr><th>Event</th><th>Description</th><th>Test</th></tr></thead><tbody>
+        ${events.map(e => `<tr><td><code>${esc(e)}</code></td>
+          <td style="color:var(--muted);font-size:11px">${esc(eventDesc(e))}</td>
+          <td><button class="btn btn-sm" aria-label="Test ${e} webhook" onclick="testWebhook('${e}')">⚡ Test</button></td></tr>`).join('')}
+      </tbody></table>
+    </div>
+    <div class="card"><h3>Payload Format</h3>
+      <pre style="background:var(--bg);padding:12px;border-radius:6px;font-size:11px;overflow-x:auto">{
+  "type": "token.issued",
+  "client_id": "my-service",
+  "scopes": ["read:logs-*"],
+  "timestamp": "${new Date().toISOString()}",
+  "request_id": "abc123"
+}</pre>
+    </div>
+    <div class="card"><h3>Configuration</h3>
+      <div class="kv">
+        <div class="k">Config Key</div><div class="v"><code>webhook_urls</code> in config.yaml</div>
+        <div class="k">Method</div><div class="v">POST</div>
+        <div class="k">Content-Type</div><div class="v">application/json</div>
+        <div class="k">Timeout</div><div class="v">5 seconds</div>
+        <div class="k">Delivery</div><div class="v">Async (buffered channel, 100 capacity)</div>
+        <div class="k">Retry</div><div class="v">None (fire-and-forget)</div>
+      </div>
+    </div>
+    <div id="webhookResult"></div>`;
+}
+
+function eventDesc(e) {
+  const m = {'token.issued':'Fired when a new access token is created','token.revoked':'Fired when a token is revoked','token.refreshed':'Fired when a token is refreshed','client.registered':'Fired when a new OAuth client registers','client.deleted':'Fired when a client is deleted'};
+  return m[e] || e;
+}
+
+async function testWebhook(eventType) {
+  const el = document.getElementById('webhookResult');
+  el.innerHTML = '<div class="card" style="border-color:var(--accent)"><h3>⏳ Sending test event...</h3></div>';
+  const payload = { type: eventType, client_id: 'test-webhook', scopes: ['read:logs-*'], timestamp: new Date().toISOString(), request_id: 'test-' + Date.now().toString(36) };
+  el.innerHTML = `<div class="card" style="border-color:var(--green)"><h3>✅ Test Event Payload</h3>
+    <pre style="background:var(--bg);padding:12px;border-radius:6px;font-size:11px;overflow-x:auto">${esc(JSON.stringify(payload, null, 2))}</pre>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Event would be delivered to all configured webhook_urls. Configure URLs in config.yaml to receive events.</div></div>`;
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }

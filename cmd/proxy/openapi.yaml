@@ -1169,3 +1169,81 @@ components:
           format: uri
 
   # --- v0.5.0 Endpoints ---
+
+  # --- v2.0.0 Endpoints ---
+
+  /oauth/userinfo:
+    get:
+      summary: OIDC UserInfo (§5.3)
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: User claims
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sub: { type: string }
+                  scope: { type: string }
+        '401':
+          description: Invalid or missing token
+
+  /admin/keys/rotate:
+    post:
+      summary: Trigger JWKS key rotation
+      responses:
+        '200':
+          description: Key rotated
+
+  /admin/api/clients/{id}/tokens:
+    delete:
+      summary: Revoke all tokens for a client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Tokens revoked
+
+  /feedback:
+    get:
+      summary: List feedback entries
+      responses:
+        '200':
+          description: Feedback list
+    post:
+      summary: Submit feedback
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string }
+                rating: { type: integer }
+      responses:
+        '201':
+          description: Feedback submitted
+
+  /feedback/{id}:
+    put:
+      summary: Update feedback entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Updated
+
+  /my-feedback:
+    get:
+      summary: Get current user's feedback
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: User feedback entries

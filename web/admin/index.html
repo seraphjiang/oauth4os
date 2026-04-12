@@ -121,6 +121,19 @@ async function renderHealth(el) {
       <div class="k">Clients</div><div class="v">${deep.clients ?? '—'}</div>
       <div class="k">Active Tokens</div><div class="v">${deep.active_tokens ?? '—'}</div>
     </div></div>`;
+  // Load shedding stats from metrics
+  let metricsText = '';
+  try { metricsText = await fetch(API + '/metrics').then(r => r.text()); } catch {}
+  const lines = metricsText.split('\n').filter(l => l && !l.startsWith('#'));
+  const active = lines.find(l => l.startsWith('oauth4os_active_requests'))?.split(' ')[1] || '0';
+  const rejected = lines.find(l => l.includes('loadshed_rejected'))?.split(' ')[1] || '0';
+  const totalReqs = lines.find(l => l.startsWith('oauth4os_requests_total'))?.split(' ')[1] || '0';
+  el.innerHTML += `<div class="card"><h3>Load Shedding</h3><div class="kv">
+    <div class="k">Active Requests</div><div class="v">${esc(active)}</div>
+    <div class="k">Rejected (503)</div><div class="v" style="color:${parseInt(rejected) > 0 ? 'var(--red)' : 'var(--green)'}">${esc(rejected)}</div>
+    <div class="k">Total Requests</div><div class="v">${esc(totalReqs)}</div>
+    <div class="k">Shed Rate</div><div class="v">${totalReqs > 0 ? (parseInt(rejected) / parseInt(totalReqs) * 100).toFixed(2) + '%' : '0%'}</div>
+  </div></div>`;
 }
 
 async function renderSessions(el) {

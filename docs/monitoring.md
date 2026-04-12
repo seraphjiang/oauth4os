@@ -131,7 +131,7 @@ In addition to Prometheus metrics, use these for monitoring:
 
 | Endpoint | Use Case | Response |
 |----------|----------|----------|
-| `GET /health` | Load balancer probe | `{"status":"ok","version":"0.4.0"}` |
+| `GET /health` | Load balancer probe | `{"status":"ok","version":"1.0.0"}` |
 | `GET /health/deep` | Monitoring dashboard | Checks upstream, JWKS, TLS cert |
 | `GET /admin/analytics` | Usage dashboard | Top clients, scope distribution |
 

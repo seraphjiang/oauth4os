@@ -420,7 +420,7 @@ The proxy reads these environment variables (override config.yaml):
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /health` | Basic health — returns `{"status":"ok","version":"0.2.0"}` |
+| `GET /health` | Basic health — returns `{"status":"ok","version":"1.0.0"}` |
 | `GET /health/deep` | Deep health — checks upstream connectivity, JWKS freshness, TLS cert expiry |
 
 Use `/health` for load balancer health checks (fast, no external calls). Use `/health/deep` for monitoring dashboards.

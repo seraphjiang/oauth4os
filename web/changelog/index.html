@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os release history and changelog">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Changelog</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--purple:#bc8cff;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--purple:#8250df;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}
+header nav a{color:var(--muted);font-size:13px}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+.container{max-width:700px;margin:0 auto;padding:24px 20px}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+.release{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px}
+.release h2{font-size:16px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.release .date{color:var(--muted);font-size:12px}
+.release h3{font-size:13px;margin:12px 0 6px;color:var(--green)}
+.release h3.fixed{color:var(--orange)}
+.release ul{padding-left:20px;font-size:13px}
+.release li{margin-bottom:3px}
+.tag{display:inline-block;padding:1px 8px;border-radius:12px;font-size:11px;font-weight:600;background:var(--accent);color:#fff}
+.tag.latest{background:var(--green)}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">📋 Change<span>log</span></div>
+  <nav>
+    <a href="status/">Status</a>
+    <a href="./">← oauth4os</a>
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button>
+  </nav>
+</header>
+<div class="container" id="main">
+  <h1>Changelog</h1>
+  <p class="sub">All notable changes to oauth4os. <a href="https://github.com/seraphjiang/oauth4os/blob/main/CHANGELOG.md">View on GitHub</a></p>
+  <div id="releases"><div class="loading">Loading changelog...</div></div>
+</div>
+<script>
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+async function load(){
+  const el=document.getElementById('releases');
+  try{
+    // Try fetching CHANGELOG.md from the proxy (served as static)
+    let text='';
+    try{const r=await fetch('/CHANGELOG.md');if(r.ok)text=await r.text();}catch{}
+    if(!text){
+      // Fallback: fetch from GitHub raw
+      try{const r=await fetch('https://raw.githubusercontent.com/seraphjiang/oauth4os/main/CHANGELOG.md');if(r.ok)text=await r.text();}catch{}
+    }
+    if(!text){el.innerHTML='<p style="color:var(--muted)">Could not load changelog. <a href="https://github.com/seraphjiang/oauth4os/blob/main/CHANGELOG.md">View on GitHub</a></p>';return;}
+    el.innerHTML=parseChangelog(text);
+  }catch(e){el.innerHTML='<p style="color:var(--red)">Error: '+esc(e.message)+'</p>';}
+}
+
+function parseChangelog(md){
+  const releases=[];
+  let current=null;
+  let section='';
+  for(const line of md.split('\n')){
+    const rm=line.match(/^## \[(.+?)\](?: — (.+))?/);
+    if(rm){
+      if(current)releases.push(current);
+      current={version:rm[1],date:rm[2]||'',sections:[]};
+      section='';
+      continue;
+    }
+    const sm=line.match(/^### (.+)/);
+    if(sm&&current){section=sm[1];current.sections.push({title:section,items:[]});continue;}
+    const im=line.match(/^- (.+)/);
+    if(im&&current&&current.sections.length){
+      current.sections[current.sections.length-1].items.push(im[1]);
+    }
+  }
+  if(current)releases.push(current);
+
+  return releases.map((r,i)=>{
+    const tag=i===0?'<span class="tag latest">latest</span>':'<span class="tag">'+esc(r.version)+'</span>';
+    const secs=r.sections.map(s=>{
+      const cls=s.title.toLowerCase().includes('fix')?'fixed':'';
+      return '<h3 class="'+cls+'">'+esc(s.title)+'</h3><ul>'+s.items.map(it=>'<li>'+esc(it)+'</li>').join('')+'</ul>';
+    }).join('');
+    return '<div class="release"><h2>'+tag+' '+esc(r.version)+'</h2><div class="date">'+esc(r.date)+'</div>'+secs+'</div>';
+  }).join('');
+}
+
+load();
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

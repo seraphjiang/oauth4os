@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -91,4 +93,43 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// Validate checks required fields and returns the first error found.
+func (c *Config) Validate() error {
+	if c.Upstream.Engine == "" && len(c.Clusters) == 0 {
+		return fmt.Errorf("upstream.engine is required (or configure clusters)")
+	}
+	if c.Listen == "" {
+		c.Listen = ":8443"
+	}
+	if c.Upstream.Engine != "" {
+		if _, err := url.Parse(c.Upstream.Engine); err != nil {
+			return fmt.Errorf("upstream.engine: invalid URL: %w", err)
+		}
+	}
+	if c.Upstream.Dashboards != "" {
+		if _, err := url.Parse(c.Upstream.Dashboards); err != nil {
+			return fmt.Errorf("upstream.dashboards: invalid URL: %w", err)
+		}
+	}
+	seen := make(map[string]bool)
+	for _, p := range c.Providers {
+		if p.Issuer == "" {
+			return fmt.Errorf("provider %q: issuer is required", p.Name)
+		}
+		if seen[p.Name] {
+			return fmt.Errorf("duplicate provider name: %q", p.Name)
+		}
+		seen[p.Name] = true
+	}
+	for scope := range c.ScopeMapping {
+		if scope == "" {
+			return fmt.Errorf("scope_mapping: empty scope key")
+		}
+	}
+	if c.TLS.Enabled && (c.TLS.CertFile == "" || c.TLS.KeyFile == "") {
+		return fmt.Errorf("tls: cert_file and key_file required when tls.enabled=true")
+	}
+	return nil
 }

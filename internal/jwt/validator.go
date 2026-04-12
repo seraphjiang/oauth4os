@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"strings"
@@ -190,17 +191,17 @@ func (v *Validator) getJWKS(provider *config.Provider, forceRefresh bool) ([]jwk
 
 	jwksURI, err := v.resolveJWKSURI(provider)
 	if err != nil {
-		return nil, err
+		return v.fallbackCache(provider.Issuer, err)
 	}
 
 	resp, err := v.client.Get(jwksURI)
 	if err != nil {
-		return nil, fmt.Errorf("JWKS request failed: %w", err)
+		return v.fallbackCache(provider.Issuer, fmt.Errorf("JWKS request failed: %w", err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("JWKS endpoint returned %d", resp.StatusCode)
+		return v.fallbackCache(provider.Issuer, fmt.Errorf("JWKS endpoint returned %d", resp.StatusCode))
 	}
 
 	var result struct {
@@ -215,6 +216,20 @@ func (v *Validator) getJWKS(provider *config.Provider, forceRefresh bool) ([]jwk
 	v.mu.Unlock()
 
 	return result.Keys, nil
+}
+
+// fallbackCache returns stale cached JWKS (up to 24hr) when fetch fails.
+// Logs warning but doesn't reject tokens — graceful degradation.
+func (v *Validator) fallbackCache(issuer string, fetchErr error) ([]jwksKey, error) {
+	v.mu.RLock()
+	cached, ok := v.jwksCache[issuer]
+	v.mu.RUnlock()
+	if ok && time.Since(cached.FetchedAt) < 24*time.Hour {
+		log.Printf("[WARN] JWKS fetch failed for %s, using stale cache (%s old): %v",
+			issuer, time.Since(cached.FetchedAt).Round(time.Second), fetchErr)
+		return cached.Keys, nil
+	}
+	return nil, fetchErr
 }
 
 // resolveJWKSURI uses OIDC discovery if jwks_uri is "auto" or empty.

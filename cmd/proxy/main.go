@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
@@ -42,6 +44,8 @@ import (
 
 const version = "0.2.0"
 
+const landingPage = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>oauth4os — OAuth 2.0 Proxy for OpenSearch</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,system-ui,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem}.hero{text-align:center;max-width:700px;margin:3rem 0}.hero h1{font-size:2.5rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}.hero p{color:#888;font-size:1.1rem;margin-bottom:2rem}.badge{display:inline-block;padding:.3rem .8rem;border-radius:20px;font-size:.8rem;margin:.2rem;background:rgba(99,102,241,.15);color:#818cf8}.endpoints{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;width:100%;max-width:800px;margin:2rem 0}.card{background:#12121a;border:1px solid #1e1e2e;border-radius:10px;padding:1.2rem}.card h3{color:#818cf8;font-size:.9rem;margin-bottom:.5rem}.card code{background:#1a1a2e;padding:.2rem .5rem;border-radius:4px;font-size:.85rem;color:#a5b4fc;word-break:break-all}.card p{color:#666;font-size:.8rem;margin-top:.5rem}a{color:#818cf8;text-decoration:none}a:hover{text-decoration:underline}.footer{margin-top:3rem;color:#444;font-size:.8rem}</style></head><body><div class="hero"><h1>☁️ oauth4os</h1><p>OAuth 2.0 Proxy for OpenSearch — secure machine-to-machine access with scoped tokens</p><span class="badge">Go 1.22</span><span class="badge">Apache 2.0</span><span class="badge">4 OAuth RFCs</span><span class="badge">Cedar Policies</span><span class="badge">340+ Tests</span></div><div class="endpoints"><div class="card"><h3>🔍 OIDC Discovery</h3><code><a href="/.well-known/openid-configuration">/.well-known/openid-configuration</a></code><p>OpenID Connect discovery endpoint</p></div><div class="card"><h3>🔑 JWKS</h3><code><a href="/.well-known/jwks.json">/.well-known/jwks.json</a></code><p>JSON Web Key Set for token verification</p></div><div class="card"><h3>💚 Health</h3><code><a href="/health">/health</a></code><p>Proxy health check + version</p></div><div class="card"><h3>📊 Metrics</h3><code><a href="/metrics">/metrics</a></code><p>Prometheus metrics endpoint</p></div><div class="card"><h3>🎫 Token</h3><code>POST /oauth/token</code><p>Issue scoped access tokens (client_credentials, PKCE, token exchange)</p></div><div class="card"><h3>🔎 Introspect</h3><code>POST /oauth/introspect</code><p>RFC 7662 token introspection</p></div></div><div class="footer"><p>GitHub: <a href="https://github.com/seraphjiang/oauth4os">seraphjiang/oauth4os</a> · RFC: <a href="https://github.com/opensearch-project/.github/issues/491">opensearch-project/.github#491</a></p></div></body></html>`
+
 // Prometheus-style metrics
 var (
 	requestsTotal   atomic.Int64
@@ -62,6 +66,9 @@ func main() {
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Invalid config: %v", err)
 	}
 
 	validator := jwt.NewValidator(cfg.Providers)
@@ -238,6 +245,68 @@ func main() {
 			version, int(time.Since(startTime).Seconds()))
 	})
 
+	// Deep health — checks upstream, JWKS, TLS cert
+	healthClient := &http.Client{Timeout: 5 * time.Second, Transport: transport}
+	mux.HandleFunc("GET /health/deep", func(w http.ResponseWriter, r *http.Request) {
+		type check struct {
+			Status string `json:"status"`
+			Detail string `json:"detail,omitempty"`
+		}
+		result := map[string]check{}
+		overall := "ok"
+
+		// Check upstream OpenSearch
+		resp, err := healthClient.Get(cfg.Upstream.Engine)
+		if err != nil {
+			result["upstream"] = check{"error", err.Error()}
+			overall = "degraded"
+		} else {
+			resp.Body.Close()
+			result["upstream"] = check{"ok", fmt.Sprintf("status=%d", resp.StatusCode)}
+		}
+
+		// Check JWKS for each provider
+		for _, p := range cfg.Providers {
+			uri := p.JWKSURI
+			if uri == "" || uri == "auto" {
+				uri = strings.TrimSuffix(p.Issuer, "/") + "/.well-known/openid-configuration"
+			}
+			resp, err := healthClient.Get(uri)
+			if err != nil {
+				result["jwks_"+p.Name] = check{"error", err.Error()}
+				overall = "degraded"
+			} else {
+				resp.Body.Close()
+				result["jwks_"+p.Name] = check{"ok", fmt.Sprintf("status=%d", resp.StatusCode)}
+			}
+		}
+
+		// Check TLS cert expiry if enabled
+		if cfg.TLS.Enabled && cfg.TLS.CertFile != "" {
+			if certPEM, err := os.ReadFile(cfg.TLS.CertFile); err == nil {
+				block, _ := pem.Decode(certPEM)
+				if block != nil {
+					if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
+						days := int(time.Until(cert.NotAfter).Hours() / 24)
+						status := "ok"
+						if days < 30 {
+							status = "warning"
+							overall = "degraded"
+						}
+						result["tls_cert"] = check{status, fmt.Sprintf("expires_in_days=%d", days)}
+					}
+				}
+			}
+		}
+
+		result["overall"] = check{overall, ""}
+		w.Header().Set("Content-Type", "application/json")
+		if overall != "ok" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		json.NewEncoder(w).Encode(result)
+	})
+
 	// OIDC Discovery
 	var scopeNames []string
 	for s := range cfg.ScopeMapping {
@@ -344,6 +413,12 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_uptime_seconds Proxy uptime\n")
 		fmt.Fprintf(w, "# TYPE oauth4os_uptime_seconds gauge\n")
 		fmt.Fprintf(w, "oauth4os_uptime_seconds %d\n", int(time.Since(startTime).Seconds()))
+	})
+
+	// Serve landing page at root
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, landingPage)
 	})
 
 	// Proxy all other requests

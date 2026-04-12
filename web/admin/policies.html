@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os Cedar policy editor">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Policies</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}.container{max-width:800px;margin:0 auto;padding:20px}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}header nav a{color:var(--muted);font-size:13px}
+h1{font-size:20px;margin-bottom:4px}.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.toolbar{display:flex;gap:8px;margin-bottom:12px}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn:hover{border-color:var(--accent)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-danger{border-color:var(--red);color:var(--red)}
+.policy{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:8px}
+.policy h3{font-size:13px;display:flex;justify-content:space-between;align-items:center}
+.policy pre{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:11px;margin-top:8px;overflow-x:auto;font-family:'SF Mono',Consolas,monospace}
+.permit{color:var(--green)}.forbid{color:var(--red)}
+.editor{margin-top:16px;display:none}.editor.show{display:block}
+.editor textarea{width:100%;height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:'SF Mono',Consolas,monospace;font-size:12px;resize:vertical}
+.editor input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px;margin-bottom:8px;width:100%}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">📜 <span>Policies</span></div>
+  <nav><a href="clients.html">Clients</a><a href="tokens.html">Tokens</a><a href="keys.html">Keys</a><a href="./">Admin</a><a href="../">← oauth4os</a><button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button></nav>
+</header>
+<div class="container" id="main">
+  <h1>Cedar Policies</h1>
+  <p class="sub">Authorization policies controlling access to OpenSearch indices</p>
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="toggleEditor()" aria-label="Add policy">+ Add Policy</button>
+    <button class="btn" onclick="load()" aria-label="Refresh">↻ Refresh</button>
+  </div>
+  <div class="editor" id="editor">
+    <input id="policyId" placeholder="Policy ID (e.g. allow-readonly)">
+    <textarea id="policyText" placeholder='permit(principal, action == Action::"read", resource) when { principal.scope.contains("read:logs-*") };'></textarea>
+    <button class="btn btn-primary" onclick="addPolicy()">Save Policy</button>
+    <button class="btn" onclick="toggleEditor()">Cancel</button>
+  </div>
+  <div id="list"><div class="empty">Loading...</div></div>
+</div>
+<script>
+const API=window.location.origin;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+function toggleEditor(){document.getElementById('editor').classList.toggle('show')}
+
+async function load(){
+  try{
+    const r=await fetch(API+'/admin/cedar-policies');
+    const data=await r.json();
+    const policies=Array.isArray(data)?data:data.policies||[];
+    render(policies);
+  }catch(e){document.getElementById('list').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>'}
+}
+
+function render(policies){
+  const el=document.getElementById('list');
+  if(!policies.length){el.innerHTML='<div class="empty">No policies configured</div>';return}
+  el.innerHTML=policies.map(p=>{
+    const effect=(p.effect||'permit').toLowerCase();
+    return `<div class="policy"><h3><span class="${effect}">${esc(p.id||p.ID||'unnamed')}</span><button class="btn btn-danger" onclick="del('${esc(p.id||p.ID)}')">🗑 Delete</button></h3><pre>${esc(p.policy||p.text||JSON.stringify(p,null,2))}</pre></div>`;
+  }).join('');
+}
+
+async function addPolicy(){
+  const id=document.getElementById('policyId').value.trim();
+  const text=document.getElementById('policyText').value.trim();
+  if(!id||!text)return;
+  await fetch(API+'/admin/cedar-policies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,policy:text})});
+  toggleEditor();load();
+}
+
+async function del(id){
+  if(!confirm('Delete policy "'+id+'"?'))return;
+  await fetch(API+'/admin/cedar-policies/'+encodeURIComponent(id),{method:'DELETE'});
+  load();
+}
+
+load();
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+<meta name="description" content="oauth4os JWKS key management">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Keys</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--orange:#f0883e;--red:#f85149}
+[data-theme="light"]{--bg:#f6f8fa;--surface:#fff;--border:#d0d7de;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#bc4c00;--red:#cf222e}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none}.container{max-width:700px;margin:0 auto;padding:20px}
+header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:16px;font-weight:700}.logo span{color:var(--accent)}
+header nav{display:flex;gap:12px;align-items:center}header nav a{color:var(--muted);font-size:13px}
+h1{font-size:20px;margin-bottom:4px}.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;margin-bottom:12px}
+.btn:hover{border-color:var(--accent)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.key{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:8px}
+.key h3{font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.key pre{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:10px;overflow-x:auto;font-family:'SF Mono',Consolas,monospace;max-height:120px}
+.kv{display:grid;grid-template-columns:100px 1fr;gap:4px;font-size:12px;margin-bottom:8px}
+.kv .k{color:var(--muted)}.kv .v{font-family:'SF Mono',Consolas,monospace;font-size:11px}
+.current{border-color:var(--green)}.current h3::after{content:'current';font-size:10px;background:var(--green);color:#fff;padding:1px 6px;border-radius:8px}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.theme-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:13px;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🔑 <span>Keys</span></div>
+  <nav><a href="clients.html">Clients</a><a href="tokens.html">Tokens</a><a href="policies.html">Policies</a><a href="./">Admin</a><a href="../">← oauth4os</a><button class="theme-btn" id="themeToggle" aria-label="Toggle theme">🌓</button></nav>
+</header>
+<div class="container" id="main">
+  <h1>Signing Keys (JWKS)</h1>
+  <p class="sub">JSON Web Key Set used to sign and verify tokens</p>
+  <button class="btn" onclick="load()" aria-label="Refresh">↻ Refresh</button>
+  <button class="btn" onclick="copyJWKS()" aria-label="Copy JWKS">📋 Copy JWKS</button>
+  <div id="list"><div class="empty">Loading...</div></div>
+</div>
+<script>
+const API=window.location.origin;
+let jwksData=null;
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+
+async function load(){
+  try{
+    const r=await fetch(API+'/.well-known/jwks.json');
+    jwksData=await r.json();
+    const keys=jwksData.keys||[];
+    render(keys);
+  }catch(e){document.getElementById('list').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>'}
+}
+
+function render(keys){
+  const el=document.getElementById('list');
+  if(!keys.length){el.innerHTML='<div class="empty">No keys found</div>';return}
+  el.innerHTML=keys.map((k,i)=>`
+    <div class="key ${i===0?'current':''}">
+      <h3>🔑 ${esc(k.kid||'key-'+i)}</h3>
+      <div class="kv">
+        <div class="k">Algorithm</div><div class="v">${esc(k.alg||'ES256')}</div>
+        <div class="k">Key Type</div><div class="v">${esc(k.kty||'EC')}</div>
+        <div class="k">Use</div><div class="v">${esc(k.use||'sig')}</div>
+        <div class="k">Curve</div><div class="v">${esc(k.crv||'—')}</div>
+      </div>
+      <pre>${esc(JSON.stringify(k,null,2))}</pre>
+    </div>`).join('');
+}
+
+function copyJWKS(){
+  if(jwksData)navigator.clipboard.writeText(JSON.stringify(jwksData,null,2));
+}
+
+load();
+document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
+</script>
+</body>
+</html>

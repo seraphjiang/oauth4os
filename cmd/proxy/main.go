@@ -209,6 +209,7 @@ func main() {
 		r.Header.Del("Authorization")
 		r.Header.Set("X-Proxy-User", claims.ClientID)
 		r.Header.Set("X-Proxy-Roles", strings.Join(roles, ","))
+		r.Header.Set("X-Proxy-Scopes", strings.Join(claims.Scopes, ","))
 
 		auditor.Log(claims.ClientID, claims.Scopes, r.Method, r.URL.Path)
 

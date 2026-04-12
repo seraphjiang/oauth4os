@@ -23,6 +23,11 @@ scope_mapping:
 
 listen: :8443
 
+rate_limits:
+  "read:logs-*": 600     # 600 req/min for log readers
+  "write:logs-*": 120    # 120 req/min for writers
+  "admin": 60            # 60 req/min for admin operations
+
 # Per-tenant isolation: each OIDC provider gets its own scope mapping and Cedar policies.
 # Tokens from a tenant issuer use that tenant's config; others fall back to global scope_mapping.
 tenants:

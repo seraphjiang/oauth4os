@@ -462,13 +462,6 @@ func (m *Manager) ListActiveTokens() []map[string]interface{} {
 	return out
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // CreateTokenForClient creates a token for a client (used by PKCE flow).
 func (m *Manager) CreateTokenForClient(clientID string, scopes []string) (*Token, string) {
 	return m.createToken(clientID, scopes)

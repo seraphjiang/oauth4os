@@ -44,7 +44,7 @@ func Handler(cfg Config, scopes []string) http.HandlerFunc {
 		JWKSURI:               base + "/.well-known/jwks.json",
 		AuthorizationEndpoint: base + "/oauth/authorize",
 		ResponseTypesSupported: []string{"code"},
-		GrantTypesSupported:   []string{"client_credentials", "authorization_code"},
+		GrantTypesSupported:   []string{"client_credentials", "authorization_code", "urn:ietf:params:oauth:grant-type:token-exchange"},
 		TokenEndpointAuth:     []string{"client_secret_post", "none"},
 		ScopesSupported:       scopes,
 		CodeChallengeMethods:  []string{"S256"},

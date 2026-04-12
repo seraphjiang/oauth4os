@@ -246,6 +246,7 @@ func main() {
 			r.Header.Del("X-Proxy-Roles")
 			r.Header.Del("X-Proxy-Scopes")
 			r.Header.Del("Cookie")
+			r.Header.Del("Proxy-Authorization")
 			engineProxy.ServeHTTP(w, r)
 			return
 		}

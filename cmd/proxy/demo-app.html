@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oauth4os — Log Viewer Demo</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--orange:#db6d28}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+button{cursor:pointer;border:none;border-radius:6px;padding:8px 16px;font-size:14px;font-weight:500}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#4c9aed}
+.btn-danger{background:var(--red);color:#fff}
+input,select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;font-size:14px;outline:none}
+input:focus{border-color:var(--accent)}
+
+/* Layout */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:18px;font-weight:600}
+.header h1 span{color:var(--accent)}
+.user-info{display:flex;align-items:center;gap:12px}
+.user-info .scopes{font-size:12px;color:var(--muted)}
+.container{max-width:1200px;margin:0 auto;padding:24px}
+
+/* Login page */
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:24px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;max-width:440px}
+.login-card h2{font-size:24px;margin-bottom:8px}
+.login-card p{color:var(--muted);margin-bottom:24px}
+.login-card .demo-note{font-size:12px;color:var(--muted);margin-top:16px}
+.scope-demo{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:24px;text-align:left}
+.scope-demo h3{font-size:14px;margin-bottom:8px}
+.scope-demo .row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px}
+.scope-demo .check{color:var(--green)}
+.scope-demo .cross{color:var(--red)}
+
+/* Search bar */
+.search-bar{display:flex;gap:8px;margin-bottom:16px}
+.search-bar input{flex:1}
+.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filters select{min-width:140px}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.stat-card .value{font-size:28px;font-weight:700}
+.stat-card .label{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* Log entries */
+.log-table{width:100%;border-collapse:collapse}
+.log-table th{text-align:left;padding:8px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)}
+.log-table td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;font-family:'SF Mono',Consolas,monospace;vertical-align:top}
+.log-table tr:hover{background:var(--surface)}
+.level{padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600}
+.level-ERROR{background:rgba(248,81,73,.15);color:var(--red)}
+.level-WARN{background:rgba(210,153,34,.15);color:var(--yellow)}
+.level-INFO{background:rgba(63,185,80,.15);color:var(--green)}
+.level-DEBUG{background:rgba(139,148,158,.15);color:var(--muted)}
+.service-tag{color:var(--accent);font-weight:500}
+.timestamp{color:var(--muted);white-space:nowrap}
+.empty{text-align:center;padding:48px;color:var(--muted)}
+.error-msg{background:rgba(248,81,73,.1);border:1px solid var(--red);border-radius:8px;padding:16px;margin:16px 0;color:var(--red)}
+.loading{text-align:center;padding:24px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- Login Page -->
+<div id="login-page" class="login-page">
+  <div class="login-card">
+    <h2>🔐 oauth4os Demo</h2>
+    <p>Log viewer powered by OAuth 2.0 + OpenSearch</p>
+    <button class="btn-primary" onclick="startLogin()" style="width:100%;padding:12px;font-size:16px">
+      Login with oauth4os
+    </button>
+    <div class="scope-demo">
+      <h3>Scope Enforcement Demo</h3>
+      <div class="row"><span class="check">✅</span> <code>read:logs</code> — search and view logs</div>
+      <div class="row"><span class="cross">❌</span> <code>write:logs</code> — blocked by Cedar policy</div>
+    </div>
+    <p class="demo-note">Uses PKCE (RFC 7636) — no client secret in the browser</p>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" style="display:none">
+  <div class="header">
+    <h1>📊 <span>oauth4os</span> Log Viewer</h1>
+    <div class="user-info">
+      <span class="scopes" id="scope-display"></span>
+      <button class="btn-danger" onclick="logout()" style="padding:6px 12px;font-size:12px">Logout</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="stats" id="stats"></div>
+    <div class="search-bar">
+      <input type="text" id="query" placeholder="Search logs... (e.g. level:ERROR, timeout, payment)" autofocus>
+      <button class="btn-primary" onclick="search()">Search</button>
+    </div>
+    <div class="filters">
+      <select id="service-filter" onchange="search()"><option value="">All Services</option></select>
+      <select id="level-filter" onchange="search()">
+        <option value="">All Levels</option>
+        <option value="ERROR">ERROR</option>
+        <option value="WARN">WARN</option>
+        <option value="INFO">INFO</option>
+        <option value="DEBUG">DEBUG</option>
+      </select>
+    </div>
+    <div id="results"></div>
+  </div>
+</div>
+
+<script>
+const PROXY = location.origin;
+const CLIENT_ID = 'demo-webapp';
+const REDIRECT_URI = location.origin + '/demo/app';
+let accessToken = sessionStorage.getItem('oauth4os_token');
+
+// PKCE helpers
+function base64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function generatePKCE() {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = base64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  return { verifier, challenge };
+}
+
+// Login
+async function startLogin() {
+  const { verifier, challenge } = await generatePKCE();
+  sessionStorage.setItem('pkce_verifier', verifier);
+  const state = base64url(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem('oauth_state', state);
+  const params = new URLSearchParams({
+    response_type: 'code', client_id: CLIENT_ID, redirect_uri: REDIRECT_URI,
+    code_challenge: challenge, code_challenge_method: 'S256',
+    scope: 'read:logs', state
+  });
+  location.href = PROXY + '/oauth/authorize?' + params;
+}
+
+// Handle callback
+async function handleCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if (!code) return false;
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  if (!verifier) return false;
+  try {
+    const resp = await fetch(PROXY + '/oauth/authorize/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code', code, client_id: CLIENT_ID,
+        redirect_uri: REDIRECT_URI, code_verifier: verifier
+      })
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      accessToken = data.access_token;
+      sessionStorage.setItem('oauth4os_token', accessToken);
+      sessionStorage.removeItem('pkce_verifier');
+      history.replaceState({}, '', location.pathname);
+      return true;
+    }
+  } catch(e) { console.error('Token exchange failed:', e); }
+  return false;
+}
+
+function logout() {
+  sessionStorage.removeItem('oauth4os_token');
+  accessToken = null;
+  showLogin();
+}
+
+function showLogin() {
+  document.getElementById('login-page').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+}
+function showDashboard() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  // Decode token for display
+  try {
+    const payload = JSON.parse(atob(accessToken.split('.')[1]));
+    document.getElementById('scope-display').textContent = 'Scopes: ' + (payload.scope || payload.scopes || 'read:logs');
+  } catch(e) {}
+  loadStats();
+  loadServices();
+  search();
+}
+
+// API calls
+async function api(path, body) {
+  const opts = { headers: { 'Authorization': 'Bearer ' + accessToken } };
+  if (body) {
+    opts.method = 'POST';
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const resp = await fetch(PROXY + path, opts);
+  if (resp.status === 401 || resp.status === 403) { logout(); throw new Error('Unauthorized'); }
+  return resp.json();
+}
+
+async function loadStats() {
+  try {
+    const data = await api('/demo-logs/_search', {
+      size: 0,
+      aggs: {
+        total: { value_count: { field: '@timestamp' } },
+        levels: { terms: { field: 'level.keyword' } },
+        services: { cardinality: { field: 'service.keyword' } }
+      }
+    });
+    const levels = {};
+    (data.aggregations?.levels?.buckets || []).forEach(b => levels[b.key] = b.doc_count);
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card"><div class="value">${data.hits?.total?.value || 0}</div><div class="label">Total Logs</div></div>
+      <div class="stat-card"><div class="value" style="color:var(--red)">${levels.ERROR || 0}</div><div class="label">Errors</div></div>
+      <div class="stat-card"><div class="value" style="color:var(--yellow)">${levels.WARN || 0}</div><div class="label">Warnings</div></div>
+      <div class="stat-card"><div class="value">${data.aggregations?.services?.value || 0}</div><div class="label">Services</div></div>
+    `;
+  } catch(e) { console.error('Stats failed:', e); }
+}
+
+async function loadServices() {
+  try {
+    const data = await api('/demo-logs/_search', {
+      size: 0, aggs: { services: { terms: { field: 'service.keyword', size: 50 } } }
+    });
+    const sel = document.getElementById('service-filter');
+    sel.innerHTML = '<option value="">All Services</option>';
+    (data.aggregations?.services?.buckets || []).forEach(b => {
+      sel.innerHTML += `<option value="${b.key}">${b.key} (${b.doc_count})</option>`;
+    });
+  } catch(e) {}
+}
+
+async function search() {
+  const q = document.getElementById('query').value.trim();
+  const service = document.getElementById('service-filter').value;
+  const level = document.getElementById('level-filter').value;
+  const must = [];
+  if (q) must.push({ query_string: { query: q } });
+  if (service) must.push({ term: { 'service.keyword': service } });
+  if (level) must.push({ term: { 'level.keyword': level } });
+  const body = {
+    query: must.length ? { bool: { must } } : { match_all: {} },
+    size: 50, sort: [{ '@timestamp': { order: 'desc' } }]
+  };
+  document.getElementById('results').innerHTML = '<div class="loading">Searching...</div>';
+  try {
+    const data = await api('/demo-logs/_search', body);
+    renderResults(data);
+  } catch(e) {
+    document.getElementById('results').innerHTML = `<div class="error-msg">Search failed: ${e.message}</div>`;
+  }
+}
+
+function renderResults(data) {
+  const hits = data.hits?.hits || [];
+  if (!hits.length) {
+    document.getElementById('results').innerHTML = '<div class="empty">No results found</div>';
+    return;
+  }
+  let html = `<table class="log-table"><thead><tr><th>Time</th><th>Level</th><th>Service</th><th>Message</th></tr></thead><tbody>`;
+  hits.forEach(h => {
+    const s = h._source || {};
+    const ts = (s['@timestamp'] || '').replace('T',' ').replace(/\.\d+Z?$/,'');
+    const lvl = s.level || 'INFO';
+    html += `<tr>
+      <td class="timestamp">${esc(ts)}</td>
+      <td><span class="level level-${lvl}">${lvl}</span></td>
+      <td class="service-tag">${esc(s.service || '-')}</td>
+      <td>${esc(s.message || '')}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('results').innerHTML = html;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Enter key triggers search
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && document.getElementById('dashboard').style.display !== 'none') search(); });
+
+// Init
+(async () => {
+  if (await handleCallback() || accessToken) { showDashboard(); }
+  else { showLogin(); }
+})();
+</script>
+</body>
+</html>

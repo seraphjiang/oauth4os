@@ -62,6 +62,9 @@ var installScript string
 //go:embed oauth4os-demo.sh
 var demoCLIScript string
 
+//go:embed demo-app.html
+var demoAppHTML string
+
 // Prometheus-style metrics
 var (
 	requestsTotal   atomic.Int64
@@ -108,6 +111,10 @@ func main() {
 		logger.Info("client store not loaded", "error", err)
 		clientStore = nil
 	}
+
+	// Pre-register demo clients (idempotent — no redirect URI restriction for demo)
+	tokenMgr.RegisterClient("demo-webapp", "", []string{"read:logs"}, nil)
+	tokenMgr.RegisterClient("demo-cli", "", []string{"read:logs"}, nil)
 
 	// IP filter — per-client allowlist/denylist
 	var ipRules *ipfilter.Rules
@@ -335,6 +342,12 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("Cache-Control", "no-cache")
 		fmt.Fprint(w, demoCLIScript)
+	})
+
+	// Demo web app — log viewer with PKCE login
+	mux.HandleFunc("GET /demo/app", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, demoAppHTML)
 	})
 
 	// Health

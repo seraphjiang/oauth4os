@@ -7,12 +7,19 @@ import (
 )
 
 type Auditor struct {
-	w   io.Writer
-	enc *json.Encoder
+	w     io.Writer
+	enc   *json.Encoder
+	store Store
 }
 
 func NewAuditor(w io.Writer) *Auditor {
 	return &Auditor{w: w, enc: json.NewEncoder(w)}
+}
+
+// WithStore adds persistent storage to the auditor.
+func (a *Auditor) WithStore(s Store) *Auditor {
+	a.store = s
+	return a
 }
 
 type LogEntry struct {
@@ -69,4 +76,15 @@ func (a *Auditor) Emit(e LogEntry) {
 		e.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 	a.enc.Encode(e)
+	if a.store != nil {
+		a.store.Write(e)
+	}
+}
+
+// Query returns audit events matching the filter. Requires a Store.
+func (a *Auditor) Query(f QueryFilter) ([]LogEntry, error) {
+	if a.store == nil {
+		return nil, nil
+	}
+	return a.store.Query(f)
 }

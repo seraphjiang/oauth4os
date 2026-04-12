@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,16 +19,24 @@ func TestMutation_NoURLsNoop(t *testing.T) {
 
 // Mutation: remove timestamp assignment → events must have timestamp
 func TestMutation_TimestampSet(t *testing.T) {
+	var mu sync.Mutex
 	var got Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&got)
+		var e Event
+		json.NewDecoder(r.Body).Decode(&e)
+		mu.Lock()
+		got = e
+		mu.Unlock()
 	}))
 	defer srv.Close()
 	n := New([]string{srv.URL})
 	before := time.Now()
 	n.Emit(Event{Type: TokenIssued, ClientID: "app"})
 	time.Sleep(100 * time.Millisecond)
-	if got.Timestamp.Before(before) {
+	mu.Lock()
+	ts := got.Timestamp
+	mu.Unlock()
+	if ts.Before(before) {
 		t.Error("event timestamp must be set on Emit")
 	}
 }

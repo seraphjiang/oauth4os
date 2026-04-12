@@ -1183,9 +1183,15 @@ cmd_ping() {
 
 # Main
 ensure_deps
-# Strip --json from args (already parsed above)
+# Strip --json and --version from args (already parsed above)
 args=()
-for arg in "$@"; do [ "$arg" != "--json" ] && args+=("$arg"); done
+for arg in "$@"; do
+  case "$arg" in --json|--version) ;; *) args+=("$arg") ;; esac
+done
+# Handle --version early
+for arg in "$@"; do
+  [ "$arg" = "--version" ] && { echo "oauth4os-demo 1.0.0"; exit 0; }
+done
 set -- "${args[@]}"
 case "${1:-}" in
   login)    cmd_login ;;

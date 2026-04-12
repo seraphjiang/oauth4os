@@ -83,8 +83,21 @@ func jsonVal(body, key string) string {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Refresh container creds (AppRunner/ECS) on each request
+	t.refreshContainerCreds()
+
 	// Clone request to avoid mutating the original
 	r := req.Clone(req.Context())
+
+	// CRITICAL: Force Host to match the upstream URL, not the proxy's Host.
+	// httputil.ReverseProxy preserves the original Host header, but AOSS
+	// requires Host to match the collection endpoint exactly.
+	r.Host = r.URL.Host
+
+	// Strip proxy-level auth headers — SigV4 replaces them
+	r.Header.Del("Authorization")
+	r.Header.Del("X-Forwarded-For")
+	r.Header.Del("X-Forwarded-Host")
 
 	now := time.Now().UTC()
 	datestamp := now.Format("20060102")
@@ -93,6 +106,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.Header.Set("x-amz-date", amzdate)
 	if t.Token != "" {
 		r.Header.Set("x-amz-security-token", t.Token)
+	}
+
+	// Ensure Content-Type for requests with body (AOSS requires it)
+	if r.Body != nil && r.Header.Get("Content-Type") == "" {
+		r.Header.Set("Content-Type", "application/json")
 	}
 
 	// Read and hash body

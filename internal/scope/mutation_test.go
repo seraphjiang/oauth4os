@@ -59,13 +59,13 @@ func TestMutation_UnknownScope(t *testing.T) {
 	}
 }
 
-// Mutation: remove Map expansion → must expand scope aliases
+// Mutation: remove Map expansion → must expand scope to backend roles
 func TestMutation_MapExpansion(t *testing.T) {
-	m := NewMapper(map[string][]string{
-		"admin": {"read:*", "write:*", "delete:*"},
+	m := NewMapper(map[string]config.Role{
+		"admin": {BackendUser: "admin", BackendRoles: []string{"all_access"}},
 	})
 	result := m.Map([]string{"admin"})
-	if len(result) < 3 {
-		t.Errorf("admin scope should expand to 3+ permissions, got %d", len(result))
+	if len(result) == 0 {
+		t.Error("admin scope should map to backend roles")
 	}
 }

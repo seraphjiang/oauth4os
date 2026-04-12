@@ -231,3 +231,40 @@ func TestGlobMatchEdgeCases(t *testing.T) {
 		}
 	}
 }
+
+func TestAddAndRemovePolicy(t *testing.T) {
+	e := NewEngine(nil)
+	if len(e.Policies()) != 0 {
+		t.Fatal("expected 0 policies")
+	}
+	e.AddPolicy(Policy{ID: "p1", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}})
+	if len(e.Policies()) != 1 {
+		t.Fatal("expected 1 policy after add")
+	}
+	if !e.RemovePolicy("p1") {
+		t.Fatal("remove should return true")
+	}
+	if len(e.Policies()) != 0 {
+		t.Fatal("expected 0 after remove")
+	}
+	if e.RemovePolicy("nonexistent") {
+		t.Fatal("remove nonexistent should return false")
+	}
+}
+
+func TestTenantCRUD(t *testing.T) {
+	te := NewTenantEngine(nil)
+	if policies := te.ListPolicies(); len(policies) != 0 {
+		t.Fatalf("expected 0 global policies, got %d", len(policies))
+	}
+	te.AddGlobalPolicy(Policy{ID: "g1", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}})
+	if len(te.ListPolicies()) != 1 {
+		t.Fatal("expected 1 global policy")
+	}
+	if !te.RemoveGlobalPolicy("g1") {
+		t.Fatal("remove should return true")
+	}
+	if len(te.ListPolicies()) != 0 {
+		t.Fatal("expected 0 after remove")
+	}
+}

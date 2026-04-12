@@ -48,7 +48,7 @@ import (
 	"github.com/seraphjiang/oauth4os/internal/webhook"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 //go:embed landing.html
 var landingPage string
@@ -249,13 +249,16 @@ func main() {
 	}
 
 	// Backup handler
-	_ = backup.NewHandler(
+	backupHandler := backup.NewHandler(
 		func() *config.Config { return cfg },
 		func() []backup.ClientEntry { return nil },
 		func(c *config.Config) { *cfg = *c },
 	)
 
 	mux := http.NewServeMux()
+
+	// Register backup routes
+	backupHandler.Register(mux)
 
 	// Issuer URL for discovery + token exchange
 	issuerURL := "http://localhost" + cfg.Listen
@@ -446,7 +449,6 @@ func main() {
 	}
 	defer keys.Stop()
 	mux.HandleFunc("GET /.well-known/jwks.json", keys.JWKSHandler())
-	_ = keys // available for token signing in future
 
 	// Prometheus metrics
 	mux.HandleFunc("GET /admin/audit", func(w http.ResponseWriter, r *http.Request) {

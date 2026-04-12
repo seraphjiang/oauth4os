@@ -175,7 +175,7 @@ func main() {
 	mux.HandleFunc("POST /oauth/authorize/token", pkceHandler.Exchange)
 
 	// Dynamic Client Registration (RFC 7591)
-	regHandler := registration.NewHandler(tokenMgr.RegisterClient)
+	regHandler := registration.NewHandler(tokenMgr.RegisterClient, nil)
 	mux.HandleFunc("POST /oauth/register", regHandler.Register)
 	mux.HandleFunc("GET /oauth/register/{client_id}", regHandler.Get)
 

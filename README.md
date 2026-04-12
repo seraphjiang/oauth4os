@@ -6,7 +6,7 @@
 [![Go 1.22](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)](https://go.dev)
 [![CI](https://github.com/seraphjiang/oauth4os/actions/workflows/ci.yml/badge.svg)](https://github.com/seraphjiang/oauth4os/actions/workflows/ci.yml)
 [![Release](https://github.com/seraphjiang/oauth4os/actions/workflows/release.yml/badge.svg)](https://github.com/seraphjiang/oauth4os/releases)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?logo=docker)](https://github.com/seraphjiang/oauth4os/pkgs/container/oauth4os)
+[![Docker](https://img.shields.io/badge/Docker-jianghuan%2Foauth4os-2496ED?logo=docker)](https://hub.docker.com/r/jianghuan/oauth4os)
 [![OpenSearch 2.x | 3.x](https://img.shields.io/badge/OpenSearch-2.x%20%7C%203.x-orange?logo=opensearch)](https://opensearch.org)
 
 > 🔗 **RFC**: [opensearch-project/.github#491](https://github.com/opensearch-project/.github/issues/491)
@@ -70,7 +70,7 @@ OpenSearch has OIDC auth and API Keys (3.7), but lacks the developer experience 
 
 ```bash
 # Option 1: Docker (recommended)
-docker run -p 8443:8443 seraphjiang/oauth4os:latest
+docker run -p 8443:8443 jianghuan/oauth4os:latest
 # Open http://localhost:8443
 
 # Option 2: Clone + Docker Compose

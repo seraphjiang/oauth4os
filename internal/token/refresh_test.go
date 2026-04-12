@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func issueAndRefresh(t *testing.T, m *Manager, clientID, secret string) (origTok *Token, origRefresh string, newResp map[string]interface{}) {

@@ -1366,6 +1366,19 @@ cmd_keys() {
   echo -e "\n  ${CYAN}${count:-0} key(s)${NC}"
 }
 
+cmd_rotate() {
+  local client_id="${1:?Usage: oauth4os-demo rotate <client_id>}"
+  local tok
+  tok=$(get_token) || return 1
+  local resp
+  resp=$(curl -sf -X POST -H "Authorization: Bearer ${tok}" "${PROXY}/oauth/register/${client_id}/rotate" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Rotation failed${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${GREEN}✅ Secret rotated${NC}\n"
+  echo "$resp" | jq -r '"  Client ID:     \(.client_id // .id)\n  New Secret:     \(.client_secret // .secret)"' 2>/dev/null
+  echo -e "\n  ${YELLOW}⚠ Update your application with the new secret${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1412,6 +1425,7 @@ case "${1:-}" in
   revoke)   shift; cmd_revoke "${1:-}" ;;
   tokens)   cmd_tokens ;;
   keys)     cmd_keys ;;
+  rotate)   shift; cmd_rotate "$@" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

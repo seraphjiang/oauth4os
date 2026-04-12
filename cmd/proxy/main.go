@@ -874,6 +874,14 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(tokenMgr.Stats())
 	})
+	mux.HandleFunc("GET /admin/api/clients", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tokenMgr.ListClients())
+	})
+	mux.HandleFunc("GET /admin/api/tokens", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tokenMgr.ListActiveTokens())
+	})
 	mux.HandleFunc("GET /admin/policies", serveWebFile("admin/policies.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/keys", serveWebFile("admin/keys.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))

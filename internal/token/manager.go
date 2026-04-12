@@ -424,6 +424,51 @@ func (m *Manager) Stats() map[string]int {
 	}
 }
 
+// ClientInfo is a safe-to-expose client summary (no secrets).
+type ClientInfo struct {
+	ID           string   `json:"client_id"`
+	Scopes       []string `json:"scopes"`
+	RedirectURIs []string `json:"redirect_uris,omitempty"`
+}
+
+// ListClients returns all registered clients without secrets.
+func (m *Manager) ListClients() []ClientInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]ClientInfo, 0, len(m.clients))
+	for _, c := range m.clients {
+		out = append(out, ClientInfo{ID: c.ID, Scopes: c.Scopes, RedirectURIs: c.RedirectURIs})
+	}
+	return out
+}
+
+// ListActiveTokens returns active (non-revoked, non-expired) tokens without secrets.
+func (m *Manager) ListActiveTokens() []map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	now := time.Now()
+	out := make([]map[string]interface{}, 0)
+	for _, tok := range m.tokens {
+		if !tok.Revoked && now.Before(tok.ExpiresAt) {
+			out = append(out, map[string]interface{}{
+				"id":         tok.ID[:min(16, len(tok.ID))] + "...",
+				"client_id":  tok.ClientID,
+				"scopes":     tok.Scopes,
+				"created_at": tok.CreatedAt,
+				"expires_at": tok.ExpiresAt,
+			})
+		}
+	}
+	return out
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // CreateTokenForClient creates a token for a client (used by PKCE flow).
 func (m *Manager) CreateTokenForClient(clientID string, scopes []string) (*Token, string) {
 	return m.createToken(clientID, scopes)

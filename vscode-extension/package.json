@@ -1,0 +1,66 @@
+{
+  "name": "oauth4os",
+  "displayName": "oauth4os — OpenSearch Token Manager",
+  "description": "Manage OAuth tokens, inspect scopes, and query OpenSearch from VS Code",
+  "version": "0.1.0",
+  "publisher": "seraphjiang",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seraphjiang/oauth4os"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["opensearch", "oauth", "tokens", "security"],
+  "activationEvents": [],
+  "main": "./src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "oauth4os",
+          "title": "oauth4os",
+          "icon": "$(key)"
+        }
+      ]
+    },
+    "views": {
+      "oauth4os": [
+        { "id": "oauth4os.tokens", "name": "Tokens" },
+        { "id": "oauth4os.scopes", "name": "Scope Mappings" },
+        { "id": "oauth4os.logs", "name": "Audit Log" }
+      ]
+    },
+    "commands": [
+      { "command": "oauth4os.connect", "title": "oauth4os: Connect to Proxy" },
+      { "command": "oauth4os.createToken", "title": "oauth4os: Create Token" },
+      { "command": "oauth4os.revokeToken", "title": "oauth4os: Revoke Token" },
+      { "command": "oauth4os.refreshTokens", "title": "oauth4os: Refresh Token List" },
+      { "command": "oauth4os.inspectToken", "title": "oauth4os: Inspect Token" },
+      { "command": "oauth4os.queryOpenSearch", "title": "oauth4os: Query OpenSearch" },
+      { "command": "oauth4os.copyToken", "title": "oauth4os: Copy Token to Clipboard" }
+    ],
+    "configuration": {
+      "title": "oauth4os",
+      "properties": {
+        "oauth4os.proxyUrl": {
+          "type": "string",
+          "default": "http://localhost:8443",
+          "description": "oauth4os proxy URL"
+        },
+        "oauth4os.clientId": {
+          "type": "string",
+          "default": "",
+          "description": "OAuth client ID"
+        },
+        "oauth4os.defaultScope": {
+          "type": "string",
+          "default": "read:logs-*",
+          "description": "Default scope for new tokens"
+        }
+      }
+    }
+  }
+}

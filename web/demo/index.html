@@ -561,13 +561,34 @@ document.querySelectorAll('[data-mpage]').forEach(a => {
 });
 
 // Keyboard shortcuts
+function showShortcutsModal() {
+  let m = document.getElementById('shortcutsModal');
+  if (m) { m.remove(); return; }
+  m = document.createElement('div');
+  m.id = 'shortcutsModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999';
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:340px;width:90%">
+    <h3 style="margin:0 0 12px;font-size:15px">⌨️ Keyboard Shortcuts</h3>
+    <div style="font-size:12px;line-height:2">
+      <div><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:monospace">/</kbd> Focus search</div>
+      <div><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:monospace">r</kbd> Refresh</div>
+      <div><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:monospace">j</kbd> / <kbd style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:monospace">k</kbd> Navigate rows</div>
+      <div><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:monospace">Ctrl+Shift+E</kbd> Export PNG</div>
+      <div><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-family:monospace">?</kbd> This help</div>
+    </div>
+    <button onclick="this.closest('#shortcutsModal').remove()" style="margin-top:12px;width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-size:12px">Close (Esc)</button>
+  </div>`;
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', esc); } }, { once: false });
+  document.body.appendChild(m);
+}
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
   if (e.key === '/') { e.preventDefault(); document.getElementById('searchQuery').focus(); }
   if (e.key === 'r' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); doSearch(); }
   if (e.key === 'j') { const rows = document.querySelectorAll('.log-table tbody tr'); const active = document.querySelector('.log-table tbody tr.active'); let idx = active ? [...rows].indexOf(active) + 1 : 0; if (idx < rows.length) { rows.forEach(r => r.classList.remove('active')); rows[idx].classList.add('active'); rows[idx].scrollIntoView({ block: 'nearest' }); } }
   if (e.key === 'k') { const rows = document.querySelectorAll('.log-table tbody tr'); const active = document.querySelector('.log-table tbody tr.active'); let idx = active ? [...rows].indexOf(active) - 1 : rows.length - 1; if (idx >= 0) { rows.forEach(r => r.classList.remove('active')); rows[idx].classList.add('active'); rows[idx].scrollIntoView({ block: 'nearest' }); } }
-  if (e.key === '?' && !e.ctrlKey) { alert('Keyboard shortcuts:\n/ — Focus search\nr — Refresh\nj/k — Navigate log rows\nCtrl+Shift+E — Export PNG'); }
+  if (e.key === '?' && !e.ctrlKey) { showShortcutsModal(); }
   if (e.key === 'E' && (e.ctrlKey || e.metaKey) && e.shiftKey) { e.preventDefault(); exportPNG(); }
 });
 

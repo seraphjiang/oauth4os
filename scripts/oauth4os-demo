@@ -1341,6 +1341,31 @@ cmd_revoke() {
   fi
 }
 
+cmd_tokens() {
+  local resp
+  resp=$(authed_curl "${PROXY}/oauth/tokens")
+  if [ -z "$resp" ]; then echo -e "${RED}Failed to list tokens${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🔑 Active Tokens${NC}\n"
+  local count=$(echo "$resp" | jq 'length' 2>/dev/null)
+  echo -e "  ${CYAN}${count:-0} token(s)${NC}\n"
+  printf "  ${BOLD}%-12s %-20s %-20s %s${NC}\n" "ID" "CLIENT" "EXPIRES" "SCOPES"
+  echo "$resp" | jq -r '.[]? | "\(.id // .token_id | .[0:12]) \(.client_id // "—") \(.expires_at // .exp // "—") \(.scopes // [] | join(","))"' 2>/dev/null | while read -r id client exp scopes; do
+    printf "  %-12s %-20s %-20s %s\n" "$id" "$client" "$exp" "$scopes"
+  done
+}
+
+cmd_keys() {
+  local resp
+  resp=$(curl -sf "${PROXY}/.well-known/jwks.json" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Cannot fetch JWKS${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🔑 JWKS Public Keys${NC}\n"
+  echo "$resp" | jq -r '.keys[]? | "  \(.kid // "—")  \(.kty)  \(.alg // "—")  \(.use // "sig")"' 2>/dev/null
+  local count=$(echo "$resp" | jq '.keys | length' 2>/dev/null)
+  echo -e "\n  ${CYAN}${count:-0} key(s)${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1385,6 +1410,8 @@ case "${1:-}" in
   clients)  cmd_clients ;;
   register) shift; cmd_register "$@" ;;
   revoke)   shift; cmd_revoke "${1:-}" ;;
+  tokens)   cmd_tokens ;;
+  keys)     cmd_keys ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

@@ -1355,6 +1355,17 @@ cmd_tokens() {
   done
 }
 
+cmd_keys() {
+  local resp
+  resp=$(curl -sf "${PROXY}/.well-known/jwks.json" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Cannot fetch JWKS${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🔑 JWKS Public Keys${NC}\n"
+  echo "$resp" | jq -r '.keys[]? | "  \(.kid // "—")  \(.kty)  \(.alg // "—")  \(.use // "sig")"' 2>/dev/null
+  local count=$(echo "$resp" | jq '.keys | length' 2>/dev/null)
+  echo -e "\n  ${CYAN}${count:-0} key(s)${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1400,6 +1411,7 @@ case "${1:-}" in
   register) shift; cmd_register "$@" ;;
   revoke)   shift; cmd_revoke "${1:-}" ;;
   tokens)   cmd_tokens ;;
+  keys)     cmd_keys ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

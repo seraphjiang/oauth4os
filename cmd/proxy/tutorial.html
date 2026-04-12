@@ -210,7 +210,7 @@ async function runStep1(){
     document.getElementById('curl-2-secret').textContent=state.clientSecret;
     showResp(1,d,r.ok);
     if(r.ok)completeStep(1);
-  }catch(e){showResp(1,'Error: '+e.message,false);}
+  }catch(e){showResp(1,'❌ Connection failed. Is the proxy running at '+BASE+'? Error: '+e.message,false);}
   document.getElementById('btn-1').disabled=false;
   document.getElementById('btn-1').textContent='Register Client';
 }

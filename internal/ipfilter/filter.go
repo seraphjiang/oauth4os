@@ -1,101 +1,135 @@
-// Package ipfilter provides per-client IP allowlist/denylist filtering.
+// Package ipfilter provides per-client IP allowlist/denylist enforcement.
 package ipfilter
 
 import (
+	"fmt"
 	"net"
+	"net/http"
 	"strings"
 )
 
-// Rule defines IP restrictions for a client.
-type Rule struct {
-	Allow []string // CIDRs or IPs; if non-empty, only these are allowed
-	Deny  []string // CIDRs or IPs; checked first (deny wins)
+// Rules maps client_id → filter config.
+type Rules struct {
+	clients map[string]*ClientFilter
+	global  *ClientFilter // applies when no client-specific rule
 }
 
-// Filter evaluates IP rules per client.
-type Filter struct {
-	rules map[string]*parsedRule // client_id → rule
+// ClientFilter holds parsed CIDRs for one client.
+type ClientFilter struct {
+	Allow []*net.IPNet
+	Deny  []*net.IPNet
 }
 
-type parsedRule struct {
-	allowNets []*net.IPNet
-	denyNets  []*net.IPNet
+// Config is the YAML-friendly representation.
+type Config struct {
+	Global  *FilterConfig            `yaml:"global,omitempty"`
+	Clients map[string]*FilterConfig `yaml:"clients,omitempty"`
 }
 
-// New creates a filter from config. Key is client_id or "*" for global.
-func New(rules map[string]Rule) *Filter {
-	f := &Filter{rules: make(map[string]*parsedRule, len(rules))}
-	for client, r := range rules {
-		f.rules[client] = parseRule(r)
+// FilterConfig holds raw CIDR strings.
+type FilterConfig struct {
+	Allow []string `yaml:"allow,omitempty"`
+	Deny  []string `yaml:"deny,omitempty"`
+}
+
+// New parses config into Rules.
+func New(cfg Config) (*Rules, error) {
+	r := &Rules{clients: make(map[string]*ClientFilter)}
+	if cfg.Global != nil {
+		f, err := parseFilter(cfg.Global)
+		if err != nil {
+			return nil, fmt.Errorf("global: %w", err)
+		}
+		r.global = f
 	}
-	return f
+	for id, fc := range cfg.Clients {
+		f, err := parseFilter(fc)
+		if err != nil {
+			return nil, fmt.Errorf("client %s: %w", id, err)
+		}
+		r.clients[id] = f
+	}
+	return r, nil
 }
 
-// Check returns true if the IP is allowed for the given client.
-func (f *Filter) Check(clientID, remoteAddr string) bool {
+// Check returns nil if the IP is allowed for the client, or an error message.
+func (r *Rules) Check(clientID, remoteAddr string) error {
 	ip := extractIP(remoteAddr)
 	if ip == nil {
-		return false
+		return nil // can't parse → allow (fail open for localhost/unix)
 	}
-
-	// Check client-specific rules first, then global
-	for _, key := range []string{clientID, "*"} {
-		rule, ok := f.rules[key]
-		if !ok {
-			continue
+	filter := r.clients[clientID]
+	if filter == nil {
+		filter = r.global
+	}
+	if filter == nil {
+		return nil
+	}
+	// Deny takes precedence
+	for _, cidr := range filter.Deny {
+		if cidr.Contains(ip) {
+			return fmt.Errorf("ip %s denied for client %s", ip, clientID)
 		}
-		// Deny takes precedence
-		for _, n := range rule.denyNets {
-			if n.Contains(ip) {
-				return false
+	}
+	// If allowlist exists, IP must match
+	if len(filter.Allow) > 0 {
+		for _, cidr := range filter.Allow {
+			if cidr.Contains(ip) {
+				return nil
 			}
 		}
-		// If allowlist exists, IP must match
-		if len(rule.allowNets) > 0 {
-			allowed := false
-			for _, n := range rule.allowNets {
-				if n.Contains(ip) {
-					allowed = true
-					break
-				}
-			}
-			return allowed
-		}
+		return fmt.Errorf("ip %s not in allowlist for client %s", ip, clientID)
 	}
-	return true // no rules = allow
+	return nil
 }
 
-func parseRule(r Rule) *parsedRule {
-	return &parsedRule{
-		allowNets: parseCIDRs(r.Allow),
-		denyNets:  parseCIDRs(r.Deny),
-	}
+// Middleware returns an http.Handler that enforces IP filters.
+func (r *Rules) Middleware(next http.Handler, getClient func(r *http.Request) string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		clientID := getClient(req)
+		if err := r.Check(clientID, req.RemoteAddr); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprintf(w, `{"error":"ip_denied","message":"%s"}`, err.Error())
+			return
+		}
+		next.ServeHTTP(w, req)
+	})
 }
 
-func parseCIDRs(list []string) []*net.IPNet {
-	var nets []*net.IPNet
-	for _, s := range list {
-		s = strings.TrimSpace(s)
-		if !strings.Contains(s, "/") {
-			// Bare IP → /32 or /128
-			if strings.Contains(s, ":") {
-				s += "/128"
-			} else {
-				s += "/32"
-			}
+func parseFilter(fc *FilterConfig) (*ClientFilter, error) {
+	f := &ClientFilter{}
+	for _, s := range fc.Allow {
+		_, cidr, err := net.ParseCIDR(normalizeCIDR(s))
+		if err != nil {
+			return nil, fmt.Errorf("invalid allow CIDR %q: %w", s, err)
 		}
-		_, n, err := net.ParseCIDR(s)
-		if err == nil {
-			nets = append(nets, n)
-		}
+		f.Allow = append(f.Allow, cidr)
 	}
-	return nets
+	for _, s := range fc.Deny {
+		_, cidr, err := net.ParseCIDR(normalizeCIDR(s))
+		if err != nil {
+			return nil, fmt.Errorf("invalid deny CIDR %q: %w", s, err)
+		}
+		f.Deny = append(f.Deny, cidr)
+	}
+	return f, nil
 }
 
-func extractIP(remoteAddr string) net.IP {
-	host, _, err := net.SplitHostPort(remoteAddr)
+func normalizeCIDR(s string) string {
+	if !strings.Contains(s, "/") {
+		if strings.Contains(s, ":") {
+			return s + "/128"
+		}
+		return s + "/32"
+	}
+	return s
+}
+
+func extractIP(addr string) net.IP {
+	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		host = remoteAddr
+		host = addr
 	}
 	return net.ParseIP(host)
 }

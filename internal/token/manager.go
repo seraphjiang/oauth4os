@@ -22,15 +22,16 @@ type KeyProvider interface {
 
 // Token represents an issued access token.
 type Token struct {
-	ID              string    `json:"id"`
-	ClientID        string    `json:"client_id"`
-	Scopes          []string  `json:"scopes"`
-	CreatedAt       time.Time `json:"created_at"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	Revoked         bool      `json:"revoked"`
-	RefreshToken    string    `json:"-"` // never exposed in list/get
-	RefreshExpiresAt time.Time `json:"-"` // refresh token TTL
-	FamilyCreatedAt  time.Time `json:"-"` // absolute lifetime anchor
+	ID               string    `json:"id"`
+	ClientID         string    `json:"client_id"`
+	Scopes           []string  `json:"scopes"`
+	CreatedAt        time.Time `json:"created_at"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	Revoked          bool      `json:"revoked"`
+	RefreshToken     string    `json:"-"`
+	RefreshExpiresAt time.Time `json:"-"`
+	FamilyCreatedAt  time.Time `json:"-"`
+	DPoPThumbprint   string    `json:"-"` // DPoP key binding (RFC 9449)
 }
 
 // Client represents a registered OAuth client.
@@ -346,7 +347,7 @@ func (m *Manager) createTokenWithFamily(clientID string, scopes []string, family
 func (m *Manager) signJWT(tok *Token) (string, error) {
 	kid, key := m.keyProvider.CurrentKey()
 	header := base64url(mustJSON(map[string]string{"alg": "RS256", "typ": "at+jwt", "kid": kid}))
-	payload := base64url(mustJSON(map[string]interface{}{
+	claims := map[string]interface{}{
 		"iss":       m.issuer,
 		"sub":       tok.ClientID,
 		"client_id": tok.ClientID,
@@ -354,7 +355,11 @@ func (m *Manager) signJWT(tok *Token) (string, error) {
 		"iat":       tok.CreatedAt.Unix(),
 		"exp":       tok.ExpiresAt.Unix(),
 		"jti":       generateID("jti_"),
-	}))
+	}
+	if tok.DPoPThumbprint != "" {
+		claims["cnf"] = map[string]string{"jkt": tok.DPoPThumbprint}
+	}
+	payload := base64url(mustJSON(claims))
 	sigInput := header + "." + payload
 	h := sha256.Sum256([]byte(sigInput))
 	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, h[:])
@@ -394,6 +399,30 @@ func (m *Manager) RevokeByClient(clientID string) int {
 		}
 	}
 	return count
+}
+
+// BindDPoP associates a DPoP key thumbprint with a token.
+func (m *Manager) BindDPoP(tokenID, thumbprint string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if tok, ok := m.tokens[tokenID]; ok {
+		tok.DPoPThumbprint = thumbprint
+	}
+}
+
+// VerifyDPoP checks if the token is bound to the given DPoP thumbprint.
+// Returns true if: no binding (unbound tokens pass), or thumbprint matches.
+func (m *Manager) VerifyDPoP(tokenID, thumbprint string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	tok, ok := m.tokens[tokenID]
+	if !ok {
+		return false
+	}
+	if tok.DPoPThumbprint == "" {
+		return true // unbound token
+	}
+	return subtle.ConstantTimeCompare([]byte(tok.DPoPThumbprint), []byte(thumbprint)) == 1
 }
 
 // Cleanup removes expired and revoked tokens from memory.

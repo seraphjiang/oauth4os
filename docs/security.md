@@ -185,6 +185,13 @@ forbid(*, DELETE, *)
 | IP filtering | Per-client allowlist/denylist with CIDR matching |
 | mTLS | Optional mutual TLS for client certificate authentication |
 | Rate limiting | Token bucket per client with configurable burst |
+| Circuit breaker | Opens after 5 consecutive 5xx, 30s cooldown, half-open probe |
+| Retry with backoff | Exponential backoff (100ms base, 3 retries, 5s cap) |
+| Load shedding | Rejects requests when active connections exceed threshold |
+| Request timeout | 30s per-request deadline, 504 on expiry |
+| Response cache | 5s TTL, scope-isolated keys, prevents upstream overload |
+| Request deduplication | Idempotency-Key header prevents duplicate mutations |
+| W3C traceparent | Distributed trace correlation across services |
 
 ## Client Persistence Security
 

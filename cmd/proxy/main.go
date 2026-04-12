@@ -62,8 +62,6 @@ var installScript string
 //go:embed oauth4os-demo.sh
 var demoCLIScript string
 
-// Prometheus-style metrics
-var (
 	requestsTotal   atomic.Int64
 	requestsActive  atomic.Int64
 	requestsFailed  atomic.Int64
@@ -330,6 +328,13 @@ func main() {
 		fmt.Fprint(w, installScript)
 	})
 
+	// CLI demo script — downloaded by install.sh
+	mux.HandleFunc("GET /scripts/oauth4os-demo", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Cache-Control", "no-cache")
+		fmt.Fprint(w, demoCLIScript)
+	})
+
 	// Health
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -590,11 +595,13 @@ func main() {
 				tracer.EndSpan(jwtSpan, "error")
 				authFailed.Add(1)
 				requestsFailed.Add(1)
-			http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
-			return
+				http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
+				return
+			}
+		} else {
+			tracer.EndSpan(jwtSpan, "ok")
+			authSuccess.Add(1)
 		}
-		tracer.EndSpan(jwtSpan, "ok")
-		authSuccess.Add(1)
 
 		// IP filter check
 		if ipRules != nil {
@@ -908,93 +915,3 @@ let cd=5;setInterval(()=>{cd--;if(cd<=0)cd=5;document.getElementById('timer').te
 </body>
 </html>`
 
-const installScript = `#!/bin/bash
-set -e
-
-PROXY_URL="${OAUTH4OS_URL:-https://f5cmk2hxwx.us-west-2.awsapprunner.com}"
-INSTALL_DIR="${HOME}/.local/bin"
-SCRIPT="${INSTALL_DIR}/oauth4os-demo"
-
-# Detect OS
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-case "$OS" in
-  linux|darwin) ;;
-  *) echo "Unsupported OS: $OS"; exit 1 ;;
-esac
-
-echo "Installing oauth4os-demo CLI..."
-mkdir -p "$INSTALL_DIR"
-
-cat > "$SCRIPT" << 'WRAPPER'
-#!/bin/bash
-set -e
-PROXY="${OAUTH4OS_URL:-https://f5cmk2hxwx.us-west-2.awsapprunner.com}"
-TOKEN_FILE="${HOME}/.oauth4os-token"
-
-cmd_login() {
-  echo "Registering demo client..."
-  REG=$(curl -sf "$PROXY/oauth/register" -d '{"client_name":"cli-demo","scope":"read:logs-* admin"}' -H 'Content-Type: application/json')
-  CLIENT_ID=$(echo "$REG" | grep -o '"client_id":"[^"]*"' | cut -d'"' -f4)
-  CLIENT_SECRET=$(echo "$REG" | grep -o '"client_secret":"[^"]*"' | cut -d'"' -f4)
-  echo "Getting token..."
-  TOK=$(curl -sf "$PROXY/oauth/token" -d "grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&scope=read:logs-*")
-  ACCESS=$(echo "$TOK" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-  echo "$ACCESS" > "$TOKEN_FILE"
-  echo "✅ Logged in. Token cached at $TOKEN_FILE"
-}
-
-cmd_search() {
-  [ ! -f "$TOKEN_FILE" ] && echo "Run: oauth4os-demo login" && exit 1
-  TOKEN=$(cat "$TOKEN_FILE")
-  QUERY="${1:-*}"
-  curl -sf "$PROXY/logs-demo/_search" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"query\":{\"query_string\":{\"query\":\"$QUERY\"}},\"size\":10,\"sort\":[{\"@timestamp\":{\"order\":\"desc\"}}]}" | \
-    python3 -m json.tool 2>/dev/null || cat
-}
-
-cmd_services() {
-  [ ! -f "$TOKEN_FILE" ] && echo "Run: oauth4os-demo login" && exit 1
-  TOKEN=$(cat "$TOKEN_FILE")
-  curl -sf "$PROXY/logs-demo/_search" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{"size":0,"aggs":{"services":{"terms":{"field":"service.keyword","size":20}}}}' | \
-    python3 -m json.tool 2>/dev/null || cat
-}
-
-cmd_health() {
-  curl -sf "$PROXY/health" | python3 -m json.tool 2>/dev/null || curl -sf "$PROXY/health"
-}
-
-case "${1:-help}" in
-  login)    cmd_login ;;
-  search)   cmd_search "$2" ;;
-  services) cmd_services ;;
-  health)   cmd_health ;;
-  *)        echo "Usage: oauth4os-demo <login|search|services|health>"
-            echo ""
-            echo "  login              Register + get token"
-            echo "  search [QUERY]     Search logs (default: *)"
-            echo "  services           List services in logs"
-            echo "  health             Check proxy health"
-            ;;
-esac
-WRAPPER
-
-chmod +x "$SCRIPT"
-
-# Check PATH
-case ":$PATH:" in
-  *":$INSTALL_DIR:"*) ;;
-  *) echo "Add to PATH: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
-esac
-
-echo "✅ Installed: $SCRIPT"
-echo ""
-echo "Quick start:"
-echo "  oauth4os-demo login"
-echo "  oauth4os-demo search 'level:ERROR'"
-echo "  oauth4os-demo services"
-`

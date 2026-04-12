@@ -750,17 +750,36 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Graceful shutdown
+	// Graceful shutdown — drain connections, flush state
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigCh
 		logger.Info("shutting down", "signal", sig)
+
+		// 1. Drain active connections (30s timeout)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(ctx); err != nil {
 			logger.Error("shutdown error", "error", err)
 		}
+
+		// 2. Save client state
+		if clientStore != nil {
+			if err := clientStore.Save(tokenMgr); err != nil {
+				logger.Error("failed to save clients on shutdown", "error", err)
+			} else {
+				logger.Info("client state saved")
+			}
+		}
+
+		// 3. Flush audit logs
+		if auditStore != nil {
+			auditStore.Close()
+			logger.Info("audit store flushed")
+		}
+
+		logger.Info("shutdown complete")
 	}()
 
 	logger.Info("listening", "version", version, "addr", addr, "tls", cfg.TLS.Enabled)

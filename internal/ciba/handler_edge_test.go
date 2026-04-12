@@ -2,6 +2,7 @@ package ciba
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"sync"
 	"testing"

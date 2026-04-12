@@ -132,6 +132,7 @@ var (
 	latencyHist     = histogram.New()
 	reqCounter      = metrics.NewCounter()
 	reqSummary      = metrics.NewSummary()
+	rwReceiver      = remotewrite.New()
 	shuttingDown    atomic.Bool
 )
 
@@ -1265,7 +1266,11 @@ func main() {
 		fmt.Fprintf(w, "# HELP oauth4os_metric_cardinality Number of unique label combinations\n")
 		fmt.Fprintf(w, "oauth4os_metric_cardinality{metric=\"http_requests_total\"} %d\n", reqCounter.Cardinality())
 		fmt.Fprintf(w, "oauth4os_metric_cardinality{metric=\"http_request_duration\"} %d\n", reqSummary.Cardinality())
+		rwReceiver.WritePrometheus(w)
 	})
+
+	// Remote write receiver — accept metrics from external apps
+	mux.HandleFunc("POST /api/v1/write", rwReceiver.Handler())
 
 	// Developer docs — Swagger UI
 	mux.HandleFunc("GET /developer/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {

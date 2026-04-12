@@ -181,6 +181,37 @@ async function poll(){
 poll();
 setInterval(poll,5000);
 
+// SSE: try real-time push, fall back to polling
+let sseConnected=false;
+try{
+  const es=new EventSource(API+'/sse/metrics');
+  es.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);
+      const reqs=d.requests_total||0;const errs=d.requests_failed||0;
+      const aOk=d.auth_success||0;const aFail=d.auth_failed||0;
+      const dReqs=reqs-prevReqs;const dErrs=errs-prevErrs;
+      reqHistory.push(dReqs);reqHistory.shift();errHistory.push(dErrs);errHistory.shift();
+      authOk.push(aOk-prevAuthOk);authOk.shift();authFail.push(aFail-prevAuthFail);authFail.shift();
+      prevReqs=reqs;prevErrs=errs;prevAuthOk=aOk;prevAuthFail=aFail;
+      document.getElementById('kReqs').textContent=reqs.toLocaleString();
+      document.getElementById('kRps').textContent=(dReqs).toFixed(0);
+      document.getElementById('kErrors').textContent=errs.toLocaleString();
+      document.getElementById('kAuth').textContent=aOk.toLocaleString();
+      const up=d.uptime_seconds||0;const hrs=Math.floor(up/3600),mins=Math.floor((up%3600)/60);
+      document.getElementById('kUptime').textContent=hrs>0?hrs+'h '+mins+'m':mins+'m';
+      document.getElementById('kReqsD').innerHTML=dReqs>0?'<span class="up">+'+dReqs+'/s</span>':'';
+      document.getElementById('kErrorsD').innerHTML=dErrs>0?'<span class="down">+'+dErrs+'/s</span>':'';
+      drawBars('reqChart',reqHistory,'--accent');drawBars('errChart',errHistory,'--red');
+      drawBars('authChart',authOk,'--green');drawBars('cacheChart',authFail,'--orange');
+      document.getElementById('statusDot').innerHTML='<span style="color:var(--green)">● SSE Live</span>';
+      document.getElementById('lastUpdate').textContent='Updated '+new Date().toLocaleTimeString();
+      if(!sseConnected){sseConnected=true}
+    }catch{}
+  };
+  es.onerror=()=>{if(!sseConnected){es.close()}};
+}catch{}
+
 document.getElementById('themeToggle').addEventListener('click',()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('oauth4os_theme',t)});
 if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
 </script>

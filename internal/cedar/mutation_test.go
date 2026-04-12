@@ -94,3 +94,44 @@ func TestMutation_ExactMatchLoose(t *testing.T) {
 }
 
 
+
+// Mutation: remove AddPolicy → new policy must affect evaluation
+func TestMutation_AddPolicyAffectsEval(t *testing.T) {
+	e := NewEngine(nil)
+	req := Request{Principal: map[string]string{"sub": "alice"}, Action: "read", Resource: map[string]string{"index": "logs"}}
+	d1 := e.Evaluate(req)
+	e.AddPolicy(Policy{ID: "deny-alice", Effect: Forbid, Principal: Match{Equals: "alice"}, Action: Match{Equals: "read"}, Resource: Match{Pattern: "logs"}})
+	d2 := e.Evaluate(req)
+	if d1 == d2 {
+		t.Error("AddPolicy must change evaluation result")
+	}
+}
+
+// Mutation: remove RemovePolicy → removed policy must stop affecting evaluation
+func TestMutation_RemovePolicyRestores(t *testing.T) {
+	e := NewEngine([]Policy{
+		{ID: "deny-all", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}},
+	})
+	req := Request{Principal: map[string]string{"sub": "bob"}, Action: "read", Resource: map[string]string{"index": "logs"}}
+	d1 := e.Evaluate(req)
+	e.RemovePolicy("deny-all")
+	d2 := e.Evaluate(req)
+	if d1 == d2 {
+		t.Error("RemovePolicy must change evaluation result")
+	}
+}
+
+// Mutation: remove tenant isolation → tenant policies must not leak
+func TestMutation_TenantIsolation(t *testing.T) {
+	te := NewTenantEngine(nil)
+	te.AddTenant("issuer-a", []Policy{
+		{ID: "a-deny", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Equals: "delete"}, Resource: Match{Any: true}},
+	})
+	te.AddTenant("issuer-b", nil)
+	req := Request{Principal: map[string]string{"sub": "x"}, Action: "delete", Resource: map[string]string{"index": "logs"}}
+	dA := te.Evaluate("issuer-a", req)
+	dB := te.Evaluate("issuer-b", req)
+	if dA == dB {
+		t.Error("tenant policies must be isolated — issuer-a deny should not affect issuer-b")
+	}
+}

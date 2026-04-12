@@ -328,6 +328,29 @@ sequenceDiagram
     P-->>S: 200 {access_token, refresh_token}
 ```
 
+## 11. Token Refresh with Expiry (v1.1.0)
+
+Refresh tokens now have configurable TTL and absolute family lifetime.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant P as oauth4os Proxy
+
+    C->>P: POST /oauth/token (grant_type=refresh_token, refresh_token=rtk_...)
+    P->>P: Check refresh TTL (default 30 days)
+    P->>P: Check family lifetime (default 90 days)
+    alt Refresh token valid
+        P->>P: Revoke old token + refresh (rotation)
+        P-->>C: 200 {new access_token, new refresh_token}
+    else Refresh token expired
+        P-->>C: 400 {error: invalid_grant, "refresh token expired"}
+    else Family lifetime exceeded
+        P->>P: Revoke ALL tokens for client
+        P-->>C: 400 {error: invalid_grant, "re-authenticate"}
+    end
+```
+
 ## Flow Selection Guide
 
 | Use Case | Flow | Why |

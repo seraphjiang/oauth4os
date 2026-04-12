@@ -1,42 +1,43 @@
-// Package loadshed rejects requests when concurrency exceeds a threshold.
+// Package loadshed rejects requests when the proxy is overloaded.
 package loadshed
 
 import (
+	"fmt"
 	"net/http"
 	"sync/atomic"
 )
 
-// Shedder tracks in-flight requests and rejects when over capacity.
+// Shedder tracks active requests and rejects new ones above the threshold.
 type Shedder struct {
-	inflight atomic.Int64
-	max      int64
-	shed     atomic.Int64 // total shed count
+	active    atomic.Int64
+	threshold int64
+	rejected  atomic.Int64
 }
 
-// New creates a shedder with the given max concurrent requests.
+// New creates a load shedder with the given max concurrent request threshold.
 func New(maxConcurrent int) *Shedder {
-	return &Shedder{max: int64(maxConcurrent)}
+	return &Shedder{threshold: int64(maxConcurrent)}
 }
 
-// Middleware wraps an http.Handler with load shedding.
+// Middleware rejects requests with 503 when active requests exceed threshold.
 func (s *Shedder) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cur := s.inflight.Add(1)
-		if cur > s.max {
-			s.inflight.Add(-1)
-			s.shed.Add(1)
-			w.Header().Set("Retry-After", "5")
+		current := s.active.Add(1)
+		defer s.active.Add(-1)
+		if current > s.threshold {
+			s.rejected.Add(1)
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "5")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"error":"load_shed","message":"server at capacity"}`))
+			reqID := w.Header().Get("X-Request-ID")
+			fmt.Fprintf(w, `{"error":"overloaded","request_id":%q,"active":%d,"threshold":%d}`, reqID, current-1, s.threshold)
 			return
 		}
-		defer s.inflight.Add(-1)
 		next.ServeHTTP(w, r)
 	})
 }
 
-// Stats returns current inflight count and total shed count.
-func (s *Shedder) Stats() (inflight, shed int64) {
-	return s.inflight.Load(), s.shed.Load()
+// Stats returns current active requests and total rejected count.
+func (s *Shedder) Stats() (active, rejected int64) {
+	return s.active.Load(), s.rejected.Load()
 }

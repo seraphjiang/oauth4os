@@ -363,3 +363,47 @@ Two expiry mechanisms:
 ## Consequences
 - Long-running services must handle re-authentication after 90 days
 - Clients should monitor token expiry and re-auth proactively
+
+---
+
+# ADR-018: OIDC UserInfo Endpoint
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Decision
+Implement GET/POST /oauth/userinfo per OIDC Core §5.3. Returns sub (client_id) and scope for valid Bearer tokens. 401 with WWW-Authenticate for invalid tokens.
+
+## Rationale
+- Required for OIDC compliance
+- Enables standard OIDC client libraries to work with oauth4os
+
+---
+
+# ADR-019: DPoP Token Binding (RFC 9449)
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Decision
+Bind access tokens to DPoP key thumbprints. BindDPoP stores the thumbprint, VerifyDPoP checks it with constant-time compare. JWT access tokens include cnf.jkt claim when bound. Unbound tokens pass verification (backward compatible).
+
+## Rationale
+- Prevents stolen token reuse without the DPoP private key
+- Stronger than IP-based token binding (works across networks)
+- Standard mechanism per RFC 9449
+
+---
+
+# ADR-020: Webhook HMAC-SHA256 Signatures
+
+**Status:** Accepted  
+**Date:** 2026-04-12
+
+## Decision
+Sign outgoing webhook event payloads with HMAC-SHA256. Signature sent in X-Webhook-Signature: sha256=<hex>. Receivers verify by computing HMAC with shared secret.
+
+## Rationale
+- Prevents webhook spoofing
+- Industry standard (GitHub, Stripe, Slack all use HMAC-SHA256)
+- Optional — no signature without key configured

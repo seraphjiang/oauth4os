@@ -95,6 +95,25 @@ footer a{color:var(--muted)}
   nav{gap:10px}
   nav a{font-size:12px}
 }
+/* Live Search */
+.live{padding:60px 0}
+.live-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:700px;margin:0 auto}
+.live-input-row{display:flex;gap:8px;margin-bottom:12px}
+.live-input{flex:1;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-family:'SF Mono',Consolas,monospace}
+.live-input:focus{outline:none;border-color:var(--accent)}
+.live-btn{padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .15s}
+.live-btn-search{background:var(--accent);color:#fff}
+.live-btn-write{background:var(--surface);color:var(--red);border:1px solid var(--red)}
+.live-btn:hover{opacity:.85}
+.live-btn:disabled{opacity:.5;cursor:not-allowed}
+.live-status{font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.live-status .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.live-results{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:300px;overflow-y:auto;font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.5;white-space:pre-wrap}
+.live-scope{display:flex;gap:12px;margin-top:16px}
+.scope-card{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px}
+.scope-card h4{font-size:12px;margin-bottom:4px}
+.scope-card.pass{border-color:var(--green)}.scope-card.pass h4{color:var(--green)}
+.scope-card.fail{border-color:var(--red)}.scope-card.fail h4{color:var(--red)}
 </style>
 </head>
 <body>
@@ -104,6 +123,7 @@ footer a{color:var(--muted)}
     <div class="logo">🔐 oauth<span>4os</span></div>
     <nav>
       <a href="#architecture">Architecture</a>
+      <a href="#live-search">Live Search</a>
       <a href="#demo">Demo</a>
       <a href="#features">Features</a>
       <a href="playground/" aria-label="Cedar Policy Playground">Playground</a>
@@ -280,6 +300,32 @@ oauth4os-keycloak  | Keycloak started in 4.2s</code></pre>
   </div>
 </section>
 
+<section class="live" id="live-search">
+  <div class="container">
+    <h2 class="section-title">🔍 Live Search — Try It Now</h2>
+    <p class="section-sub">This queries a real OpenSearch cluster through the oauth4os proxy. Type a query and see scope enforcement in action.</p>
+    <div class="live-box">
+      <div class="live-status" id="liveStatus"><span class="dot" style="background:var(--muted)"></span> Connecting...</div>
+      <div class="live-input-row">
+        <input type="text" class="live-input" id="liveQuery" placeholder='error OR timeout OR "connection refused"' value="error" aria-label="Search query">
+        <button class="live-btn live-btn-search" id="liveSearchBtn" aria-label="Search with read scope">🔍 Search</button>
+      </div>
+      <div class="live-results" id="liveResults">Results will appear here...</div>
+      <div class="live-scope">
+        <div class="scope-card" id="scopeRead">
+          <h4>🔍 Read Scope Test</h4>
+          <p>Click Search above — uses <code>read:logs-*</code> scope</p>
+        </div>
+        <div class="scope-card" id="scopeWrite">
+          <h4>✏️ Write Scope Test</h4>
+          <button class="live-btn live-btn-write" id="liveWriteBtn" aria-label="Try write with read-only scope" style="margin-top:6px">Try Write →</button>
+          <p id="writeResult" style="margin-top:4px"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="features" id="features">
   <div class="container">
     <h2 class="section-title">Features</h2>
@@ -375,6 +421,100 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
     setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 1500);
   });
 });
+// Live Search
+const PROXY = window.location.origin;
+let demoToken = null;
+
+async function initLiveSearch() {
+  const status = document.getElementById('liveStatus');
+  try {
+    const h = await fetch(PROXY + '/health').then(r => r.json());
+    status.innerHTML = `<span class="dot" style="background:var(--green)"></span> Connected to oauth4os v${h.version}`;
+    // Get demo token
+    const resp = await fetch(PROXY + '/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials&client_id=demo-agent&client_secret=demo-secret&scope=read:logs-*'
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      demoToken = data.access_token;
+      document.getElementById('liveSearchBtn').disabled = false;
+      document.getElementById('liveWriteBtn').disabled = false;
+    }
+  } catch {
+    status.innerHTML = `<span class="dot" style="background:var(--orange)"></span> Demo proxy offline — try <code>docker compose up</code> locally`;
+  }
+}
+
+document.getElementById('liveSearchBtn').addEventListener('click', async () => {
+  if (!demoToken) return;
+  const q = document.getElementById('liveQuery').value || 'error';
+  const results = document.getElementById('liveResults');
+  const scopeRead = document.getElementById('scopeRead');
+  results.textContent = 'Searching...';
+  try {
+    const resp = await fetch(PROXY + '/logs-*/_search', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + demoToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: { query_string: { query: q } }, size: 5 })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      const hits = data.hits?.hits || [];
+      const total = data.hits?.total?.value ?? data.hits?.total ?? 0;
+      scopeRead.className = 'scope-card pass';
+      scopeRead.querySelector('p').textContent = `✅ ${total} results found — read:logs-* scope works`;
+      if (hits.length) {
+        results.textContent = hits.map(h => {
+          const s = h._source || {};
+          return `[${s.timestamp || ''}] ${s.level || ''} ${s.service || ''}: ${s.message || JSON.stringify(s).slice(0, 100)}`;
+        }).join('\n');
+      } else {
+        results.textContent = `${total} results found (showing summary):\n` + JSON.stringify(data.hits, null, 2).slice(0, 500);
+      }
+    } else {
+      results.textContent = JSON.stringify(data, null, 2);
+      scopeRead.className = 'scope-card fail';
+      scopeRead.querySelector('p').textContent = '❌ ' + (data.error || resp.statusText);
+    }
+  } catch (e) {
+    results.textContent = 'Error: ' + e.message;
+  }
+});
+
+document.getElementById('liveQuery').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('liveSearchBtn').click();
+});
+
+document.getElementById('liveWriteBtn').addEventListener('click', async () => {
+  if (!demoToken) return;
+  const writeResult = document.getElementById('writeResult');
+  const scopeWrite = document.getElementById('scopeWrite');
+  writeResult.textContent = 'Attempting write...';
+  try {
+    const resp = await fetch(PROXY + '/logs-demo/_doc', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + demoToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'test write', timestamp: new Date().toISOString() })
+    });
+    if (resp.status === 403) {
+      scopeWrite.className = 'scope-card fail';
+      writeResult.textContent = '🚫 403 Forbidden — read:logs-* scope cannot write. Scope enforcement works!';
+    } else if (resp.ok) {
+      scopeWrite.className = 'scope-card pass';
+      writeResult.textContent = '⚠️ Write succeeded (proxy may not enforce write scopes yet)';
+    } else {
+      const data = await resp.json().catch(() => ({}));
+      scopeWrite.className = 'scope-card fail';
+      writeResult.textContent = `🚫 ${resp.status} — ${data.error || resp.statusText}`;
+    }
+  } catch (e) {
+    writeResult.textContent = 'Error: ' + e.message;
+  }
+});
+
+initLiveSearch();
 </script>
 </body>
 </html>

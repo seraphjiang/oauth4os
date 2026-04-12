@@ -655,6 +655,16 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"rotated","kid":%q}`, keys.Current().ID)
 	})
+	mux.HandleFunc("GET /admin/api/keys", func(w http.ResponseWriter, r *http.Request) {
+		k := keys.Current()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"current_kid": k.ID,
+			"created_at":  k.CreatedAt,
+			"algorithm":   "RS256",
+			"jwks_uri":    "/.well-known/jwks.json",
+		})
+	})
 
 	// Prometheus metrics
 	mux.HandleFunc("GET /admin/audit", func(w http.ResponseWriter, r *http.Request) {

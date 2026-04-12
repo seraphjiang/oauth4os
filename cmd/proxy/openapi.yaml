@@ -606,6 +606,48 @@ paths:
         '200':
           description: Array of active token summaries
 
+  /admin/api/keys:
+    get:
+      summary: Current signing key info
+      tags: [Admin API]
+      responses:
+        '200':
+          description: Current KID, algorithm, creation time, JWKS URI
+
+  /admin/api/policies:
+    get:
+      summary: List all Cedar policies
+      tags: [Admin API]
+      responses:
+        '200':
+          description: Array of Policy objects
+    post:
+      summary: Add a Cedar policy
+      tags: [Admin API]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, effect]
+              properties:
+                id: { type: string }
+                effect: { type: string, enum: [permit, forbid] }
+      responses:
+        '201': { description: Policy created }
+
+  /admin/api/policies/{id}:
+    delete:
+      summary: Remove a Cedar policy
+      tags: [Admin API]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Policy deleted }
+        '404': { description: Policy not found }
   /admin/config:
     get:
       summary: Config viewer page

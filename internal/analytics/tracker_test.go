@@ -40,3 +40,37 @@ func TestEmptySnapshot(t *testing.T) {
 		t.Error("empty tracker should return empty report")
 	}
 }
+
+func TestRecordMultipleClients(t *testing.T) {
+	tr := New()
+	tr.Record("client-a", []string{"read"}, "logs-*")
+	tr.Record("client-a", []string{"read"}, "logs-*")
+	tr.Record("client-b", []string{"write"}, "metrics-*")
+	snap := tr.Snapshot()
+	if snap.TotalRequests != 3 {
+		t.Fatalf("expected 3 total, got %d", snap.TotalRequests)
+	}
+	if len(snap.TopClients) < 2 {
+		t.Fatal("expected at least 2 clients")
+	}
+	// client-a should be first (2 requests)
+	if snap.TopClients[0].ClientID != "client-a" || snap.TopClients[0].Requests != 2 {
+		t.Fatalf("expected client-a with 2 requests, got %+v", snap.TopClients[0])
+	}
+}
+
+func TestRecordScopeDistribution(t *testing.T) {
+	tr := New()
+	tr.Record("c1", []string{"read", "write"}, "idx")
+	tr.Record("c2", []string{"read"}, "idx")
+	snap := tr.Snapshot()
+	found := false
+	for _, s := range snap.ScopeDistribution {
+		if s.Name == "read" && s.Count == 2 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected scope 'read' with count 2")
+	}
+}

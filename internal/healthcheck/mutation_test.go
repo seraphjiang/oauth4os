@@ -10,6 +10,7 @@ import (
 // Mutation: remove Healthy=true for <500 → healthy upstream must report healthy
 func TestMutation_HealthyStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
@@ -25,6 +26,7 @@ func TestMutation_HealthyStatus(t *testing.T) {
 // Mutation: remove error string on 5xx → unhealthy must have error
 func TestMutation_UnhealthyError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		w.WriteHeader(503)
 	}))
 	defer srv.Close()
@@ -43,6 +45,7 @@ func TestMutation_UnhealthyError(t *testing.T) {
 // Mutation: remove latency tracking → latency must be > 0
 func TestMutation_LatencyTracked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		time.Sleep(5 * time.Millisecond)
 		w.WriteHeader(200)
 	}))
@@ -59,6 +62,7 @@ func TestMutation_LatencyTracked(t *testing.T) {
 // Mutation: remove LastCheck → must record check time
 func TestMutation_LastCheck(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()

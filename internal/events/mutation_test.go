@@ -22,6 +22,7 @@ func TestMutation_TimestampSet(t *testing.T) {
 	var mu sync.Mutex
 	var got Event
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		var e Event
 		json.NewDecoder(r.Body).Decode(&e)
 		mu.Lock()
@@ -45,6 +46,7 @@ func TestMutation_TimestampSet(t *testing.T) {
 func TestMutation_NonBlocking(t *testing.T) {
 	// Slow server that never responds quickly
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		time.Sleep(10 * time.Second)
 	}))
 	defer srv.Close()
@@ -67,6 +69,7 @@ func TestMutation_NonBlocking(t *testing.T) {
 func TestMutation_ContentType(t *testing.T) {
 	var gotCT atomic.Value
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	defer srv.Close()
 		gotCT.Store(r.Header.Get("Content-Type"))
 	}))
 	defer srv.Close()

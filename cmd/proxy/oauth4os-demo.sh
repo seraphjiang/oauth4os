@@ -44,7 +44,10 @@ usage() {
 ${BOLD}oauth4os-demo${NC} — OAuth 2.0 proxy CLI
 
 ${BOLD}USAGE:${NC}
-  oauth4os-demo <command> [args]
+  oauth4os-demo [--json] <command> [args]
+
+${BOLD}FLAGS:${NC}
+  --json             Force JSON output (machine-readable)
 
 ${BOLD}COMMANDS:${NC}
   login              Authenticate via browser (PKCE flow)
@@ -348,9 +351,11 @@ cmd_status() {
   local resp
   resp=$(curl -sf "${PROXY}/health" 2>/dev/null)
   if [ $? -eq 0 ]; then
+    if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
     echo -e "${GREEN}✅ Proxy is healthy${NC}"
     echo "$resp" | jq . 2>/dev/null || echo "$resp"
   else
+    if [ "$IS_TTY" = "false" ]; then echo '{"status":"unreachable"}'; exit 1; fi
     echo -e "${RED}❌ Proxy unreachable${NC}"
     exit 1
   fi
@@ -923,6 +928,8 @@ cmd_profile() {
   local payload
   payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null) || payload='{}'
 
+  if [ "$IS_TTY" = "false" ]; then echo "$payload" | jq . 2>/dev/null || echo "$payload"; return; fi
+
   echo -e "${BOLD}🔐 Token Profile${NC}\n"
   local client sub iss exp iat scope
   client=$(echo "$payload" | jq -r '.client_id // .azp // "—"' 2>/dev/null)
@@ -1116,6 +1123,12 @@ cmd_latency() {
   local total=$(echo "$metrics" | grep '^oauth4os_requests_total ' | awk '{print $2}')
   local failed=$(echo "$metrics" | grep '^oauth4os_requests_failed ' | awk '{print $2}')
   local uptime=$(echo "$metrics" | grep '^oauth4os_uptime_seconds ' | awk '{print $2}')
+
+  if [ "$IS_TTY" = "false" ]; then
+    printf '{"latency_ms":%s,"active":%s,"total":%s,"failed":%s,"uptime_s":%s}\n' \
+      "${lat:-0}" "${active:-0}" "${total:-0}" "${failed:-0}" "${uptime:-0}"
+    return
+  fi
 
   echo -e "${BOLD}⏱  Latency & Throughput${NC}\n"
   echo -e "  ${BOLD}Upstream latency:${NC}  ${CYAN}${lat:-?}ms${NC}"

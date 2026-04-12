@@ -23,12 +23,18 @@ CLIENT_ID="demo-cli"
 REDIRECT_PORT=8199
 REDIRECT_URI="http://localhost:${REDIRECT_PORT}/callback"
 
+# --json flag: force machine-readable JSON output
+JSON_MODE=false
+for arg in "$@"; do
+  [ "$arg" = "--json" ] && JSON_MODE=true
+done
+
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 
-# Disable colors and output raw JSON when piped
+# Disable colors and output raw JSON when piped or --json
 IS_TTY=true
-if [ ! -t 1 ]; then
+if [ ! -t 1 ] || $JSON_MODE; then
   IS_TTY=false
   RED=''; GREEN=''; CYAN=''; YELLOW=''; BOLD=''; NC=''
 fi
@@ -38,7 +44,10 @@ usage() {
 ${BOLD}oauth4os-demo${NC} — OAuth 2.0 proxy CLI
 
 ${BOLD}USAGE:${NC}
-  oauth4os-demo <command> [args]
+  oauth4os-demo [--json] <command> [args]
+
+${BOLD}FLAGS:${NC}
+  --json             Force JSON output (machine-readable)
 
 ${BOLD}COMMANDS:${NC}
   login              Authenticate via browser (PKCE flow)
@@ -342,9 +351,11 @@ cmd_status() {
   local resp
   resp=$(curl -sf "${PROXY}/health" 2>/dev/null)
   if [ $? -eq 0 ]; then
+    if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
     echo -e "${GREEN}✅ Proxy is healthy${NC}"
     echo "$resp" | jq . 2>/dev/null || echo "$resp"
   else
+    if [ "$IS_TTY" = "false" ]; then echo '{"status":"unreachable"}'; exit 1; fi
     echo -e "${RED}❌ Proxy unreachable${NC}"
     exit 1
   fi
@@ -917,6 +928,8 @@ cmd_profile() {
   local payload
   payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null) || payload='{}'
 
+  if [ "$IS_TTY" = "false" ]; then echo "$payload" | jq . 2>/dev/null || echo "$payload"; return; fi
+
   echo -e "${BOLD}🔐 Token Profile${NC}\n"
   local client sub iss exp iat scope
   client=$(echo "$payload" | jq -r '.client_id // .azp // "—"' 2>/dev/null)
@@ -1111,6 +1124,12 @@ cmd_latency() {
   local failed=$(echo "$metrics" | grep '^oauth4os_requests_failed ' | awk '{print $2}')
   local uptime=$(echo "$metrics" | grep '^oauth4os_uptime_seconds ' | awk '{print $2}')
 
+  if [ "$IS_TTY" = "false" ]; then
+    printf '{"latency_ms":%s,"active":%s,"total":%s,"failed":%s,"uptime_s":%s}\n' \
+      "${lat:-0}" "${active:-0}" "${total:-0}" "${failed:-0}" "${uptime:-0}"
+    return
+  fi
+
   echo -e "${BOLD}⏱  Latency & Throughput${NC}\n"
   echo -e "  ${BOLD}Upstream latency:${NC}  ${CYAN}${lat:-?}ms${NC}"
   echo -e "  ${BOLD}Active requests:${NC}   ${active:-0}"
@@ -1150,6 +1169,10 @@ cmd_ping() {
 
 # Main
 ensure_deps
+# Strip --json from args (already parsed above)
+args=()
+for arg in "$@"; do [ "$arg" != "--json" ] && args+=("$arg"); done
+set -- "${args[@]}"
 case "${1:-}" in
   login)    cmd_login ;;
   logout)   cmd_logout ;;

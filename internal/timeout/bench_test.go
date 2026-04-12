@@ -11,7 +11,7 @@ func BenchmarkMiddleware_Fast(b *testing.B) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
-	handler := Middleware(5*time.Second)(inner)
+	handler := Middleware(inner, 5*time.Second)
 	r := httptest.NewRequest("GET", "/", nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

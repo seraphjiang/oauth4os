@@ -2,6 +2,8 @@ package registration
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -63,14 +65,12 @@ func TestMutation_201Status(t *testing.T) {
 
 // Mutation: remove JSON content type → response must be application/json
 func TestMutation_JSONContentType(t *testing.T) {
-	h := NewHandler(nil, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	h := NewHandler(func(id, secret string, scopes, uris []string) {}, nil)
 	body := `{"client_name":"test-app","redirect_uris":["http://localhost/cb"]}`
 	r := httptest.NewRequest("POST", "/register", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, r)
+	h.Register(w, r)
 	if !strings.Contains(w.Header().Get("Content-Type"), "json") {
 		t.Error("registration response must be JSON")
 	}

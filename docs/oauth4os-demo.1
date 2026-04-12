@@ -61,6 +61,30 @@ Manage command aliases. Actions: add, rm, run, list.
 .B completion \fIshell\fR
 Generate shell completions (bash, zsh).
 .TP
+.B diff \fIrange1\fR \fIrange2\fR
+Compare two time ranges (today, yesterday, 1h, 24h, 7d).
+.TP
+.B profile
+Show formatted token claims, scopes, and expiry countdown.
+.TP
+.B top
+Real-time top consumers view (requests, clients, scopes). Press q to quit.
+.TP
+.B env
+Show config, file paths, dependency versions, and proxy connectivity.
+.TP
+.B audit \fI[n]\fR
+Show last n admin audit events (default 20).
+.TP
+.B alerts
+Show alert status derived from proxy metrics.
+.TP
+.B latency
+Show upstream latency, throughput, and error rate.
+.TP
+.B install-man
+Install man page to /usr/local/share/man/man1/.
+.TP
 .B token
 Show current token info.
 .TP

@@ -52,6 +52,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// RFC 7662 §2.1: introspection endpoint MUST be protected
+	if h.clientAuth != nil {
+		clientID, clientSecret, hasBasic := r.BasicAuth()
+		if !hasBasic {
+			r.ParseForm()
+			clientID = r.FormValue("client_id")
+			clientSecret = r.FormValue("client_secret")
+		}
+		if err := h.clientAuth(clientID, clientSecret); err != nil {
+			w.Header().Set("WWW-Authenticate", "Basic")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_client"})
+			return
+		}
+	}
+
 	r.ParseForm()
 	tokenStr := r.FormValue("token")
 	if tokenStr == "" {

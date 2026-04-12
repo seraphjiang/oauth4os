@@ -52,17 +52,17 @@ func TestMutation_ImportInvalid(t *testing.T) {
 func TestMutation_ImportValid(t *testing.T) {
 	applied := false
 	h := NewHandler(
-		func() interface{} { return map[string]string{"key": "val"} },
-		func() interface{} { return []string{} },
-		func(data []byte) error { applied = true; return nil },
+		func() *config.Config { return &config.Config{} },
+		func() []ClientEntry { return nil },
+		func(c *config.Config) { applied = true },
 	)
-	body := `{"config":{"key":"val"},"clients":[]}`
+	body := `{"config":{},"clients":[]}`
 	r := httptest.NewRequest("POST", "/admin/backup/import", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	h.Import(w, r)
 	if w.Code != 200 {
-		t.Errorf("valid import should return 200, got %d", w.Code)
+		t.Errorf("valid import should return 200, got %d: %s", w.Code, w.Body.String())
 	}
 	if !applied {
 		t.Error("Import must call applyCfg")

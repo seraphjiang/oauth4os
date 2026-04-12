@@ -427,6 +427,7 @@ func main() {
 	// RFC 7662 Token Introspection
 	introAdapter := &introspect.ManagerAdapter{GetToken: tokenMgr.Lookup}
 	introHandler := introspect.NewHandler(introAdapter)
+	introHandler.SetClientAuth(tokenMgr.AuthenticateClient)
 	mux.Handle("POST /oauth/introspect", introHandler)
 
 	// PKCE authorization code flow for browser clients

@@ -54,7 +54,7 @@ a{color:#58a6ff;text-decoration:none}
 <div class="step-title">Register a Client</div>
 </div>
 <div class="step-body">
-<p class="step-desc">Every OAuth application starts by registering a client. You'll get a <code>client_id</code> and <code>client_secret</code>.</p>
+<p class="step-desc">Every OAuth application starts by registering a client. You'll get a <code>client_id</code> and <code>client_secret</code>. Or use the <a href="/register/" style="color:#58a6ff">registration form</a>.</p>
 <div class="form-group"><label>Application Name</label><input id="reg-name" value="my-tutorial-app" placeholder="my-app"></div>
 <div class="form-group"><label>Scopes</label><input id="reg-scopes" value="read:logs-*" placeholder="read:logs-* write:logs-*"></div>
 <div class="curl-label">curl equivalent</div>
@@ -155,7 +155,7 @@ a{color:#58a6ff;text-decoration:none}
 </div>
 <script>
 const BASE=location.origin;
-let state={clientId:'',clientSecret:'',token:'',step:1};
+let state={clientId:'',clientSecret:'',token:'',refreshToken:'',step:1};
 
 function activateStep(n){
   document.querySelectorAll('.step').forEach(s=>{s.classList.remove('active');if(parseInt(s.dataset.step)<n)s.classList.add('done')});
@@ -165,7 +165,7 @@ function activateStep(n){
 function completeStep(n){
   document.getElementById('step-'+n).classList.add('done');
   document.getElementById('step-'+n).classList.remove('active');
-  if(n<5){activateStep(n+1);document.getElementById('btn-'+(n+1)).disabled=false;}
+  if(n<6){activateStep(n+1);document.getElementById('btn-'+(n+1)).disabled=false;}
   updateProgress();
 }
 function showResp(n,data,ok){
@@ -176,7 +176,7 @@ function showResp(n,data,ok){
 function updateProgress(){
   const p=document.getElementById('progress');
   p.innerHTML='';
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=6;i++){
     const d=document.createElement('div');d.className='progress-dot';
     if(document.getElementById('step-'+i).classList.contains('done'))d.className+=' done';
     if(document.getElementById('step-'+i).classList.contains('active'))d.className+=' active';
@@ -215,6 +215,7 @@ async function runStep2(){
       body:'grant_type=client_credentials&client_id='+state.clientId+'&client_secret='+state.clientSecret});
     const d=await r.json();
     state.token=d.access_token||'';
+    state.refreshToken=d.refresh_token||'';
     document.getElementById('curl-3-tok').textContent=state.token.substring(0,20)+'...';
     document.getElementById('curl-4-tok').textContent=state.token.substring(0,20)+'...';
     showResp(2,d,r.ok);
@@ -270,9 +271,32 @@ async function runStep5(){
   completeStep(5);
 }
 
+async function runStep6(){
+  document.getElementById('btn-6').disabled=true;
+  document.getElementById('btn-6').textContent='Refreshing...';
+  try{
+    const r=await fetch(BASE+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'grant_type=refresh_token&refresh_token='+state.refreshToken+'&client_id='+state.clientId});
+    const d=await r.json();
+    if(d.access_token){
+      state.token=d.access_token;
+      state.refreshToken=d.refresh_token||state.refreshToken;
+      showResp(6,{...d,note:'New token issued! Old refresh token rotated.'},true);
+      completeStep(6);
+    }else{showResp(6,d,false);}
+  }catch(e){showResp(6,'Error: '+e.message,false);}
+  document.getElementById('btn-6').disabled=false;
+  document.getElementById('btn-6').textContent='Refresh Token';
+}
+
 updateProgress();
 // Check for PKCE callback code in URL
 const params=new URLSearchParams(location.search);
 if(params.get('code')){showResp(5,{auth_code:params.get('code'),message:'Got authorization code! Exchange this + code_verifier for a token.'},true);}
 </script>
+<div class="container" style="padding-bottom:40px">
+<div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;text-align:center;font-size:13px;color:#8b949e">
+<strong style="color:#e6edf3">Explore more</strong><br>
+<a href="/register/" style="color:#58a6ff">Register Client</a> · <a href="/admin/clients" style="color:#58a6ff">Manage Clients</a> · <a href="/admin/tokens" style="color:#58a6ff">View Tokens</a> · <a href="/admin/policies" style="color:#58a6ff">Cedar Policies</a> · <a href="/admin/keys" style="color:#58a6ff">JWKS Keys</a> · <a href="/logs/" style="color:#58a6ff">Live Logs</a>
+</div></div>
 </body></html>

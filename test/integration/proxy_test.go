@@ -1,3 +1,5 @@
+//go:build integration
+
 // Integration tests for oauth4os — requires Docker (OpenSearch + proxy).
 //
 // Run: docker compose up -d && go test ./test/integration/ -v -count=1

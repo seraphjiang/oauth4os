@@ -1,3 +1,5 @@
+//go:build integration
+
 // Cedar policy integration tests — verify policy engine evaluates correctly
 // in the context of the proxy.
 //

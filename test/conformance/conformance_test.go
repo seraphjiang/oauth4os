@@ -1,3 +1,5 @@
+//go:build conformance
+
 // API conformance tests — verify all OpenAPI spec endpoints exist and return
 // expected status codes and content types.
 //

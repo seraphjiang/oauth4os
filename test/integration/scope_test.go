@@ -1,3 +1,5 @@
+//go:build integration
+
 // Scope enforcement integration tests — verify scoped tokens can't access
 // out-of-scope indices, Cedar policy evaluation, multi-provider scenarios.
 //

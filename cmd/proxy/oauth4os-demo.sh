@@ -1292,6 +1292,20 @@ cmd_sessions() {
   echo "$resp" | jq -r '.[]? | "  \(.client_id // .id)  \(.created_at // .issued // "—")  \(.scopes // .scope // "—")"' 2>/dev/null
 }
 
+cmd_clients() {
+  local resp
+  resp=$(authed_curl "${PROXY}/oauth/register")
+  if [ -z "$resp" ]; then echo -e "${RED}Failed to list clients${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}📋 Registered Clients${NC}\n"
+  local count=$(echo "$resp" | jq 'length' 2>/dev/null)
+  echo -e "  ${CYAN}${count:-0} client(s)${NC}\n"
+  printf "  ${BOLD}%-20s %-30s %s${NC}\n" "CLIENT_ID" "NAME" "SCOPES"
+  echo "$resp" | jq -r '.[]? | "\(.client_id // .id) \(.name // "—") \(.scopes // [] | join(","))"' 2>/dev/null | while read -r cid name scopes; do
+    printf "  %-20s %-30s %s\n" "$cid" "$name" "$scopes"
+  done
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1333,6 +1347,7 @@ case "${1:-}" in
   changelog|version) cmd_changelog ;;
   sessions) cmd_sessions ;;
   tutorial) echo -e "${CYAN}Opening tutorial...${NC}"; _open "${PROXY}/tutorial/" ;;
+  clients)  cmd_clients ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

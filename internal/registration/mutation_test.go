@@ -60,3 +60,18 @@ func TestMutation_201Status(t *testing.T) {
 		t.Errorf("successful registration must return 201, got %d", w.Code)
 	}
 }
+
+// Mutation: remove JSON content type → response must be application/json
+func TestMutation_JSONContentType(t *testing.T) {
+	h := NewHandler(nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	body := `{"client_name":"test-app","redirect_uris":["http://localhost/cb"]}`
+	r := httptest.NewRequest("POST", "/register", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if !strings.Contains(w.Header().Get("Content-Type"), "json") {
+		t.Error("registration response must be JSON")
+	}
+}

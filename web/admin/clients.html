@@ -120,7 +120,7 @@ async function save(){
       document.getElementById('saveBtn').style.display='none';
       load();
     }
-  }catch(e){alert(e.message)}
+  }catch(e){document.getElementById('secretBox').innerHTML='<div style="color:var(--red)">Error: '+esc(e.message)+'</div>';document.getElementById('secretBox').classList.add('show')}
 }
 
 async function del(id,name){

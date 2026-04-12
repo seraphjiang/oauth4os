@@ -106,3 +106,33 @@ func TestMutation_ApproveFlow(t *testing.T) {
 		t.Errorf("approved device should get token, got %v", tokenResp)
 	}
 }
+
+// Mutation: remove user_code → device auth response must include user_code
+func TestMutation_UserCodeReturned(t *testing.T) {
+	h := NewHandler(nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	body := "client_id=app"
+	r := httptest.NewRequest("POST", "/device/authorize", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if !strings.Contains(w.Body.String(), "user_code") {
+		t.Error("device auth response must include user_code")
+	}
+}
+
+// Mutation: remove interval → response must include polling interval
+func TestMutation_IntervalReturned(t *testing.T) {
+	h := NewHandler(nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	body := "client_id=app"
+	r := httptest.NewRequest("POST", "/device/authorize", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if !strings.Contains(w.Body.String(), "interval") {
+		t.Error("device auth response must include interval")
+	}
+}

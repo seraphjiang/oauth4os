@@ -42,3 +42,15 @@ func TestMutation_ValidExchange(t *testing.T) {
 		t.Error("response must contain access_token")
 	}
 }
+
+// Mutation: remove method check → GET must be rejected
+func TestMutation_PostOnly(t *testing.T) {
+	v := &StaticSubjectValidator{Claims: &SubjectClaims{Subject: "user", Issuer: "https://idp"}}
+	i := &StaticTokenIssuer{TokenID: "tok", ExpiresIn: 3600}
+	h := NewHandler(v, i, "aud")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/oauth/token", nil))
+	if w.Code == 200 {
+		t.Error("GET should be rejected, only POST allowed")
+	}
+}

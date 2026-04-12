@@ -355,6 +355,8 @@ listen: :8443
 | [docs/monitoring.md](docs/monitoring.md) | Prometheus + Grafana setup |
 | [docs/canary-deployment.md](docs/canary-deployment.md) | Canary deployment guide |
 | [docs/opentelemetry.md](docs/opentelemetry.md) | OTLP tracing integration |
+| [docs/runbook.md](docs/runbook.md) | Operator runbook — incidents, scaling |
+| [docs/oauth-flows.md](docs/oauth-flows.md) | All 8 OAuth flows with diagrams |
 
 ## Contributing
 

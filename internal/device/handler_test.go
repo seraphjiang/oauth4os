@@ -13,17 +13,23 @@ func testIssuer(clientID string, scopes []string) (string, string) {
 	return "access_" + clientID, "refresh_" + clientID
 }
 
+func post(mux *http.ServeMux, path string, body string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest("POST", path, strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	return w
+}
+
 func TestDeviceFlow(t *testing.T) {
 	h := NewHandler(testIssuer)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	// Step 1: Request device code
-	resp := httptest.NewRecorder()
-	mux.ServeHTTP(resp, httptest.NewRequest("POST", "/oauth/device/code",
-		strings.NewReader(url.Values{"client_id": {"cli-1"}, "scope": {"read:logs-*"}}.Encode())))
+	resp := post(mux, "/oauth/device/code", url.Values{"client_id": {"cli-1"}, "scope": {"read:logs-*"}}.Encode())
 	if resp.Code != 200 {
-		t.Fatalf("expected 200, got %d", resp.Code)
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
 	}
 	var codeResp map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&codeResp)
@@ -34,9 +40,7 @@ func TestDeviceFlow(t *testing.T) {
 	}
 
 	// Step 2: Poll — should be pending
-	resp2 := httptest.NewRecorder()
-	mux.ServeHTTP(resp2, httptest.NewRequest("POST", "/oauth/device/token",
-		strings.NewReader(url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}.Encode())))
+	resp2 := post(mux, "/oauth/device/token", url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}.Encode())
 	var pending map[string]string
 	json.NewDecoder(resp2.Body).Decode(&pending)
 	if pending["error"] != "authorization_pending" {
@@ -44,17 +48,13 @@ func TestDeviceFlow(t *testing.T) {
 	}
 
 	// Step 3: User approves
-	resp3 := httptest.NewRecorder()
-	mux.ServeHTTP(resp3, httptest.NewRequest("POST", "/oauth/device/approve",
-		strings.NewReader(url.Values{"user_code": {uc}, "action": {"approve"}}.Encode())))
+	resp3 := post(mux, "/oauth/device/approve", url.Values{"user_code": {uc}, "action": {"approve"}}.Encode())
 	if resp3.Code != 200 {
 		t.Fatalf("expected 200, got %d", resp3.Code)
 	}
 
 	// Step 4: Poll again — should get token
-	resp4 := httptest.NewRecorder()
-	mux.ServeHTTP(resp4, httptest.NewRequest("POST", "/oauth/device/token",
-		strings.NewReader(url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}.Encode())))
+	resp4 := post(mux, "/oauth/device/token", url.Values{"grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {dc}}.Encode())
 	var tokenResp map[string]interface{}
 	json.NewDecoder(resp4.Body).Decode(&tokenResp)
 	if tokenResp["access_token"] != "access_cli-1" {

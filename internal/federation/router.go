@@ -4,7 +4,8 @@ package federation
 
 import (
 	"net/http"
-	"path"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 )
 
@@ -74,4 +75,40 @@ func extractIndex(p string) string {
 		return ""
 	}
 	return idx
+}
+
+// Route returns a reverse proxy handler for the matched cluster, or nil for fallback.
+func (r *Router) Route(req *http.Request) http.Handler {
+	upstream, _ := r.Resolve(req.URL.Path)
+	if upstream == r.fallback {
+		return nil
+	}
+	target, err := url.Parse(upstream)
+	if err != nil {
+		return nil
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.Transport = r.transport
+	return proxy
+}
+
+func globMatch(pattern, value string) bool {
+	if pattern == "*" {
+		return true
+	}
+	if !strings.Contains(pattern, "*") {
+		return pattern == value
+	}
+	parts := strings.SplitN(pattern, "*", 2)
+	return strings.HasPrefix(value, parts[0]) && strings.HasSuffix(value, parts[1])
+}
+
+func globMatch(pattern, value string) bool {
+	if pattern == "*" {
+		return true
+	}
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(value, pattern[:len(pattern)-1])
+	}
+	return pattern == value
 }

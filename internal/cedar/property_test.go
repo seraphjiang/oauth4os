@@ -13,7 +13,7 @@ func TestProperty_ForbidOverridesPermit(t *testing.T) {
 		}
 		e := NewEngine([]Policy{
 			{ID: "allow", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}},
-			{ID: "deny", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Value: index}},
+			{ID: "deny", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Equals: index}},
 		})
 		d := e.Evaluate(Request{
 			Principal: map[string]string{"sub": "user"},

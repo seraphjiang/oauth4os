@@ -417,12 +417,8 @@ func main() {
 		ctx, upSpan := tracer.StartSpan(r.Context(), string(tracing.SpanUpstream), map[string]string{"target": r.URL.Path})
 		r = r.WithContext(ctx)
 		if fedRouter != nil {
-			if target, _ := fedRouter.Resolve(r.URL.Path); target != "" && target != cfg.Upstream.Engine {
-				// Route to federated cluster
-				targetURL, _ := url.Parse(target)
-				fedProxy := httputil.NewSingleHostReverseProxy(targetURL)
-				fedProxy.Transport = transport
-				fedProxy.ServeHTTP(w, r)
+			if proxy := fedRouter.Route(r); proxy != nil {
+				proxy.ServeHTTP(w, r)
 			} else {
 				engineProxy.ServeHTTP(w, r)
 			}

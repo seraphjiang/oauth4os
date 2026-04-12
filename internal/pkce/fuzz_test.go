@@ -17,7 +17,7 @@ func FuzzExchange(f *testing.F) {
 	f.Fuzz(func(t *testing.T, form string) {
 		h := NewHandler(func(clientID string, scopes []string) (string, string) {
 			return "tok", "rtk"
-		})
+		}, func(clientID, uri string) bool { return true })
 		r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()

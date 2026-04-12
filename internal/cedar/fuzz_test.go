@@ -36,7 +36,7 @@ func FuzzEvaluate(f *testing.F) {
 
 	engine := NewEngine([]Policy{
 		{ID: "p1", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}},
-		{ID: "p2", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Value: ".opendistro_security"}},
+		{ID: "p2", Effect: Forbid, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Equals: ".opendistro_security"}},
 	})
 
 	f.Fuzz(func(t *testing.T, sub, method, index, path string) {

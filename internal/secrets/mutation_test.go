@@ -46,3 +46,32 @@ func TestMutation_PlainPassthrough(t *testing.T) {
 		t.Errorf("expected 'plain-value', got %q", val)
 	}
 }
+
+// Mutation: remove ResolveAll → must resolve all entries in map
+func TestMutation_ResolveAll(t *testing.T) {
+	os.Setenv("TEST_RA_KEY", "resolved-value")
+	defer os.Unsetenv("TEST_RA_KEY")
+	r := New()
+	m := map[string]string{
+		"secret1": "env:TEST_RA_KEY",
+		"plain":   "literal-value",
+	}
+	if err := r.ResolveAll(m); err != nil {
+		t.Fatal(err)
+	}
+	if m["secret1"] != "resolved-value" {
+		t.Errorf("expected 'resolved-value', got %q", m["secret1"])
+	}
+	if m["plain"] != "literal-value" {
+		t.Errorf("expected 'literal-value', got %q", m["plain"])
+	}
+}
+
+// Mutation: remove error propagation → ResolveAll must fail on bad ref
+func TestMutation_ResolveAllError(t *testing.T) {
+	r := New()
+	m := map[string]string{"bad": "file:/nonexistent/path/to/secret"}
+	if err := r.ResolveAll(m); err == nil {
+		t.Error("ResolveAll must propagate errors from bad refs")
+	}
+}

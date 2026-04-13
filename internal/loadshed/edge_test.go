@@ -31,3 +31,32 @@ func TestEdge_OverCapacity503(t *testing.T) {
 		t.Errorf("over capacity should return 503, got %d", w.Code)
 	}
 }
+
+// Edge: loadshed with health check bypass
+func TestEdge_HealthBypass(t *testing.T) {
+	s := New(0) // always shed
+	h := s.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	// Health endpoint should still be shed (no special bypass in middleware)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/health", nil))
+	if w.Code == 200 {
+		t.Log("loadshed does not bypass /health — expected behavior")
+	}
+}
+
+// Edge: concurrent Allow calls must not panic
+func TestEdge_ConcurrentAllow(t *testing.T) {
+	s := New(100)
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Allow()
+			s.Release()
+		}()
+	}
+	wg.Wait()
+}

@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-type stubLookup struct{}
+type edgeStubLookup struct{}
 
-func (s stubLookup) Introspect(token string) *Response {
+func (s edgeStubLookup) Introspect(token string) *Response {
 	if token == "valid-tok" {
 		return &Response{Active: true, ClientID: "app", Scope: "read", Exp: time.Now().Add(time.Hour).Unix()}
 	}
@@ -18,7 +18,7 @@ func (s stubLookup) Introspect(token string) *Response {
 
 // Edge: valid token returns active=true
 func TestEdge_ValidTokenActive(t *testing.T) {
-	h := NewHandler(stubLookup{})
+	h := NewHandler(&edgeStubLookup{})
 	body := "token=valid-tok"
 	r := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -34,7 +34,7 @@ func TestEdge_ValidTokenActive(t *testing.T) {
 
 // Edge: invalid token returns active=false
 func TestEdge_InvalidTokenInactive(t *testing.T) {
-	h := NewHandler(stubLookup{})
+	h := NewHandler(&edgeStubLookup{})
 	body := "token=bad-tok"
 	r := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -47,7 +47,7 @@ func TestEdge_InvalidTokenInactive(t *testing.T) {
 
 // Edge: missing token parameter fails
 func TestEdge_MissingToken(t *testing.T) {
-	h := NewHandler(stubLookup{})
+	h := NewHandler(&edgeStubLookup{})
 	r := httptest.NewRequest("POST", "/oauth/introspect", strings.NewReader(""))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func TestEdge_MissingToken(t *testing.T) {
 
 // Edge: GET method rejected
 func TestEdge_GETRejected(t *testing.T) {
-	h := NewHandler(stubLookup{})
+	h := NewHandler(&edgeStubLookup{})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/oauth/introspect", nil))
 	if w.Code == 200 && strings.Contains(w.Body.String(), `"active":true`) {

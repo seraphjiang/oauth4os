@@ -150,6 +150,26 @@ providers:
     jwks_uri: auto  # OIDC auto-discovery
 ```
 
+### Delegation Flow (v2.0.0)
+
+Service A acts on behalf of a user by providing both subject and actor tokens:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Service A
+    participant P as oauth4os Proxy
+    participant B as Service B
+
+    U->>A: Request (with user token)
+    A->>P: POST /oauth/token (subject_token=user, actor_token=serviceA)
+    P->>P: Validate both tokens
+    P->>P: Issue delegated token with act:{sub:"serviceA"}
+    P-->>A: {access_token, act:{sub:"serviceA"}}
+    A->>B: Request with delegated token
+    B->>P: Introspect token → sees sub=user, act=serviceA
+```
+
 ## 5. Token Introspection (RFC 7662)
 
 Resource servers or admin tools query token validity.
@@ -381,3 +401,6 @@ sequenceDiagram
 | API Key | Hashed storage, prefix-based lookup, per-key rate limits |
 | PAR | Server-side param storage, one-time URI, 60s expiry |
 | CIBA | Backchannel auth, 5-min expiry, one-time token issuance |
+| Token Exchange | JWKS signature verification, delegation with act claim |
+| DPoP | Token bound to client key thumbprint, constant-time verify |
+| Webhook signatures | HMAC-SHA256 on outgoing events |

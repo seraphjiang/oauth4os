@@ -1610,7 +1610,6 @@ func main() {
 	})
 
 	// DPoP validation on token endpoints
-	_ = dpop.Validate // available for token endpoint handlers
 	_ = pluginReg     // available for proxy handler auth checks
 
 	// Structured access logs

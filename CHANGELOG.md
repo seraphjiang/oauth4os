@@ -3,6 +3,52 @@
 All notable changes to oauth4os are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [v2.0.0] — 2026-04-12 🚀 Major Feature Release
+
+303 commits · 65 packages · 1017+ tests · 297 mutations killed · 29 web pages · 60 CLI commands
+
+### Added
+- **OIDC UserInfo** endpoint (GET/POST /oauth/userinfo, RFC §5.3)
+- **Token Refresh** flow (POST /oauth/token, grant_type=refresh_token)
+- **Token Exchange** delegation (RFC 8693) — actor_token, act claim
+- **DPoP** token binding (RFC 9449) — tie access tokens to DPoP keys
+- **Cedar Policy Admin** API (GET/POST/DELETE /admin/api/policies)
+- **JWKS Admin** API + key rotation (POST /admin/keys/rotate)
+- **WebSocket** real-time log streaming (/ws/logs, /ws/metrics)
+- **SSE** server-sent events for dashboard updates
+- **Chaos Testing** middleware — random 500s, latency injection, connection drops
+- **Plugin System** — runtime Go plugins for custom auth logic
+- **Webhook HMAC-SHA256** signature verification on outgoing events
+- **Audit Log Export** to S3 (batch upload every 5 min)
+- **Multi-Tenant** token store isolation
+- **Prometheus** labeled metrics (method, path, status_code) with cardinality guard (1000 max)
+- **Prometheus Summary** metrics (count, sum, min, max)
+- **Prometheus Remote Write** receiver — accept metrics from external apps
+- **Soak Test** — continuous operation leak detection (heap + goroutine tracking)
+- **Terraform Module** — one-command AWS deployment (ECR + AppRunner + IAM)
+- **Kubernetes CRD** — OAuthProxy custom resource with full schema
+- **Canary Deployment** script with error-rate monitoring and auto-rollback
+- **GoReleaser** CI pipeline for automated releases
+- **Admin UI** — clients, tokens, policies, keys management pages
+- **API Explorer** — interactive request builder with 8 presets
+- **Tutorial** — step-by-step OAuth walkthrough page
+- **CLI Interactive Shell** (REPL) with tab completion and history
+- **CLI** stream, policy CRUD, backup/restore, fish/zsh completions — 60+ commands
+- **Mobile Responsive** — all 29 pages work at 375px width
+- **WCAG 2.1 AA** accessibility audit passed on all pages
+- **Dark/Light Theme** toggle persisted in localStorage
+- **OpenAPI Spec** updated with all v2.0.0 endpoints
+
+### Fixed
+- Load shedding counter stuck at max (proxy returning 503)
+- callback.html TypeError on live demo site
+- Events mutation test race condition
+- Chaos package missing sync import
+- Multiple test isolation issues (ingest pipeline sampling, meter_utils pollution)
+
+### Security
+- log_router eval_condition: replaced raw eval() with AST-whitelisted eval
+
 ## [v1.0.0] — 2026-04-12 🎉 Production Ready
 
 ### Added

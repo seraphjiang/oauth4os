@@ -446,11 +446,24 @@ cmd_token() {
 }
 
 cmd_whoami() {
-  local tok
-  tok=$(get_token)
-  # Decode JWT payload (no verification — just display)
-  echo "$tok" | cut -d. -f2 | base64 -d 2>/dev/null | jq . 2>/dev/null \
-    || echo "Token: ${tok:0:20}..."
+  local tok verbose=false
+  [ "$1" = "--verbose" ] || [ "$1" = "-v" ] && verbose=true
+  tok=$(get_token) || { echo -e "${RED}Not logged in${NC}" >&2; return 1; }
+  local payload
+  payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+' | awk '{l=length%4;if(l==2)$0=$0"==";else if(l==3)$0=$0"=";print}' | base64 -d 2>/dev/null)
+  if [ "$IS_TTY" = "false" ]; then echo "$payload"; return; fi
+  if [ "$verbose" = "true" ]; then
+    local header
+    header=$(echo "$tok" | cut -d. -f1 | tr '_-' '/+' | awk '{l=length%4;if(l==2)$0=$0"==";else if(l==3)$0=$0"=";print}' | base64 -d 2>/dev/null)
+    echo -e "${BOLD}JWT Header${NC}"
+    echo "$header" | jq . 2>/dev/null
+    echo -e "\n${BOLD}JWT Payload${NC}"
+    echo "$payload" | jq . 2>/dev/null
+    echo -e "\n${BOLD}Signature${NC}"
+    echo "  $(echo "$tok" | cut -d. -f3 | cut -c1-40)..."
+  else
+    echo "$payload" | jq . 2>/dev/null || echo "Token: ${tok:0:20}..."
+  fi
 }
 
 cmd_status() {

@@ -50,3 +50,14 @@ func TestMutation_CardinalityGuard(t *testing.T) {
 		t.Errorf("series count %d exceeds MaxSeries %d", r.SeriesCount(), MaxSeries)
 	}
 }
+
+// Mutation: remove POST-only check → Handler must reject GET
+func TestMutation_HandlerRejectsGet(t *testing.T) {
+	r := New()
+	h := r.Handler()
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/write", nil))
+	if w.Code != 405 {
+		t.Errorf("GET should return 405, got %d", w.Code)
+	}
+}

@@ -143,9 +143,21 @@ function fallbackPoll(){
   },2000);
 }
 
-// Try WS first, fall back to polling
-connectWS();
-setTimeout(()=>{if(!ws||ws.readyState!==1)fallbackPoll()},3000);
+// Try SSE first, then WS, then polling
+let sseOk=false;
+try{
+  const es=new EventSource(API+'/sse/logs');
+  es.onopen=()=>{
+    sseOk=true;
+    document.getElementById('modeBadge').textContent='▶ logs [SSE]';
+    document.getElementById('modeBadge').style.color='#3fb950';
+    document.getElementById('sMode').textContent='mode: SSE';
+    document.getElementById('connStatus').innerHTML='<span style="color:#3fb950">● SSE Live</span>';
+  };
+  es.onmessage=e=>{if(paused)return;try{addEntry(JSON.parse(e.data));render()}catch{}};
+  es.onerror=()=>{if(!sseOk){es.close();connectWS()}};
+}catch{connectWS()}
+setTimeout(()=>{if(!sseOk)connectWS()},3000);
 
 document.getElementById('pauseBtn').addEventListener('click',()=>{
   paused=!paused;

@@ -5,11 +5,12 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Edge: breaker opens after threshold failures
 func TestEdge_OpensAfterThreshold(t *testing.T) {
-	b := New(3, 0) // 3 failures to open, no reset
+	b := New(3, time.Minute) // 3 failures to open, 1 min cooldown
 	fail := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	})
@@ -28,7 +29,7 @@ func TestEdge_OpensAfterThreshold(t *testing.T) {
 
 // Edge: successful requests don't trip breaker
 func TestEdge_SuccessNoTrip(t *testing.T) {
-	b := New(3, 0)
+	b := New(3, time.Minute)
 	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	})
@@ -44,7 +45,7 @@ func TestEdge_SuccessNoTrip(t *testing.T) {
 
 // Edge: concurrent requests through breaker must not panic
 func TestEdge_ConcurrentRequests(t *testing.T) {
-	b := New(100, 0)
+	b := New(100, time.Minute)
 	h := b.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))

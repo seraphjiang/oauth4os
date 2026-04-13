@@ -31,10 +31,10 @@
 | Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 | v2.0.0 |
 |---|---|---|---|---|---|
 | Packages | 23 | 40 | 47 | 51 | 60 |
-| Tests | 292 | 395 | 846 | 932 | 1,032 |
-| Mutations | 14 | 29 | 213 | 259 | 300 |
-| Fuzz | 10 | 17 | 42 | 42 | 49 |
-| Benchmarks | 10 | 23 | 68 | 74 | 87 |
+| Tests | 292 | 395 | 846 | 932 | 1,052 |
+| Mutations | 14 | 29 | 213 | 259 | 317 |
+| Fuzz | 10 | 17 | 42 | 42 | 50 |
+| Benchmarks | 10 | 23 | 68 | 74 | 89 |
 
 ## Performance
 
@@ -73,8 +73,8 @@ Endpoints: 11/11 live (200)
 - Race detector: 0 races across all 47 packages
 - go vet: 0 warnings
 - TODO/FIXME: 0 in production code
-- All 300 mutations killed
-- 49 fuzz targets — no panics found (44 targets × 30s marathon + 5 additional)
-- 34 property tests — no invariant violations
+- All 317 mutations killed
+- 50 fuzz targets — no panics found (44 targets × 30s marathon + 6 additional)
+- 37 property tests — no invariant violations
 
 **Verdict: PRODUCTION READY ✅**

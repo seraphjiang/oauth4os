@@ -945,6 +945,7 @@ func main() {
 	mux.HandleFunc("GET /register/", serveWebFile("register/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /developer/", serveWebFile("developer/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/clients", serveWebFile("admin/clients.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/", serveWebFile("admin/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/tokens", serveWebFile("admin/tokens.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/api/stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

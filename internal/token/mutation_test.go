@@ -250,3 +250,32 @@ func TestMutation_RefreshRotation(t *testing.T) {
 		t.Error("refresh response must include new refresh_token")
 	}
 }
+
+// Mutation: remove Clients → must return registered clients
+func TestMutation_ClientsList(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("a", "s1", []string{"read"}, nil)
+	m.RegisterClient("b", "s2", []string{"write"}, nil)
+	clients := m.Clients()
+	if len(clients) < 2 {
+		t.Errorf("expected 2+ clients, got %d", len(clients))
+	}
+}
+
+// Mutation: remove RevokeRFC7009 → must revoke valid token
+func TestMutation_RevokeRFC7009(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	tok, _ := m.CreateTokenForClient("app", []string{"read"})
+	if !m.IsValid(tok.ID) {
+		t.Fatal("token should be valid before revoke")
+	}
+	body := "token=" + tok.ID + "&client_id=app&client_secret=secret"
+	r := httptest.NewRequest("POST", "/oauth/revoke", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	m.RevokeRFC7009(w, r)
+	if w.Code != 200 {
+		t.Errorf("revoke should return 200, got %d", w.Code)
+	}
+}

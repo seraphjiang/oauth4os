@@ -84,3 +84,15 @@ func TestMutation_ZeroTTLNoPanic(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // let reap goroutine start
 	c.Stop()
 }
+
+// Mutation: remove double-Stop guard → Stop twice must not panic
+func TestMutation_DoubleStopNoPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("double Stop panicked: %v", r)
+		}
+	}()
+	c := New(time.Second, 100)
+	c.Stop()
+	c.Stop()
+}

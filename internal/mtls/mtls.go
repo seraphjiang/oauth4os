@@ -40,6 +40,9 @@ func NewClientMap(clients map[string]*ClientEntry) *ClientMap {
 // Identify extracts client identity from a verified TLS peer certificate.
 // Checks CN first, then DNS SANs, then email SANs.
 func (m *ClientMap) Identify(cert *x509.Certificate) (*ClientEntry, error) {
+	if cert == nil {
+		return nil, fmt.Errorf("no client certificate provided")
+	}
 	// Try CN
 	if entry, ok := m.entries[strings.ToLower(cert.Subject.CommonName)]; ok {
 		return entry, nil

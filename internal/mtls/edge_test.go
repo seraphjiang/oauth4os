@@ -13,14 +13,12 @@ func TestEdge_NewClientMapEmpty(t *testing.T) {
 	}
 }
 
-func TestEdge_IdentifyNilCertHandled(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			t.Log("nil cert panics — potential bug to fix")
-		}
-	}()
+func TestEdge_IdentifyNilCertReturnsError(t *testing.T) {
 	m := NewClientMap(nil)
-	m.Identify(nil) // should not crash the process
+	_, err := m.Identify(nil)
+	if err == nil {
+		t.Error("nil cert should return error")
+	}
 }
 
 func TestEdge_IdentifyUnknownCertFails(t *testing.T) {

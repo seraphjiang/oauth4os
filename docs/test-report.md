@@ -73,6 +73,7 @@ Endpoints: 11/11 live (200)
 11. **Cache double-Stop** — `Stop()` calls `close(stopCh)` directly — double call panics. Fixed with `sync.Once`. Applied same fix to all 8 packages with Stop() methods
 12. **mTLS Identify nil cert** — `Identify()` dereferences `cert.Subject.CommonName` without nil check. Panics when called with nil cert. Added nil guard
 13. **Events Emit after Stop** — `Emit()` sends on closed channel after `Stop()` → panic. Added atomic stopped flag
+14. **OTLP zero capacity** — `New(0).Record()` panics with slice bounds out of range. `s[1:]` on empty slice when max=0. Added max > 0 guard
 
 ## Quality
 

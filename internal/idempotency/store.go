@@ -21,7 +21,7 @@ type Store struct {
 	entries map[string]*entry
 	ttl     time.Duration
 	stopCh  chan struct{}
-}
+	stopOnce sync.Once
 
 // New creates a store with the given TTL for idempotency keys.
 func New(ttl time.Duration) *Store {
@@ -31,7 +31,7 @@ func New(ttl time.Duration) *Store {
 }
 
 // Stop halts the background reaper goroutine.
-func (s *Store) Stop() { close(s.stopCh) }
+func (s *Store) Stop() { s.stopOnce.Do(func() { close(s.stopCh) }) }
 
 // Middleware returns HTTP middleware that deduplicates requests with Idempotency-Key header.
 // Only applies to POST/PUT/PATCH methods.

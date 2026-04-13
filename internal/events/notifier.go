@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -38,6 +39,7 @@ type Notifier struct {
 	ch        chan Event
 	done      chan struct{}
 	signKey   []byte // HMAC-SHA256 signing key (optional)
+	stopOnce  sync.Once
 }
 
 // New creates a notifier that posts events to the given URLs.
@@ -55,7 +57,7 @@ func New(urls []string) *Notifier {
 
 // Stop closes the event channel and waits for drain to finish.
 func (n *Notifier) Stop() {
-	close(n.ch)
+	n.stopOnce.Do(func() { close(n.ch) })
 	<-n.done
 }
 

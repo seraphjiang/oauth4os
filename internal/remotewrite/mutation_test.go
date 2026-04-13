@@ -2,6 +2,7 @@ package remotewrite
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 

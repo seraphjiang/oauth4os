@@ -92,6 +92,28 @@ ${BOLD}COMMANDS:${NC}
   latency              Show upstream latency and throughput
   ping [n]             Measure round-trip latency (default 5 pings)
   install-man          Install man page to system
+  register <name> [s]  Register new OAuth client
+  revoke [token]       Revoke current or specified token
+  rotate <client_id>   Rotate client secret
+  clients              List registered OAuth clients
+  tokens               List active tokens
+  keys                 Show JWKS public keys
+  sessions             List active sessions
+  stream [filter]      Live log stream (WebSocket + polling fallback)
+  policy <action>      list|add|remove|test Cedar policies
+  backup [file]        Export proxy state to JSON
+  restore <file>       Import proxy state from backup
+  metrics [filter]     Show Prometheus metrics
+  inspect [token]      Decode JWT payload without validation
+  replay <request_id>  Re-execute a logged request
+  userinfo             Show OIDC UserInfo claims
+  health               Detailed health check with component status
+  discovery            Show OIDC discovery document
+  scope [scopes]       Analyze/explain scope permissions
+  curl <path> [args]   Authenticated curl passthrough
+  openapi              Fetch OpenAPI spec
+  shell                Interactive REPL with tab completion
+  tutorial             Open interactive tutorial in browser
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})

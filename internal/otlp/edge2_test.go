@@ -34,10 +34,10 @@ func TestEdge_RecordWithError(t *testing.T) {
 	// Should not panic
 }
 
-func TestEdge_SmallExporter(t *testing.T) {
-	e := New(1)
+func TestEdge_ZeroCapacityNoPanic(t *testing.T) {
+	e := New(0)
 	e.Record("op", time.Now(), time.Now(), nil, "")
-	e.Record("op2", time.Now(), time.Now(), nil, "")
+	// must not panic
 }
 
 func TestEdge_ConcurrentHandler(t *testing.T) {

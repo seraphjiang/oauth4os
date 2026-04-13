@@ -71,7 +71,7 @@ func (e *Exporter) Record(name string, start, end time.Time, attrs map[string]st
 		s.Status = &Status{Code: 1}
 	}
 	e.mu.Lock()
-	if len(e.spans) >= e.max {
+	if e.max > 0 && len(e.spans) >= e.max {
 		e.spans = e.spans[1:]
 	}
 	e.spans = append(e.spans, s)

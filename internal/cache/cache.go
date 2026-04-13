@@ -21,6 +21,7 @@ type Cache struct {
 	ttl     time.Duration
 	maxSize int
 	stopCh  chan struct{}
+	stopOnce sync.Once
 }
 
 // New creates a cache with the given TTL and max entries.
@@ -36,7 +37,7 @@ func New(ttl time.Duration, maxSize int) *Cache {
 }
 
 // Stop halts the background reaper goroutine.
-func (c *Cache) Stop() { close(c.stopCh) }
+func (c *Cache) Stop() { c.stopOnce.Do(func() { close(c.stopCh) }) }
 
 // Get returns a cached entry if valid, or nil.
 func (c *Cache) Get(key string) *Entry {

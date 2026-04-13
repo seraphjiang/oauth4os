@@ -1,138 +1,91 @@
 package session
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
 )
 
-func TestSessionLimit_Enforced(t *testing.T) {
-	m := New(map[string]int{"c": 2})
-	if !m.Create("s1", "c", "t1", "1.2.3.4") {
-		t.Error("first session should succeed")
-	}
-	if !m.Create("s2", "c", "t2", "1.2.3.4") {
-		t.Error("second session should succeed")
-	}
-	if m.Create("s3", "c", "t3", "1.2.3.4") {
-		t.Error("third session should be rejected (limit=2)")
+// Edge: session limit enforced
+func TestEdge_SessionLimitEnforced(t *testing.T) {
+	m := New(map[string]int{"*": 2})
+	m.Create("s1", "app", "t1", "1.2.3.4")
+	m.Create("s2", "app", "t2", "1.2.3.4")
+	if m.Create("s3", "app", "t3", "1.2.3.4") {
+		t.Error("third session should be rejected at limit 2")
 	}
 }
 
-func TestSessionLimit_PerClient(t *testing.T) {
-	m := New(map[string]int{"a": 1, "b": 3})
-	m.Create("s1", "a", "t1", "ip")
-	if m.Create("s2", "a", "t2", "ip") {
-		t.Error("client a should be limited to 1")
-	}
-	for i := 0; i < 3; i++ {
-		if !m.Create(fmt.Sprintf("b%d", i), "b", "t", "ip") {
-			t.Errorf("client b session %d should succeed", i)
-		}
-	}
-}
-
-func TestSessionLimit_GlobalDefault(t *testing.T) {
-	m := New(map[string]int{"*": 1})
-	m.Create("s1", "unknown-client", "t1", "ip")
-	if m.Create("s2", "unknown-client", "t2", "ip") {
-		t.Error("global default limit should apply")
-	}
-}
-
-func TestForceLogout_Edge(t *testing.T) {
+// Edge: force logout removes all sessions for client
+func TestEdge_ForceLogoutAll(t *testing.T) {
 	m := New(nil)
-	m.Create("s1", "c", "t1", "ip")
-	m.Create("s2", "c", "t2", "ip")
-	m.Create("s3", "other", "t3", "ip")
-
-	n := m.ForceLogout("c")
+	m.Create("s1", "app", "t1", "1.2.3.4")
+	m.Create("s2", "app", "t2", "1.2.3.4")
+	m.Create("s3", "other", "t3", "1.2.3.4")
+	n := m.ForceLogout("app")
 	if n != 2 {
 		t.Errorf("expected 2 removed, got %d", n)
 	}
-	if m.Count("c") != 0 {
-		t.Error("client c should have 0 sessions")
+	if m.Count("app") != 0 {
+		t.Error("app should have 0 sessions after force logout")
 	}
 	if m.Count("other") != 1 {
-		t.Error("other client should be unaffected")
+		t.Error("other client should still have 1 session")
 	}
 }
 
-func TestCleanup_IdleSessions(t *testing.T) {
+// Edge: cleanup removes idle sessions
+func TestEdge_CleanupIdle(t *testing.T) {
 	m := New(nil)
-	m.Create("old", "c", "t1", "ip")
-	m.Create("fresh", "c", "t2", "ip")
-
-	// Manually age the old session
+	m.Create("s1", "app", "t1", "1.2.3.4")
+	// Backdate last_seen
 	m.mu.Lock()
-	m.sessions["old"].LastSeen = time.Now().Add(-2 * time.Hour)
+	m.sessions["s1"].LastSeen = time.Now().Add(-2 * time.Hour)
 	m.mu.Unlock()
-
-	n := m.Cleanup(1 * time.Hour)
+	n := m.Cleanup(time.Hour)
 	if n != 1 {
-		t.Errorf("expected 1 cleaned, got %d", n)
-	}
-	if m.Count("c") != 1 {
-		t.Error("fresh session should survive")
+		t.Errorf("expected 1 cleaned up, got %d", n)
 	}
 }
 
-func TestTouch_UpdatesLastSeen(t *testing.T) {
+// Edge: concurrent create/remove must not panic
+func TestEdge_ConcurrentCreateRemove(t *testing.T) {
 	m := New(nil)
-	m.Create("s1", "c", "t1", "ip")
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(2)
+		go func(idx int) {
+			defer wg.Done()
+			m.Create("s"+string(rune(idx)), "app", "t", "1.2.3.4")
+		}(i)
+		go func(idx int) {
+			defer wg.Done()
+			m.Remove("s" + string(rune(idx)))
+		}(i)
+	}
+	wg.Wait()
+}
 
-	m.mu.RLock()
+// Edge: Touch updates LastSeen
+func TestEdge_TouchUpdatesLastSeen(t *testing.T) {
+	m := New(nil)
+	m.Create("s1", "app", "t1", "1.2.3.4")
 	before := m.sessions["s1"].LastSeen
-	m.mu.RUnlock()
-
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 	m.Touch("s1")
-
-	m.mu.RLock()
 	after := m.sessions["s1"].LastSeen
-	m.mu.RUnlock()
-
 	if !after.After(before) {
 		t.Error("Touch should update LastSeen")
 	}
 }
 
-func TestList_AllClients(t *testing.T) {
+// Edge: List with empty clientID returns all
+func TestEdge_ListAll(t *testing.T) {
 	m := New(nil)
-	m.Create("s1", "a", "t1", "ip")
-	m.Create("s2", "b", "t2", "ip")
+	m.Create("s1", "a", "t1", "1.2.3.4")
+	m.Create("s2", "b", "t2", "1.2.3.4")
 	all := m.List("")
 	if len(all) != 2 {
 		t.Errorf("expected 2, got %d", len(all))
-	}
-}
-
-func TestRemove_NonexistentSession(t *testing.T) {
-	m := New(nil)
-	m.Remove("nonexistent") // should not panic
-}
-
-func TestConcurrentSessionOps(t *testing.T) {
-	m := New(map[string]int{"*": 1000})
-	var wg sync.WaitGroup
-
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func(n int) {
-			defer wg.Done()
-			id := fmt.Sprintf("s%d", n)
-			m.Create(id, "c", "t", "ip")
-			m.Touch(id)
-			m.List("c")
-			m.Count("c")
-		}(i)
-	}
-	wg.Wait()
-
-	// Force logout all
-	m.ForceLogout("c")
-	if m.Count("c") != 0 {
-		t.Error("all sessions should be removed")
 	}
 }

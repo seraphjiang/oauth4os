@@ -67,8 +67,7 @@ func TestMiddleware(t *testing.T) {
 }
 
 func TestMiddleware_ErrorStatus(t *testing.T) {
-	// NOTE: current Middleware always reports "ok" — status capture not implemented.
-	// This test documents the current behavior. TODO: add statusWriter to Middleware.
+	// NOTE: current Middleware always reports "ok" — status capture deferred to v2.1.
 	tr := &CollectingTracer{}
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)

@@ -333,6 +333,52 @@ listen: :8443
 | `/.well-known/jwks.json` | GET | JWKS endpoint |
 | `/*` | ANY | Reverse proxy to OpenSearch (with auth) |
 
+## Prometheus Metrics
+
+`GET /metrics` exposes all metrics in Prometheus exposition format.
+
+### Counters
+| Metric | Description |
+|---|---|
+| `oauth4os_requests_total` | Total proxy requests |
+| `oauth4os_auth_success` | Successful authentications |
+| `oauth4os_auth_failed` | Failed authentications |
+| `oauth4os_cedar_denied` | Cedar policy denials |
+| `oauth4os_rate_limited` | Rate-limited requests |
+| `oauth4os_cache_hits` / `cache_misses` | Response cache performance |
+| `oauth4os_circuit_opens` | Circuit breaker activations |
+| `oauth4os_http_requests_total` | Requests by method + path labels |
+
+### Gauges
+| Metric | Description |
+|---|---|
+| `oauth4os_requests_active` | Currently active requests |
+| `oauth4os_upstream_healthy` | Upstream health (1=up, 0=down) |
+| `oauth4os_upstream_latency_ms` | Health check latency |
+| `oauth4os_metric_cardinality` | Unique label combinations per metric |
+
+### Histogram
+| Metric | Description |
+|---|---|
+| `oauth4os_request_duration_seconds` | Request latency with per-endpoint `path` label. Standard buckets: 5ms–10s. |
+
+### Summary
+| Metric | Description |
+|---|---|
+| `oauth4os_http_request_duration` | Latency count/sum by method + path |
+
+### Remote Write
+
+External apps can push metrics via `POST /api/v1/write`:
+
+```bash
+curl -X POST https://localhost:8443/api/v1/write \
+  -H 'Content-Type: application/json' \
+  -d '{"timeseries":[{"labels":{"__name__":"myapp_errors","service":"api"},"samples":[{"value":5}]}]}'
+```
+
+Pushed metrics appear on `/metrics`. Series cap: 10,000. See [docs/guides/monitoring.md](docs/guides/monitoring.md) for full Prometheus + Grafana setup.
+
 ## Documentation
 
 | Doc | Description |

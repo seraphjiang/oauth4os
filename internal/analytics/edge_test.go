@@ -1,47 +1,33 @@
 package analytics
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
-// Edge: Track records request for client
-func TestEdge_TrackRecords(t *testing.T) {
+// Edge: Record + Snapshot round-trip
+func TestEdge_RecordSnapshot(t *testing.T) {
 	a := New()
-	a.Track("client-1", "/api/data", 200, 50*time.Millisecond)
+	a.Record("c1", []string{"read"}, "logs")
 	s := a.Snapshot()
-	if len(s) == 0 {
+	if len(s.Clients) == 0 {
 		t.Error("Snapshot should contain tracked client")
 	}
 }
 
-// Edge: multiple clients tracked separately
+// Edge: multiple clients tracked
 func TestEdge_MultipleClients(t *testing.T) {
 	a := New()
-	a.Track("c1", "/a", 200, time.Millisecond)
-	a.Track("c2", "/b", 200, time.Millisecond)
+	a.Record("c1", []string{"read"}, "logs")
+	a.Record("c2", []string{"write"}, "metrics")
 	s := a.Snapshot()
-	if len(s) < 2 {
-		t.Errorf("expected 2 clients, got %d", len(s))
+	if len(s.Clients) < 2 {
+		t.Errorf("expected 2 clients, got %d", len(s.Clients))
 	}
 }
 
-// Edge: error status tracked
-func TestEdge_ErrorStatusTracked(t *testing.T) {
-	a := New()
-	a.Track("c1", "/fail", 500, time.Millisecond)
-	a.Track("c1", "/ok", 200, time.Millisecond)
-	s := a.Snapshot()
-	if len(s) == 0 {
-		t.Error("should have snapshot data")
-	}
-}
-
-// Edge: empty snapshot before any tracking
+// Edge: empty snapshot
 func TestEdge_EmptySnapshot(t *testing.T) {
 	a := New()
 	s := a.Snapshot()
-	if len(s) != 0 {
-		t.Errorf("empty tracker should have empty snapshot, got %d", len(s))
+	if len(s.Clients) != 0 {
+		t.Errorf("empty tracker should have 0 clients, got %d", len(s.Clients))
 	}
 }

@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -27,5 +28,20 @@ func TestMutation_LabelIsolation(t *testing.T) {
 	out := buf.String()
 	if !bytes.Contains([]byte(out), []byte("GET")) || !bytes.Contains([]byte(out), []byte("POST")) {
 		t.Error("different labels must appear separately in output")
+	}
+}
+
+// Mutation: remove cardinality guard → must cap at MaxCardinality
+func TestMutation_CardinalityGuard(t *testing.T) {
+	c := NewCounter()
+	for i := 0; i < MaxCardinality+100; i++ {
+		c.Inc(Labels{Method: "GET", Path: fmt.Sprintf("/p%d", i), Status: 200})
+	}
+	var buf bytes.Buffer
+	c.WritePrometheus(&buf, "test", "test")
+	// Count unique lines with method= (each unique label combo = 1 line)
+	lines := bytes.Count(buf.Bytes(), []byte("method="))
+	if lines > MaxCardinality {
+		t.Errorf("cardinality guard should cap at %d, got %d", MaxCardinality, lines)
 	}
 }

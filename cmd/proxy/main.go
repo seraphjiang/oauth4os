@@ -1105,6 +1105,7 @@ func main() {
 
 	// Serve feedback.js widget
 	mux.HandleFunc("GET /web/feedback.js", serveWebFile("feedback.js", "application/javascript"))
+	mux.HandleFunc("GET /web/layout.js", serveWebFile("layout.js", "application/javascript"))
 
 	// SSE endpoint — push metrics every second
 	mux.HandleFunc("GET /sse/metrics", func(w http.ResponseWriter, r *http.Request) {

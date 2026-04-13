@@ -34,3 +34,12 @@ func (d *denyAll) Name() string { return d.name }
 func (d *denyAll) Authorize(_ *http.Request, _ map[string]interface{}) error {
 	return fmt.Errorf("denied")
 }
+
+// Mutation: remove Load error → must fail on nonexistent plugin path
+func TestMutation_LoadNonexistent(t *testing.T) {
+	reg := NewRegistry()
+	err := reg.Load("/nonexistent/plugin.so")
+	if err == nil {
+		t.Error("Load must fail on nonexistent plugin path")
+	}
+}

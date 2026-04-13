@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,4 +107,48 @@ func TestMutation_ValidProof(t *testing.T) {
 		t.Error("thumbprint should not be empty")
 	}
 	fmt.Println("valid proof:", proof.JWKThumbprint[:12]+"...")
+}
+
+// Edge: malformed base64 in DPoP header
+func TestEdge_MalformedBase64(t *testing.T) {
+	r := httptest.NewRequest("GET", "/resource", nil)
+	r.Header.Set("DPoP", "!!!.payload.sig")
+	_, err := Validate(r)
+	if err == nil {
+		t.Error("malformed base64 should fail")
+	}
+}
+
+// Edge: wrong number of JWT parts
+func TestEdge_WrongPartCount(t *testing.T) {
+	r := httptest.NewRequest("GET", "/resource", nil)
+	r.Header.Set("DPoP", "only-two-parts.here")
+	_, err := Validate(r)
+	if err == nil {
+		t.Error("two-part JWT should fail")
+	}
+}
+
+// Edge: valid JSON but wrong typ
+func TestEdge_WrongTyp(t *testing.T) {
+	hdr := base64.RawURLEncoding.EncodeToString([]byte(`{"typ":"JWT","alg":"ES256","jwk":{"kty":"EC"}}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"htm":"GET","htu":"/resource","iat":` + fmt.Sprintf("%d", time.Now().Unix()) + `}`))
+	r := httptest.NewRequest("GET", "/resource", nil)
+	r.Header.Set("DPoP", hdr+"."+payload+".sig")
+	_, err := Validate(r)
+	if err == nil || !strings.Contains(err.Error(), "typ") {
+		t.Errorf("wrong typ should fail with typ error, got: %v", err)
+	}
+}
+
+// Edge: method mismatch in proof
+func TestEdge_MethodMismatch(t *testing.T) {
+	hdr := base64.RawURLEncoding.EncodeToString([]byte(`{"typ":"dpop+jwt","alg":"ES256","jwk":{"kty":"EC","crv":"P-256","x":"x","y":"y"}}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"htm":"POST","htu":"/resource","iat":` + fmt.Sprintf("%d", time.Now().Unix()) + `}`))
+	r := httptest.NewRequest("GET", "/resource", nil)
+	r.Header.Set("DPoP", hdr+"."+payload+".sig")
+	_, err := Validate(r)
+	if err == nil || !strings.Contains(err.Error(), "method") {
+		t.Errorf("method mismatch should fail, got: %v", err)
+	}
 }

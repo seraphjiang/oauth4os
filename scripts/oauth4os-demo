@@ -1854,6 +1854,14 @@ cmd_openapi() {
   echo -e "\n  ${CYAN}(${lines} lines — pipe to file: oauth4os-demo openapi > spec.yaml)${NC}"
 }
 
+cmd_delete_client() {
+  local client_id="${1:?Usage: oauth4os-demo delete-client <client_id>}"
+  local resp
+  resp=$(authed_curl -X DELETE "${PROXY}/oauth/register/${client_id}" 2>/dev/null)
+  if [ "$IS_TTY" = "false" ]; then echo "${resp:-{\"status\":\"deleted\"}}"; return; fi
+  echo -e "${GREEN}✅ Client ${client_id} deleted${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1915,6 +1923,7 @@ case "${1:-}" in
   scope)    shift; cmd_scope "$@" ;;
   curl)     shift; cmd_curl "$@" ;;
   openapi|spec) cmd_openapi ;;
+  delete-client) shift; cmd_delete_client "$@" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

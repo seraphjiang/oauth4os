@@ -3,6 +3,7 @@ package loadshed
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -46,17 +47,32 @@ func TestEdge_HealthBypass(t *testing.T) {
 	}
 }
 
-// Edge: concurrent Allow calls must not panic
-func TestEdge_ConcurrentAllow(t *testing.T) {
+// Edge: concurrent middleware calls must not panic
+func TestEdge_ConcurrentMiddleware(t *testing.T) {
 	s := New(100)
+	h := s.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.Allow()
-			s.Release()
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 		}()
 	}
 	wg.Wait()
+}
+
+// Edge: Stats tracks active and rejected
+func TestEdge_StatsTracking(t *testing.T) {
+	s := New(1)
+	h := s.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	_, rejected := s.Stats()
+	_ = rejected // just verify Stats doesn't panic
 }

@@ -1,4 +1,4 @@
-package etag
+package compress
 
 import (
 	"net/http"
@@ -6,11 +6,13 @@ import (
 	"testing"
 )
 
-func BenchmarkMiddleware_Miss(b *testing.B) {
+func BenchmarkMiddleware_Gzip(b *testing.B) {
 	h := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok","data":"` + string(make([]byte, 1000)) + `"}`))
 	}))
 	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
@@ -18,17 +20,11 @@ func BenchmarkMiddleware_Miss(b *testing.B) {
 	}
 }
 
-func BenchmarkMiddleware_Hit304(b *testing.B) {
+func BenchmarkMiddleware_NoGzip(b *testing.B) {
 	h := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		w.Write([]byte(`{"status":"ok"}`))
 	}))
-	// Get ETag first
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
-	etag := w.Header().Get("ETag")
-
 	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set("If-None-Match", etag)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()

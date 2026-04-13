@@ -1041,6 +1041,28 @@ paths:
       responses:
         '200': { description: HTML terminal-style log viewer }
 
+  /sse/metrics:
+    get:
+      tags: [Streaming]
+      summary: Real-time metrics via Server-Sent Events
+      description: Pushes JSON metrics every 1 second. Connect with EventSource.
+      responses:
+        '200': { description: SSE stream of metric snapshots }
+
+  /explorer/:
+    get:
+      tags: [UI]
+      summary: Interactive API request builder
+      responses:
+        '200': { description: HTML API explorer page }
+
+  /dashboard/:
+    get:
+      tags: [UI]
+      summary: Real-time admin dashboard
+      responses:
+        '200': { description: HTML dashboard with KPIs and charts }
+
   /version:
     get:
       tags: [Operations]

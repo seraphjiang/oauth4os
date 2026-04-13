@@ -109,6 +109,51 @@ List active sessions.
 .B tutorial
 Open the interactive tutorial in browser.
 .TP
+.B shell
+Interactive REPL with tab completion and persistent history.
+.TP
+.B stream \fR[\fIfilter\fR]
+Live log stream via WebSocket (websocat) with polling fallback.
+.TP
+.B policy \fR{\fIlist\fR|\fIadd\fR|\fIremove\fR|\fItest\fR}
+Manage Cedar authorization policies from CLI.
+.TP
+.B backup \fR[\fIfile\fR]
+Export proxy state (clients, tokens, policies) to JSON.
+.TP
+.B restore \fIfile\fR
+Import proxy state from a backup file.
+.TP
+.B metrics \fR[\fIfilter\fR]
+Show Prometheus metrics, optionally filtered.
+.TP
+.B inspect \fR[\fItoken\fR]
+Decode JWT payload without server validation. Shows expiry countdown.
+.TP
+.B replay \fIrequest_id\fR
+Re-execute a logged request via the admin replay endpoint.
+.TP
+.B userinfo
+Show OIDC UserInfo claims for the current token.
+.TP
+.B health
+Detailed health check with per-component status.
+.TP
+.B discovery
+Show OIDC discovery document (/.well-known/openid-configuration).
+.TP
+.B scope \fR[\fIscopes\fR]
+Analyze and explain scope permissions. No args shows current token scopes.
+.TP
+.B curl \fIpath\fR [\fIargs\fR]
+Authenticated curl passthrough with auto-refresh on 401.
+.TP
+.B openapi
+Fetch and display the OpenAPI specification.
+.TP
+.B delete\-client \fIclient_id\fR
+Delete a registered OAuth client.
+.TP
 .B token
 Show current token info.
 .TP

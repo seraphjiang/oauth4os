@@ -80,3 +80,41 @@ func TestMutation_MalformedResponse(t *testing.T) {
 		t.Error("malformed response must return error")
 	}
 }
+
+// Mutation: remove HMAC signing → Sign must produce non-empty signature
+func TestMutation_SignProducesSignature(t *testing.T) {
+	s := NewSender("my-secret")
+	sig := s.Sign([]byte(`{"event":"test"}`))
+	if sig == "" {
+		t.Error("Sign must produce non-empty signature")
+	}
+}
+
+// Mutation: remove verification → Verify must reject wrong signature
+func TestMutation_VerifyRejectsWrong(t *testing.T) {
+	s := NewSender("my-secret")
+	body := []byte(`{"event":"test"}`)
+	if s.Verify(body, "wrong-signature") {
+		t.Error("Verify must reject wrong signature")
+	}
+}
+
+// Mutation: remove round-trip → Sign+Verify must match
+func TestMutation_SignVerifyRoundTrip(t *testing.T) {
+	s := NewSender("my-secret")
+	body := []byte(`{"event":"token.issued"}`)
+	sig := s.Sign(body)
+	if !s.Verify(body, sig) {
+		t.Error("Verify must accept correct signature from Sign")
+	}
+}
+
+// Mutation: remove secret isolation → different secrets must produce different signatures
+func TestMutation_DifferentSecrets(t *testing.T) {
+	s1 := NewSender("secret-1")
+	s2 := NewSender("secret-2")
+	body := []byte(`{"event":"test"}`)
+	if s1.Sign(body) == s2.Sign(body) {
+		t.Error("different secrets must produce different signatures")
+	}
+}

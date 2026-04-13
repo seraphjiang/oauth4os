@@ -871,6 +871,38 @@ This eliminates the need for explicit refresh token flows in long-running sessio
 
 ---
 
+## Token Exchange & Delegation (v2.0.0)
+
+Exchange external tokens for oauth4os tokens, with optional delegation:
+
+```bash
+# Simple exchange — swap external JWT for oauth4os token
+curl -X POST https://proxy/oauth/token \
+  -d 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  -d 'subject_token=<external-jwt>' \
+  -d 'subject_token_type=urn:ietf:params:oauth:token-type:access_token'
+
+# Delegation — service acts on behalf of user
+curl -X POST https://proxy/oauth/token \
+  -d 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  -d 'subject_token=<user-jwt>' \
+  -d 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  -d 'actor_token=<service-jwt>' \
+  -d 'actor_token_type=urn:ietf:params:oauth:token-type:access_token'
+# Response includes: act: {sub: <service-id>}
+```
+
+---
+
+## OIDC UserInfo (v2.0.0)
+
+```bash
+curl -H "Authorization: Bearer <token>" https://proxy/oauth/userinfo
+# Returns: {"sub": "client-id", "scope": "read:logs-* admin"}
+```
+
+---
+
 ## JWT Access Tokens (v1.1.0)
 
 Enable signed JWT access tokens for stateless validation by resource servers:

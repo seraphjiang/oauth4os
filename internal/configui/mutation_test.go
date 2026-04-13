@@ -1,6 +1,7 @@
 package configui
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -28,5 +29,17 @@ func TestMutation_HTMLPage(t *testing.T) {
 	h.Page(w, httptest.NewRequest("GET", "/admin/config", nil))
 	if !strings.Contains(w.Header().Get("Content-Type"), "html") {
 		t.Error("Page must return HTML content type")
+	}
+}
+
+// Mutation: remove Register → routes must be registered on mux
+func TestMutation_RegisterRoutes(t *testing.T) {
+	h := New(func() *config.Config { return &config.Config{} })
+	mux := http.NewServeMux()
+	h.Register(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/admin/config", nil))
+	if w.Code == 404 {
+		t.Error("Register must add config routes to mux")
 	}
 }

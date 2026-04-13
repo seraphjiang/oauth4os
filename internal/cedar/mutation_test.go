@@ -135,3 +135,33 @@ func TestMutation_TenantIsolation(t *testing.T) {
 		t.Error("tenant policies must be isolated — issuer-a deny should not affect issuer-b")
 	}
 }
+
+// Mutation: remove ListPolicies → must return global policies
+func TestMutation_ListPolicies(t *testing.T) {
+	te := NewTenantEngine([]Policy{
+		{ID: "p1", Effect: Permit, Principal: Match{Any: true}, Action: Match{Any: true}, Resource: Match{Any: true}},
+	})
+	policies := te.ListPolicies()
+	if len(policies) == 0 {
+		t.Error("ListPolicies must return global policies")
+	}
+}
+
+// Mutation: remove AddGlobalPolicy → global policy must affect all tenants
+func TestMutation_AddGlobalPolicy(t *testing.T) {
+	te := NewTenantEngine(nil)
+	te.AddTenant("issuer-a", nil)
+	te.AddGlobalPolicy(Policy{
+		ID: "global-deny", Effect: Forbid,
+		Principal: Match{Any: true}, Action: Match{Equals: "delete"}, Resource: Match{Any: true},
+	})
+	req := Request{
+		Principal: map[string]string{"sub": "user"},
+		Action:    "delete",
+		Resource:  map[string]string{"index": "logs"},
+	}
+	d := te.Evaluate("issuer-a", req)
+	if d.Allowed {
+		t.Error("global deny policy must affect all tenants")
+	}
+}

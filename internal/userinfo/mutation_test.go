@@ -31,3 +31,15 @@ func TestMutation_MissingTokenRejected(t *testing.T) {
 		t.Error("missing token must be rejected")
 	}
 }
+
+// Mutation: remove JSON content type → userinfo must return JSON
+func TestMutation_JSONContentType(t *testing.T) {
+	h := New(stubLookup)
+	r := httptest.NewRequest("GET", "/oauth/userinfo", nil)
+	r.Header.Set("Authorization", "Bearer valid-tok")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if !strings.Contains(w.Header().Get("Content-Type"), "json") {
+		t.Error("userinfo must return JSON content type")
+	}
+}

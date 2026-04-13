@@ -3,6 +3,7 @@ package remotewrite
 import (
 	"bytes"
 	"fmt"
+	"net/http/httptest"
 	"testing"
 )
 

@@ -1814,6 +1814,18 @@ cmd_scope() {
   echo -e "  ${CYAN}${count} scope(s)${NC}"
 }
 
+cmd_curl() {
+  # Authenticated curl passthrough — adds Bearer token to any request
+  [ $# -eq 0 ] && { echo -e "${YELLOW}Usage: oauth4os-demo curl <path> [curl args...]${NC}" >&2; return 1; }
+  local path="$1"; shift
+  # Prepend proxy URL if path doesn't start with http
+  case "$path" in
+    http*) ;;
+    *)     path="${PROXY}${path}" ;;
+  esac
+  authed_curl "$path" "$@"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)

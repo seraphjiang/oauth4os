@@ -1815,15 +1815,21 @@ cmd_scope() {
 }
 
 cmd_curl() {
-  # Authenticated curl passthrough — adds Bearer token to any request
   [ $# -eq 0 ] && { echo -e "${YELLOW}Usage: oauth4os-demo curl <path> [curl args...]${NC}" >&2; return 1; }
   local path="$1"; shift
-  # Prepend proxy URL if path doesn't start with http
-  case "$path" in
-    http*) ;;
-    *)     path="${PROXY}${path}" ;;
-  esac
+  case "$path" in http*) ;; *) path="${PROXY}${path}" ;; esac
   authed_curl "$path" "$@"
+}
+
+cmd_openapi() {
+  local resp
+  resp=$(curl -sf "${PROXY}/developer/openapi.yaml" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Cannot fetch OpenAPI spec${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}📄 OpenAPI Spec${NC}\n"
+  echo "$resp" | head -30
+  local lines=$(echo "$resp" | wc -l)
+  echo -e "\n  ${CYAN}(${lines} lines — pipe to file: oauth4os-demo openapi > spec.yaml)${NC}"
 }
 
 # Main
@@ -1885,6 +1891,8 @@ case "${1:-}" in
   shell|repl) cmd_shell ;;
   discovery|oidc) cmd_discovery ;;
   scope)    shift; cmd_scope "$@" ;;
+  curl)     shift; cmd_curl "$@" ;;
+  openapi|spec) cmd_openapi ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

@@ -1,8 +1,8 @@
 # oauth4os — Final Test Report (v1.0.0+)
 
-**Date:** 2026-04-12
+**Date:** 2026-04-13
 **Build:** proxy ✅ CLI ✅
-**Tests:** 47/47 packages pass | Race detector: clean | go vet: clean
+**Tests:** 60/60 packages pass | Race detector: clean | go vet: clean
 
 ---
 
@@ -10,31 +10,31 @@
 
 | Metric | Count |
 |---|---|
-| Internal packages | 51 |
-| Packages with tests | 51 (100%) |
-| Packages with mutations | 51 (100%) |
-| Test functions | 932 |
-| Mutation tests | 259 (all killed) |
-| Fuzz targets | 42 |
-| Benchmarks | 74 |
-| Property tests | 27 |
+| Internal packages | 60 |
+| Packages with tests | 60 (100%) |
+| Packages with mutations | 60 (100%) |
+| Test functions | 1,032 |
+| Mutation tests | 300 (all killed) |
+| Fuzz targets | 49 |
+| Benchmarks | 87 |
+| Property tests | 34 |
 | E2E Go tests | 38 |
 | Bash test scripts | 18 |
-| Test files | 220+ |
-| Source lines | 10,245 |
-| Test lines | 20,421 |
-| Test:source ratio | 1.99:1 |
-| Commits | 775+ |
+| Test files | 240+ |
+| Source lines | 11,804 |
+| Test lines | 22,530 |
+| Test:source ratio | 1.91:1 |
+| Commits | 894 |
 
 ## Version Growth
 
-| Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 |
-|---|---|---|---|---|
-| Packages | 23 | 40 | 47 | 51 |
-| Tests | 292 | 395 | 846 | 932 |
-| Mutations | 14 | 29 | 213 | 259 |
-| Fuzz | 10 | 17 | 42 | 42 |
-| Benchmarks | 10 | 23 | 68 | 74 |
+| Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 | v2.0.0 |
+|---|---|---|---|---|---|
+| Packages | 23 | 40 | 47 | 51 | 60 |
+| Tests | 292 | 395 | 846 | 932 | 1,032 |
+| Mutations | 14 | 29 | 213 | 259 | 300 |
+| Fuzz | 10 | 17 | 42 | 42 | 49 |
+| Benchmarks | 10 | 23 | 68 | 74 | 87 |
 
 ## Performance
 
@@ -73,8 +73,8 @@ Endpoints: 11/11 live (200)
 - Race detector: 0 races across all 47 packages
 - go vet: 0 warnings
 - TODO/FIXME: 0 in production code
-- All 213 mutations killed
-- 42 fuzz targets — no panics found
-- 30 property tests — no invariant violations
+- All 300 mutations killed
+- 49 fuzz targets — no panics found (44 targets × 30s marathon + 5 additional)
+- 34 property tests — no invariant violations
 
 **Verdict: PRODUCTION READY ✅**

@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// Edge: Current returns non-nil key
 func TestEdge_CurrentNonNil(t *testing.T) {
 	r, err := New(2048, time.Hour)
 	if err != nil {
@@ -18,28 +17,28 @@ func TestEdge_CurrentNonNil(t *testing.T) {
 	}
 }
 
-// Edge: JWKS returns valid JSON
-func TestEdge_JWKSValid(t *testing.T) {
-	r, err := New(2048, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer r.Stop()
-	jwks := r.JWKS()
-	if len(jwks) == 0 {
-		t.Error("JWKS should return non-empty bytes")
-	}
-}
-
-// Edge: Current key has KID
-func TestEdge_CurrentHasKID(t *testing.T) {
+func TestEdge_CurrentHasID(t *testing.T) {
 	r, err := New(2048, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Stop()
 	k := r.Current()
-	if k.KID == "" {
-		t.Error("key should have non-empty KID")
+	if k.ID == "" {
+		t.Error("key should have non-empty ID")
+	}
+}
+
+func TestEdge_RotateChangesKey(t *testing.T) {
+	r, err := New(2048, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	id1 := r.Current().ID
+	r.Rotate()
+	id2 := r.Current().ID
+	if id1 == id2 {
+		t.Error("Rotate should produce new key ID")
 	}
 }

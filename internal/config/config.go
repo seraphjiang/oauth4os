@@ -38,10 +38,11 @@ type CORSConfig struct {
 
 // WebhookConfig holds external webhook authorizer settings.
 type WebhookConfig struct {
-	URL      string            `yaml:"url"`
-	Timeout  int               `yaml:"timeout_ms"`
-	Headers  map[string]string `yaml:"headers"`
-	FailOpen bool              `yaml:"fail_open"`
+	URL        string            `yaml:"url"`
+	Timeout    int               `yaml:"timeout_ms"`
+	Headers    map[string]string `yaml:"headers"`
+	FailOpen   bool              `yaml:"fail_open"`
+	SigningKey string            `yaml:"signing_key"` // HMAC-SHA256 key for event webhook signatures
 }
 
 // Cluster defines a named OpenSearch cluster for multi-cluster federation.

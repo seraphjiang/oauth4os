@@ -238,6 +238,9 @@ func main() {
 		webhookURLs = strings.Split(urls, ",")
 	}
 	notifier := events.New(webhookURLs)
+	if cfg.Webhook.SigningKey != "" {
+		notifier.SetSigningKey([]byte(cfg.Webhook.SigningKey))
+	}
 
 	// Response cache for GET requests (5s TTL, 1000 entries max)
 	respCache := cache.New(5*time.Second, 1000)
@@ -1131,6 +1134,29 @@ func main() {
 				}
 				jsonBytes, _ := json.Marshal(data)
 				fmt.Fprintf(w, "data: %s\n\n", jsonBytes)
+				flusher.Flush()
+			}
+		}
+	})
+
+	// SSE endpoint — push access log entries in real-time
+	var logSSEClients sync.Map
+	var logSSESeq atomic.Int64
+	mux.HandleFunc("GET /sse/logs", func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok { http.Error(w, "streaming not supported", 500); return }
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		id := logSSESeq.Add(1)
+		ch := make(chan []byte, 100)
+		logSSEClients.Store(id, ch)
+		defer func() { logSSEClients.Delete(id); close(ch) }()
+		for {
+			select {
+			case <-r.Context().Done(): return
+			case entry := <-ch:
+				fmt.Fprintf(w, "data: %s\n\n", entry)
 				flusher.Flush()
 			}
 		}

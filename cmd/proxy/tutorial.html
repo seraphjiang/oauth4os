@@ -45,7 +45,7 @@ a{color:#58a6ff;text-decoration:none}
 </head><body>
 <div class="container">
 <h1>🔐 oauth4os Interactive Tutorial</h1>
-<p class="subtitle">Learn OAuth 2.0 by doing — 6 steps, real API calls, curl equivalents</p>
+<p class="subtitle">Learn OAuth 2.0 by doing — 7 steps, real API calls, curl equivalents</p>
 <div style="margin-bottom:16px"><button class="btn btn-secondary" onclick="resetTutorial()">↺ Reset & Start Over</button></div>
 <div class="progress" id="progress"></div>
 
@@ -153,8 +153,22 @@ a{color:#58a6ff;text-decoration:none}
 <div class="response-box" id="resp-6"></div>
 </div></div>
 
+<div class="step" id="step-7" data-step="7">
+<div class="step-header" onclick="activateStep(7)">
+<div class="step-num">7</div>
+<div class="step-title">Explore OIDC Discovery</div>
 </div>
-<script>
+<div class="step-body">
+<p class="step-desc">Every OIDC provider publishes a discovery document listing all endpoints and capabilities.</p>
+<div class="curl-label">curl equivalent</div>
+<div class="curl-box" id="curl-7">curl /.well-known/openid-configuration<button class="copy-btn" onclick="copyEl('curl-7')">Copy</button></div>
+<div class="actions">
+<button class="btn btn-primary" id="btn-7" onclick="runStep7()">Fetch Discovery</button>
+</div>
+<div class="response-box" id="resp-7"></div>
+</div></div>
+
+</div>
 const BASE=location.origin;
 let state={clientId:'',clientSecret:'',token:'',refreshToken:'',step:1};
 
@@ -166,7 +180,7 @@ function activateStep(n){
 function completeStep(n){
   document.getElementById('step-'+n).classList.add('done');
   document.getElementById('step-'+n).classList.remove('active');
-  if(n<6){activateStep(n+1);document.getElementById('btn-'+(n+1)).disabled=false;}
+  if(n<7){activateStep(n+1);document.getElementById('btn-'+(n+1)).disabled=false;}
   updateProgress();
 }
 function showResp(n,data,ok){
@@ -177,7 +191,7 @@ function showResp(n,data,ok){
 function updateProgress(){
   const p=document.getElementById('progress');
   p.innerHTML='';
-  for(let i=1;i<=6;i++){
+  for(let i=1;i<=7;i++){
     const d=document.createElement('div');d.className='progress-dot';
     if(document.getElementById('step-'+i).classList.contains('done'))d.className+=' done';
     if(document.getElementById('step-'+i).classList.contains('active'))d.className+=' active';
@@ -295,6 +309,15 @@ async function runStep6(){
   }catch(e){showResp(6,'Error: '+e.message,false);}
   document.getElementById('btn-6').disabled=false;
   document.getElementById('btn-6').textContent='Refresh Token';
+}
+
+async function runStep7(){
+  try{
+    const r=await fetch(BASE+'/.well-known/openid-configuration');
+    const d=await r.json();
+    showResp(7,d,r.ok);
+    if(r.ok)completeStep(7);
+  }catch(e){showResp(7,'Error: '+e.message,false);}
 }
 
 updateProgress();

@@ -909,7 +909,19 @@ complete -c oauth4os-demo -n "__fish_seen_subcommand_from completion" -a "bash z
 COMP
       echo -e "\n# Save to: oauth4os-demo completion fish > ~/.config/fish/completions/oauth4os-demo.fish" >&2
       ;;
-    *) echo -e "${YELLOW}Usage: oauth4os-demo completion <bash|zsh|fish>${NC}" ;;
+    powershell|pwsh)
+      cat <<'COMP'
+$cmds = @('login','logout','refresh','register','revoke','rotate','search','sql','tail','watch','stream','services','indices','clients','tokens','sessions','keys','stats','export','dashboard','bookmark','history','config','alias','completion','status','token','whoami','profile','ping','latency','alerts','audit','diff','top','env','install-man','changelog','version','tutorial','policy','backup','restore','metrics','inspect','replay','userinfo','health','shell','discovery','scope','help')
+Register-ArgumentCompleter -CommandName oauth4os-demo -ScriptBlock {
+  param($wordToComplete,$commandAst,$cursorPosition)
+  $cmds | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+    [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+  }
+}
+COMP
+      echo -e "\n# Add to \$PROFILE: oauth4os-demo completion powershell | Invoke-Expression" >&2
+      ;;
+    *) echo -e "${YELLOW}Usage: oauth4os-demo completion <bash|zsh|fish|powershell>${NC}" ;;
   esac
 }
 
@@ -1773,6 +1785,35 @@ cmd_discovery() {
   echo "$resp" | jq -r 'to_entries[] | "  \(.key): \(.value)"' 2>/dev/null || echo "$resp" | jq . 2>/dev/null
 }
 
+cmd_scope() {
+  local scopes="${*:-}"
+  if [ -z "$scopes" ]; then
+    # Show current token scopes
+    local tok=$(get_token 2>/dev/null)
+    [ -z "$tok" ] && { echo -e "${RED}Usage: oauth4os-demo scope <scope1> [scope2...]${NC}" >&2; return 1; }
+    scopes=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+' | awk '{l=length%4;if(l==2)$0=$0"==";else if(l==3)$0=$0"=";print}' | base64 -d 2>/dev/null | jq -r '.scope // (.scp // [] | join(" "))' 2>/dev/null)
+  fi
+  if [ "$IS_TTY" = "false" ]; then
+    echo "{\"scopes\":$(echo "$scopes" | tr ' ' '\n' | jq -R . | jq -s .)}"
+    return
+  fi
+  echo -e "${BOLD}🔒 Scope Analysis${NC}\n"
+  for s in $scopes; do
+    local perm=$(echo "$s" | cut -d: -f1)
+    local resource=$(echo "$s" | cut -d: -f2-)
+    case "$perm" in
+      read)   echo -e "  ${GREEN}✓${NC} ${BOLD}$s${NC} — Read access to ${CYAN}${resource}${NC}" ;;
+      write)  echo -e "  ${YELLOW}✓${NC} ${BOLD}$s${NC} — Write access to ${CYAN}${resource}${NC}" ;;
+      admin)  echo -e "  ${RED}✓${NC} ${BOLD}$s${NC} — Admin access to ${CYAN}${resource}${NC}" ;;
+      delete) echo -e "  ${RED}✓${NC} ${BOLD}$s${NC} — Delete access to ${CYAN}${resource}${NC}" ;;
+      *)      echo -e "  ${CYAN}✓${NC} ${BOLD}$s${NC}" ;;
+    esac
+  done
+  echo ""
+  local count=$(echo "$scopes" | wc -w)
+  echo -e "  ${CYAN}${count} scope(s)${NC}"
+}
+
 # Main
 ensure_deps
 # Strip --json and --version from args (already parsed above)
@@ -1831,6 +1872,7 @@ case "${1:-}" in
   health)   cmd_health ;;
   shell|repl) cmd_shell ;;
   discovery|oidc) cmd_discovery ;;
+  scope)    shift; cmd_scope "$@" ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

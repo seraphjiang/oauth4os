@@ -114,6 +114,7 @@ ${BOLD}COMMANDS:${NC}
   openapi              Fetch OpenAPI spec
   shell                Interactive REPL with tab completion
   tutorial             Open interactive tutorial in browser
+  delete-client <id>   Delete a registered client
 
 ${BOLD}ENVIRONMENT:${NC}
   OAUTH4OS_PROXY     Proxy URL (default: ${PROXY})
@@ -1781,6 +1782,10 @@ cmd_shell() {
             userinfo)   cmd_userinfo ;;
             health)     cmd_health ;;
             discovery)  cmd_discovery ;;
+            scope)      cmd_scope "$@" ;;
+            curl)       cmd_curl "$@" ;;
+            openapi)    cmd_openapi ;;
+            delete-client) cmd_delete_client "$@" ;;
             register)   cmd_register "$@" ;;
             revoke)     cmd_revoke "${1:-}" ;;
             rotate)     cmd_rotate "$@" ;;

@@ -2,28 +2,21 @@ package ipfilter
 
 import "testing"
 
-// FuzzExtractIP ensures IP extraction never panics on arbitrary input.
-func FuzzExtractIP(f *testing.F) {
-	f.Add("192.168.1.1:8080")
-	f.Add("10.0.0.1")
-	f.Add("[::1]:443")
-	f.Add("")
-	f.Add("not-an-ip")
-	f.Fuzz(func(t *testing.T, addr string) {
-		extractIP(addr) // must not panic
-	})
-}
-
-// FuzzCheck ensures Check never panics on arbitrary client/addr.
+// FuzzCheck ensures Check never panics on arbitrary addresses
 func FuzzCheck(f *testing.F) {
-	f.Add("client", "1.2.3.4:80")
+	f.Add("app", "10.0.0.1:8080")
 	f.Add("", "")
+	f.Add("client", "not-an-ip")
 	f.Add("x", "[::1]:443")
-	f.Fuzz(func(t *testing.T, client, addr string) {
-		r, err := New(Config{Clients: map[string]*FilterConfig{"app": {Allow: []string{"10.0.0.0/8"}}}})
-		if err != nil {
-			return
+	f.Add("y", "999.999.999.999:0")
+	f.Fuzz(func(t *testing.T, clientID, addr string) {
+		r, _ := New(Config{
+			Clients: map[string]*FilterConfig{
+				"app": {Allow: []string{"10.0.0.0/8"}},
+			},
+		})
+		if r != nil {
+			r.Check(clientID, addr) // must not panic
 		}
-		r.Check(client, addr) // must not panic
 	})
 }

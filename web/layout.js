@@ -132,11 +132,14 @@ fetch(API+'/version').then(r=>r.json()).then(d=>{
 }).catch(()=>{});
 
 // Theme
+// Theme toggle
 document.getElementById('layoutTheme').addEventListener('click',()=>{
   const t=document.documentElement.dataset.theme==='dark'?'light':'dark';
   document.documentElement.dataset.theme=t;
   localStorage.setItem('oauth4os_theme',t);
 });
+// Restore saved theme
+if(localStorage.getItem('oauth4os_theme'))document.documentElement.dataset.theme=localStorage.getItem('oauth4os_theme');
 
 // Hamburger
 document.getElementById('hamburger').addEventListener('click',()=>{

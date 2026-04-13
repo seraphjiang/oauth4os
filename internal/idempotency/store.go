@@ -78,6 +78,10 @@ func (s *Store) Middleware(next http.Handler) http.Handler {
 }
 
 func (s *Store) reap() {
+	if s.ttl <= 0 {
+		<-s.stopCh
+		return
+	}
 	ticker := time.NewTicker(s.ttl)
 	defer ticker.Stop()
 	for {

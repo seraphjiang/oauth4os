@@ -114,3 +114,14 @@ func TestMutation_NoKeyPassthrough(t *testing.T) {
 		t.Errorf("requests without key should always call handler, got %d calls", called)
 	}
 }
+
+// Mutation: remove zero-TTL guard → New(0) must not panic
+func TestMutation_ZeroTTLNoPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("New(0) panicked: %v", r)
+		}
+	}()
+	s := New(0)
+	defer s.Stop()
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -277,5 +278,94 @@ func TestMutation_RevokeRFC7009(t *testing.T) {
 	m.RevokeRFC7009(w, r)
 	if w.Code != 200 {
 		t.Errorf("revoke should return 200, got %d", w.Code)
+	}
+}
+
+// Edge: expired token must not be valid
+func TestEdge_ExpiredTokenInvalid(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	tok, _ := m.CreateTokenForClient("app", []string{"read"})
+	// Manually expire
+	m.mu.Lock()
+	m.tokens[tok.ID].ExpiresAt = time.Now().Add(-time.Hour)
+	m.mu.Unlock()
+	if m.IsValid(tok.ID) {
+		t.Error("expired token must not be valid")
+	}
+}
+
+// Edge: scope validation rejects unknown scopes
+func TestEdge_ScopeValidationRejectsUnknown(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	body := "grant_type=client_credentials&client_id=app&client_secret=secret&scope=admin"
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	m.IssueToken(w, r)
+	if w.Code == 200 {
+		t.Error("requesting unregistered scope should fail")
+	}
+}
+
+// Edge: concurrent token issuance must not lose tokens
+func TestEdge_ConcurrentTokenIssuance(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	var wg sync.WaitGroup
+	ids := make(chan string, 50)
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tok, _ := m.CreateTokenForClient("app", []string{"read"})
+			ids <- tok.ID
+		}()
+	}
+	wg.Wait()
+	close(ids)
+	seen := map[string]bool{}
+	for id := range ids {
+		if seen[id] {
+			t.Fatalf("duplicate token ID: %s", id)
+		}
+		seen[id] = true
+		if !m.IsValid(id) {
+			t.Fatalf("token %s should be valid", id)
+		}
+	}
+	if len(seen) != 50 {
+		t.Errorf("expected 50 unique tokens, got %d", len(seen))
+	}
+}
+
+// Edge: revoke by client removes all tokens for that client only
+func TestEdge_RevokeByClientIsolation(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("a", "s1", []string{"read"}, nil)
+	m.RegisterClient("b", "s2", []string{"read"}, nil)
+	tokA, _ := m.CreateTokenForClient("a", []string{"read"})
+	tokB, _ := m.CreateTokenForClient("b", []string{"read"})
+	m.RevokeByClient("a")
+	if m.IsValid(tokA.ID) {
+		t.Error("client a token should be revoked")
+	}
+	if !m.IsValid(tokB.ID) {
+		t.Error("client b token should still be valid")
+	}
+}
+
+// Edge: DPoP binding must reject wrong thumbprint
+func TestEdge_DPoPWrongThumbprint(t *testing.T) {
+	m := NewManager()
+	m.RegisterClient("app", "secret", []string{"read"}, nil)
+	tok, _ := m.CreateTokenForClient("app", []string{"read"})
+	m.BindDPoP(tok.ID, "correct-thumbprint")
+	if m.VerifyDPoP(tok.ID, "wrong-thumbprint") {
+		t.Error("DPoP must reject wrong thumbprint")
+	}
+	if !m.VerifyDPoP(tok.ID, "correct-thumbprint") {
+		t.Error("DPoP must accept correct thumbprint")
 	}
 }

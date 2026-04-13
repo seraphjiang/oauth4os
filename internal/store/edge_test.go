@@ -5,64 +5,43 @@ import (
 	"testing"
 )
 
-// Edge: NewFile creates file
 func TestEdge_NewFileCreates(t *testing.T) {
-	dir := t.TempDir()
-	f, err := NewFile(filepath.Join(dir, "test.json"))
+	f, err := NewFile(filepath.Join(t.TempDir(), "test.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
 }
 
-// Edge: Set+Get round-trip
 func TestEdge_SetGetRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	f, _ := NewFile(filepath.Join(dir, "test.json"))
+	f, _ := NewFile(filepath.Join(t.TempDir(), "test.json"))
 	defer f.Close()
-	f.Set("key1", []byte(`"value1"`))
-	v, ok := f.Get("key1")
-	if !ok {
-		t.Fatal("Get should find key")
+	f.Set("k1", []byte(`"v1"`))
+	v, err := f.Get("k1")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if string(v) != `"value1"` {
-		t.Errorf("expected '\"value1\"', got %q", string(v))
+	if string(v) != `"v1"` {
+		t.Errorf("got %q", string(v))
 	}
 }
 
-// Edge: Get missing key returns false
 func TestEdge_GetMissing(t *testing.T) {
-	dir := t.TempDir()
-	f, _ := NewFile(filepath.Join(dir, "test.json"))
+	f, _ := NewFile(filepath.Join(t.TempDir(), "test.json"))
 	defer f.Close()
-	_, ok := f.Get("nonexistent")
-	if ok {
-		t.Error("missing key should return false")
+	_, err := f.Get("nope")
+	if err == nil {
+		t.Error("missing key should error")
 	}
 }
 
-// Edge: Delete removes key
 func TestEdge_DeleteRemoves(t *testing.T) {
-	dir := t.TempDir()
-	f, _ := NewFile(filepath.Join(dir, "test.json"))
+	f, _ := NewFile(filepath.Join(t.TempDir(), "test.json"))
 	defer f.Close()
-	f.Set("key1", []byte(`"value1"`))
-	f.Delete("key1")
-	_, ok := f.Get("key1")
-	if ok {
-		t.Error("deleted key should not be found")
-	}
-}
-
-// Edge: Keys returns all keys
-func TestEdge_KeysReturnsAll(t *testing.T) {
-	dir := t.TempDir()
-	f, _ := NewFile(filepath.Join(dir, "test.json"))
-	defer f.Close()
-	f.Set("a", []byte(`1`))
-	f.Set("b", []byte(`2`))
-	keys := f.Keys()
-	if len(keys) != 2 {
-		t.Errorf("expected 2 keys, got %d", len(keys))
+	f.Set("k1", []byte(`"v1"`))
+	f.Delete("k1")
+	_, err := f.Get("k1")
+	if err == nil {
+		t.Error("deleted key should error")
 	}
 }

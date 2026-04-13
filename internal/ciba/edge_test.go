@@ -26,7 +26,7 @@ func TestEdge_InitiateReturnsAuthReqID(t *testing.T) {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	body := "scope=openid&login_hint=user@example.com"
+	body := "scope=openid&login_hint=user@example.com&client_id=test-app"
 	r := httptest.NewRequest("POST", "/oauth/bc-authorize", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()

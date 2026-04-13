@@ -82,7 +82,7 @@ import (
 )
 
 var (
-	version   = "1.0.0"
+	version   = "2.0.0"
 	commit    = "unknown"
 	buildTime = "unknown"
 	goVersion = "unknown"

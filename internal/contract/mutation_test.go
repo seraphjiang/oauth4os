@@ -15,3 +15,22 @@ func TestMutation_RunAllChecks(t *testing.T) {
 		}
 	}
 }
+
+// Mutation: remove DefaultChecks → must return standard OAuth proxy checks
+func TestMutation_DefaultChecksNotEmpty(t *testing.T) {
+	checks := DefaultChecks()
+	if len(checks) == 0 {
+		t.Error("DefaultChecks must return standard checks")
+	}
+	// Must include health check
+	found := false
+	for _, c := range checks {
+		if c.Path == "/health" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("DefaultChecks must include /health")
+	}
+}

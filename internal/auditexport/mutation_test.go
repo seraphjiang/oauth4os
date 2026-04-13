@@ -2,6 +2,7 @@ package auditexport
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,4 +37,22 @@ func TestMutation_StopTerminates(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Stop must terminate")
 	}
+}
+
+// Mutation: remove Flush prefix → exported data must include prefix
+func TestMutation_FlushPrefix(t *testing.T) {
+	u := &memUploader{data: map[string][]byte{}}
+	e := New(u, "audit/2026/", 0)
+	defer e.Stop()
+	e.Add(json.RawMessage(`{"action":"login"}`))
+	if err := e.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	for key := range u.data {
+		if !strings.HasPrefix(key, "audit/2026/") {
+			t.Errorf("key %q should have prefix audit/2026/", key)
+		}
+		return
+	}
+	t.Error("expected at least one uploaded key")
 }

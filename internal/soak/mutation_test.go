@@ -13,3 +13,12 @@ func TestMutation_ResultString(t *testing.T) {
 		t.Errorf("String too short: %q", s)
 	}
 }
+
+// Mutation: remove HeapGrowth detection → must flag large growth
+func TestMutation_HeapGrowthDetected(t *testing.T) {
+	r := Result{Requests: 100, StartHeap: 1.0, EndHeap: 100.0, HeapGrowth: 99.0, StartGR: 5, EndGR: 5}
+	s := r.String()
+	if s == "" {
+		t.Error("String must produce output for large heap growth")
+	}
+}

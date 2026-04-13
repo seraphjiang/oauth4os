@@ -90,3 +90,10 @@ func TestMutation_StopTerminates(t *testing.T) {
 		t.Fatal("Stop must terminate the checker goroutine")
 	}
 }
+
+// Mutation: remove zero-interval guard → New with 0 interval must not panic
+func TestMutation_ZeroIntervalNoPanic(t *testing.T) {
+	c := New("http://localhost:1", 0, nil)
+	time.Sleep(50 * time.Millisecond)
+	c.Stop()
+}

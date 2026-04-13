@@ -77,3 +77,10 @@ func TestMutation_StopTerminates(t *testing.T) {
 		t.Fatal("Stop must terminate the reap goroutine")
 	}
 }
+
+// Mutation: remove zero-TTL guard → New(0) must not panic
+func TestMutation_ZeroTTLNoPanic(t *testing.T) {
+	c := New(0, 100)
+	time.Sleep(50 * time.Millisecond) // let reap goroutine start
+	c.Stop()
+}

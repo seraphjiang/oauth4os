@@ -51,6 +51,10 @@ func (c *Checker) Stop() {
 
 func (c *Checker) run() {
 	c.check() // immediate first check
+	if c.interval <= 0 {
+		<-c.stop
+		return
+	}
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 	for {

@@ -75,6 +75,10 @@ func (c *Cache) Set(key string, statusCode int, header map[string]string, body [
 
 // reap removes expired entries every TTL interval.
 func (c *Cache) reap() {
+	if c.ttl <= 0 {
+		<-c.stopCh
+		return
+	}
 	ticker := time.NewTicker(c.ttl)
 	defer ticker.Stop()
 	for {

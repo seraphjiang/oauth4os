@@ -278,6 +278,14 @@ The demo app at `/demo/app` demonstrates scope enforcement:
 | client_secret_basic | HTTP Basic auth on token/refresh/revoke endpoints |
 | Sliding window tokens | Auto-extend on active use, idle tokens expire normally |
 | Webhook auth | External auth decisions, fail-closed by default |
+| **v2.0.0** | |
+| DPoP token binding (RFC 9449) | End-to-end: bind thumbprint at issuance, verify on every request, JWT cnf.jkt claim |
+| Token Exchange delegation (RFC 8693) | actor_token support, act claim for service-to-service delegation |
+| OIDC UserInfo | GET/POST /oauth/userinfo, returns sub+scope for Bearer tokens |
+| Token endpoint rate limit | 10 req/min per client_id, 429 + Retry-After:60 |
+| Webhook HMAC-SHA256 | X-Webhook-Signature on outgoing events, prevents spoofing |
+| Auth Code flow (PKCE optional) | Confidential clients skip PKCE, public clients require S256 |
+| Introspection client auth (RFC 7662) | Basic + form auth on introspection endpoint |
 | mTLS | Client cert auth as alternative to Bearer tokens |
 | JWT access tokens | Signed RS256 at+jwt tokens for stateless validation (RFC 9068) |
 | Refresh token expiry | 30-day TTL + 90-day absolute family lifetime, configurable |

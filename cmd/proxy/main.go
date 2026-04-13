@@ -252,9 +252,13 @@ func main() {
 		clientStore = nil
 	}
 
-	// Pre-register demo clients (idempotent — no redirect URI restriction for demo)
+	// Pre-register demo clients (idempotent)
 	tokenMgr.RegisterClient("demo-webapp", "", []string{"read:logs"}, nil)
 	tokenMgr.RegisterClient("demo-cli", "", []string{"read:logs"}, nil)
+	tokenMgr.RegisterClient("demo-app", "", []string{"read:logs", "read:logs-*"}, []string{
+		"/demo/callback",
+		"http://localhost:8443/demo/callback",
+	})
 
 	// IP filter — per-client allowlist/denylist
 	var ipRules *ipfilter.Rules

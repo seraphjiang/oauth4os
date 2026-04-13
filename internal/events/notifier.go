@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,6 +41,7 @@ type Notifier struct {
 	done      chan struct{}
 	signKey   []byte // HMAC-SHA256 signing key (optional)
 	stopOnce  sync.Once
+	stopped   atomic.Bool
 }
 
 // New creates a notifier that posts events to the given URLs.
@@ -57,7 +59,10 @@ func New(urls []string) *Notifier {
 
 // Stop closes the event channel and waits for drain to finish.
 func (n *Notifier) Stop() {
-	n.stopOnce.Do(func() { close(n.ch) })
+	n.stopOnce.Do(func() {
+		n.stopped.Store(true)
+		close(n.ch)
+	})
 	<-n.done
 }
 
@@ -69,7 +74,7 @@ func (n *Notifier) SetSigningKey(key []byte) {
 
 // Emit queues an event for delivery. Non-blocking; drops if buffer full.
 func (n *Notifier) Emit(e Event) {
-	if len(n.urls) == 0 {
+	if len(n.urls) == 0 || n.stopped.Load() {
 		return
 	}
 	e.Timestamp = time.Now()

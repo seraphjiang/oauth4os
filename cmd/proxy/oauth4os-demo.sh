@@ -1746,6 +1746,7 @@ cmd_shell() {
             replay)     cmd_replay "$@" ;;
             userinfo)   cmd_userinfo ;;
             health)     cmd_health ;;
+            discovery)  cmd_discovery ;;
             register)   cmd_register "$@" ;;
             revoke)     cmd_revoke "${1:-}" ;;
             rotate)     cmd_rotate "$@" ;;
@@ -1761,6 +1762,15 @@ cmd_shell() {
         ;;
     esac
   done
+}
+
+cmd_discovery() {
+  local resp
+  resp=$(curl -sf "${PROXY}/.well-known/openid-configuration" 2>/dev/null)
+  if [ -z "$resp" ]; then echo -e "${RED}Discovery endpoint unavailable${NC}" >&2; return 1; fi
+  if [ "$IS_TTY" = "false" ]; then echo "$resp"; return; fi
+  echo -e "${BOLD}🔍 OIDC Discovery${NC}\n"
+  echo "$resp" | jq -r 'to_entries[] | "  \(.key): \(.value)"' 2>/dev/null || echo "$resp" | jq . 2>/dev/null
 }
 
 # Main
@@ -1820,6 +1830,7 @@ case "${1:-}" in
   userinfo) cmd_userinfo ;;
   health)   cmd_health ;;
   shell|repl) cmd_shell ;;
+  discovery|oidc) cmd_discovery ;;
   install-man) shift; cmd_install_man "${1:-}" ;;
   config)   shift; cmd_config "$@" ;;
   alias)    shift; cmd_alias "$@" ;;

@@ -999,7 +999,7 @@ func main() {
 	mux.HandleFunc("GET /status/", serveWebFile("status/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /setup/", serveWebFile("setup/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /changelog/", serveWebFile("changelog/index.html", "text/html; charset=utf-8"))
-	mux.HandleFunc("GET /admin/tenants", serveWebFile("admin/tenants.html", "text/html; charset=utf-8"))
+	// /admin/tenants handled by internal/admin/admin.go — do not duplicate
 	mux.HandleFunc("GET /demo/services.html", serveWebFile("demo/services.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /demo/alerts.html", serveWebFile("demo/alerts.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /demo/trace.html", serveWebFile("demo/trace.html", "text/html; charset=utf-8"))

@@ -8,8 +8,8 @@ import (
 
 // Edge: preflight OPTIONS returns CORS headers
 func TestEdge_PreflightOptions(t *testing.T) {
-	h := New([]string{"https://example.com"})
-	handler := h.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	wrap := Middleware(Config{Origins: []string{"https://example.com"}})
+	handler := wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
 	r := httptest.NewRequest("OPTIONS", "/api/resource", nil)
@@ -24,8 +24,8 @@ func TestEdge_PreflightOptions(t *testing.T) {
 
 // Edge: disallowed origin gets no CORS headers
 func TestEdge_DisallowedOrigin(t *testing.T) {
-	h := New([]string{"https://example.com"})
-	handler := h.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	wrap := Middleware(Config{Origins: []string{"https://example.com"}})
+	handler := wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
 	r := httptest.NewRequest("GET", "/api/resource", nil)
@@ -39,8 +39,8 @@ func TestEdge_DisallowedOrigin(t *testing.T) {
 
 // Edge: no origin header passes through
 func TestEdge_NoOriginPassthrough(t *testing.T) {
-	h := New([]string{"https://example.com"})
-	handler := h.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	wrap := Middleware(Config{Origins: []string{"https://example.com"}})
+	handler := wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
 	r := httptest.NewRequest("GET", "/api/resource", nil)

@@ -13,18 +13,18 @@
 | Internal packages | 60 |
 | Packages with tests | 60 (100%) |
 | Packages with mutations | 60 (100%) |
-| Test functions | 1,032 |
-| Mutation tests | 300 (all killed) |
-| Fuzz targets | 49 |
-| Benchmarks | 87 |
-| Property tests | 34 |
+| Test functions | 1,052 |
+| Mutation tests | 317 (all killed) |
+| Fuzz targets | 50 |
+| Benchmarks | 89 |
+| Property tests | 37 |
 | E2E Go tests | 38 |
 | Bash test scripts | 18 |
-| Test files | 240+ |
+| Test files | 250+ |
 | Source lines | 11,804 |
-| Test lines | 22,530 |
-| Test:source ratio | 1.91:1 |
-| Commits | 894 |
+| Test lines | 22,903 |
+| Test:source ratio | 1.94:1 |
+| Commits | 916 |
 
 ## Version Growth
 

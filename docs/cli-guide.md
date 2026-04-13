@@ -165,6 +165,44 @@ oauth4os-demo search 'service:payment' | jq length
 oauth4os-demo search 'latency_ms:>500' | jq '.[] | .latency_ms' | sort -n
 ```
 
+## v2.0.0 Commands
+
+### Interactive Shell
+```bash
+oauth4os-demo shell                    # REPL with tab completion + history
+```
+
+### Cedar Policy Management
+```bash
+oauth4os-demo policy list              # List all Cedar policies
+oauth4os-demo policy add 'permit(...)'  # Add a policy
+oauth4os-demo policy remove <id>       # Remove a policy
+oauth4os-demo policy test <principal> <action> <resource>  # Test authorization
+```
+
+### Backup & Restore
+```bash
+oauth4os-demo backup                   # Export to oauth4os-backup-<timestamp>.json
+oauth4os-demo backup mybackup.json     # Export to specific file
+oauth4os-demo restore mybackup.json    # Import from backup
+```
+
+### Token Inspection
+```bash
+oauth4os-demo inspect                  # Decode current token JWT
+oauth4os-demo inspect <token>          # Decode any JWT
+oauth4os-demo userinfo                 # OIDC UserInfo claims
+```
+
+### Admin Operations
+```bash
+oauth4os-demo delete-client <id>       # Delete a registered client
+oauth4os-demo replay <request_id>      # Re-execute a logged request
+oauth4os-demo discovery                # OIDC discovery document
+oauth4os-demo openapi                  # Fetch OpenAPI spec
+oauth4os-demo curl /path [args]        # Authenticated curl passthrough
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |

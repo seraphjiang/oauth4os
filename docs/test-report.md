@@ -13,7 +13,7 @@
 | Internal packages | 61 |
 | Packages with tests | 61 (100%) |
 | Packages with mutations | 60 (100% of non-test-only) |
-| Test functions | 1,306 |
+| Test functions | 1,346 |
 | Mutation tests | 331 (all killed) |
 | Fuzz targets | 51 |
 | Benchmarks | 91 |
@@ -31,7 +31,7 @@
 | Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 | v2.0.0 |
 |---|---|---|---|---|---|
 | Packages | 23 | 40 | 47 | 51 | 60 |
-| Tests | 292 | 395 | 846 | 932 | 1,306 |
+| Tests | 292 | 395 | 846 | 932 | 1,346 |
 | Mutations | 14 | 29 | 213 | 259 | 331 |
 | Fuzz | 10 | 17 | 42 | 42 | 51 |
 | Benchmarks | 10 | 23 | 68 | 74 | 91 |

@@ -35,3 +35,14 @@ func TestMutation_RingBuffer(t *testing.T) {
 		t.Error("ring buffer should cap at 2 spans")
 	}
 }
+
+// Mutation: remove error status → Record with error must include error message
+func TestMutation_RecordError(t *testing.T) {
+	e := New(100)
+	e.Record("fail-op", time.Now().Add(-time.Second), time.Now(), nil, "something went wrong")
+	w := httptest.NewRecorder()
+	e.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/v1/traces", nil))
+	if !strings.Contains(w.Body.String(), "something went wrong") {
+		t.Error("recorded error must appear in trace output")
+	}
+}

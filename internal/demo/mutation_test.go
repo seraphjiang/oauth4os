@@ -28,3 +28,15 @@ func TestMutation_ClientIDInPage(t *testing.T) {
 		t.Error("demo page must contain the client_id")
 	}
 }
+
+// Mutation: remove callback handler → Callback must handle OAuth redirect
+func TestMutation_CallbackHandler(t *testing.T) {
+	h := NewHandler("https://proxy.example.com", "demo-client")
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/demo/callback?code=test123&state=abc", nil)
+	h.Callback(w, r)
+	// Should redirect or render result — not 404
+	if w.Code == 404 {
+		t.Error("Callback must handle OAuth redirect")
+	}
+}

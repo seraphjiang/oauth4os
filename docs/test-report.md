@@ -13,7 +13,7 @@
 | Internal packages | 61 |
 | Packages with tests | 61 (100%) |
 | Packages with mutations | 60 (100% of non-test-only) |
-| Test functions | 1,218 |
+| Test functions | 1,225 |
 | Mutation tests | 331 (all killed) |
 | Fuzz targets | 51 |
 | Benchmarks | 91 |
@@ -24,14 +24,14 @@
 | Source lines | 11,804 |
 | Test lines | 25,745 |
 | Test:source ratio | 2.17:1 |
-| Commits | 1,019 |
+| Commits | 1,027 |
 
 ## Version Growth
 
 | Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 | v2.0.0 |
 |---|---|---|---|---|---|
 | Packages | 23 | 40 | 47 | 51 | 60 |
-| Tests | 292 | 395 | 846 | 932 | 1,218 |
+| Tests | 292 | 395 | 846 | 932 | 1,225 |
 | Mutations | 14 | 29 | 213 | 259 | 331 |
 | Fuzz | 10 | 17 | 42 | 42 | 51 |
 | Benchmarks | 10 | 23 | 68 | 74 | 91 |
@@ -71,6 +71,8 @@ Endpoints: 11/11 live (200)
 9. **Cache** — panic on `New(0, N)`: `reap()` called `NewTicker(0)`. Same class as #7/#8. Added zero-TTL guard
 10. **Healthcheck** — panic on `New(url, 0, nil)`: `run()` called `NewTicker(0)`. Same class. Added zero-interval guard
 11. **Cache double-Stop** — `Stop()` calls `close(stopCh)` directly — double call panics. Fixed with `sync.Once`. Applied same fix to all 8 packages with Stop() methods
+12. **mTLS Identify nil cert** — `Identify()` dereferences `cert.Subject.CommonName` without nil check. Panics when called with nil cert. Added nil guard
+13. **Events Emit after Stop** — `Emit()` sends on closed channel after `Stop()` → panic. Added atomic stopped flag
 
 ## Quality
 

@@ -32,3 +32,20 @@ func TestMutation_HandlerAccepts(t *testing.T) {
 		t.Error("Handler must return non-nil")
 	}
 }
+
+// Mutation: remove MaxSeries guard → must cap stored series
+func TestMutation_CardinalityGuard(t *testing.T) {
+	r := New()
+	// Ingest more than MaxSeries unique series
+	for i := 0; i < MaxSeries+100; i++ {
+		r.Ingest(&WriteRequest{
+			Timeseries: []TimeSeries{{
+				Labels:  map[string]string{"__name__": "test", "id": fmt.Sprintf("%d", i)},
+				Samples: []Sample{{Value: 1, Timestamp: 1000}},
+			}},
+		})
+	}
+	if r.SeriesCount() > MaxSeries {
+		t.Errorf("series count %d exceeds MaxSeries %d", r.SeriesCount(), MaxSeries)
+	}
+}

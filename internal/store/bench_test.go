@@ -1,23 +1,28 @@
 package store
 
 import (
+	"path/filepath"
 	"strconv"
 	"testing"
 )
 
-func BenchmarkMemorySet(b *testing.B) {
-	m := NewMemory()
+func BenchmarkFileSet(b *testing.B) {
+	dir := b.TempDir()
+	f, _ := NewFile(filepath.Join(dir, "bench.json"))
+	defer f.Close()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.Set("key-"+strconv.Itoa(i%100), []byte(`"value"`))
+		f.Set("key-"+strconv.Itoa(i%100), []byte(`"value"`))
 	}
 }
 
-func BenchmarkMemoryGet(b *testing.B) {
-	m := NewMemory()
-	m.Set("key", []byte(`"value"`))
+func BenchmarkFileGet(b *testing.B) {
+	dir := b.TempDir()
+	f, _ := NewFile(filepath.Join(dir, "bench.json"))
+	defer f.Close()
+	f.Set("key", []byte(`"value"`))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.Get("key")
+		f.Get("key")
 	}
 }

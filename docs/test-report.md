@@ -13,7 +13,7 @@
 | Internal packages | 61 |
 | Packages with tests | 61 (100%) |
 | Packages with mutations | 60 (100% of non-test-only) |
-| Test functions | 1,225 |
+| Test functions | 1,250 |
 | Mutation tests | 331 (all killed) |
 | Fuzz targets | 51 |
 | Benchmarks | 91 |
@@ -22,16 +22,16 @@
 | Bash test scripts | 18 |
 | Test files | 250+ |
 | Source lines | 11,804 |
-| Test lines | 25,745 |
-| Test:source ratio | 2.17:1 |
-| Commits | 1,027 |
+| Test lines | 26,226 |
+| Test:source ratio | 2.21:1 |
+| Commits | 1,042 |
 
 ## Version Growth
 
 | Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 | v2.0.0 |
 |---|---|---|---|---|---|
 | Packages | 23 | 40 | 47 | 51 | 60 |
-| Tests | 292 | 395 | 846 | 932 | 1,225 |
+| Tests | 292 | 395 | 846 | 932 | 1,250 |
 | Mutations | 14 | 29 | 213 | 259 | 331 |
 | Fuzz | 10 | 17 | 42 | 42 | 51 |
 | Benchmarks | 10 | 23 | 68 | 74 | 91 |

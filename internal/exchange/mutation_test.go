@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -52,5 +53,38 @@ func TestMutation_PostOnly(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/oauth/token", nil))
 	if w.Code == 200 {
 		t.Error("GET should be rejected, only POST allowed")
+	}
+}
+
+// Mutation: remove error JSON format → error response must be JSON with error field
+func TestMutation_ErrorFormat(t *testing.T) {
+	v := &StaticSubjectValidator{Claims: nil, Err: fmt.Errorf("invalid")}
+	i := &StaticTokenIssuer{TokenID: "tok", ExpiresIn: 3600}
+	h := NewHandler(v, i, "aud")
+	body := "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token=bad"
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if !strings.Contains(w.Body.String(), "error") {
+		t.Error("error response must contain 'error' field")
+	}
+}
+
+// Mutation: remove scope passthrough → exchanged token must include requested scopes
+func TestMutation_ScopePassthrough(t *testing.T) {
+	v := &StaticSubjectValidator{Claims: &SubjectClaims{Subject: "user", Issuer: "https://idp"}}
+	i := &StaticTokenIssuer{TokenID: "tok", ExpiresIn: 3600}
+	h := NewHandler(v, i, "aud")
+	body := "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token=valid&scope=read+write"
+	r := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "scope") {
+		t.Error("response must include scope")
 	}
 }

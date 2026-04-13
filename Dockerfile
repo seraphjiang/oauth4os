@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -7,7 +7,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -ldflags="-s -w" -o oauth4os ./cmd/proxy
 
-FROM alpine:3.19
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /app/oauth4os /oauth4os
 COPY --from=builder /app/web /web

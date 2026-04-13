@@ -2,6 +2,7 @@ package audit
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 

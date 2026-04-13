@@ -407,3 +407,19 @@ Sign outgoing webhook event payloads with HMAC-SHA256. Signature sent in X-Webho
 - Prevents webhook spoofing
 - Industry standard (GitHub, Stripe, Slack all use HMAC-SHA256)
 - Optional — no signature without key configured
+
+---
+
+# ADR-021: Token Exchange Delegation (RFC 8693 §2.1)
+
+**Status:** Accepted  
+**Date:** 2026-04-13
+
+## Decision
+Support actor_token parameter on token exchange. When provided, the issued token includes an `act` claim identifying the acting service. This enables service-to-service delegation where Service A acts on behalf of a user.
+
+## Rationale
+- Enables microservice delegation without sharing user credentials
+- Standard mechanism per RFC 8693 §4.1
+- act claim provides audit trail of who acted on whose behalf
+- Backward compatible — no actor_token = standard exchange

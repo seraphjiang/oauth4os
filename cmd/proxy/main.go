@@ -1412,6 +1412,16 @@ func main() {
 			authSuccess.Add(1)
 		}
 
+		// DPoP proof verification — if token is DPoP-bound, verify proof
+		if dpopHeader := r.Header.Get("DPoP"); dpopHeader != "" {
+			proof, err := dpop.Validate(r)
+			if err == nil && !tokenMgr.VerifyDPoP(tokenStr, proof.JWKThumbprint) {
+				authFailed.Add(1)
+				writeError(w, http.StatusUnauthorized, "invalid_dpop_proof")
+				return
+			}
+		}
+
 		// IP filter check
 		if ipRules != nil {
 			if err := ipRules.Check(claims.ClientID, r.RemoteAddr); err != nil {

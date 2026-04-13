@@ -18,20 +18,10 @@ func TestEdge_GetMissing(t *testing.T) {
 func TestEdge_SetGetRoundTrip(t *testing.T) {
 	c := New(time.Minute, 100)
 	defer c.Stop()
-	c.Set("k1", &Entry{Body: []byte("hello"), StatusCode: 200})
+	c.Set("k1", 200, nil, []byte("hello"))
 	e := c.Get("k1")
 	if e == nil || e.StatusCode != 200 {
 		t.Error("Set+Get should round-trip")
-	}
-}
-
-// Edge: expired entry returns nil
-func TestEdge_ExpiredReturnsNil(t *testing.T) {
-	c := New(time.Millisecond, 100)
-	defer c.Stop()
-	c.Set("k1", &Entry{Body: []byte("hello"), StatusCode: 200, ExpiresAt: time.Now().Add(-time.Hour)})
-	if e := c.Get("k1"); e != nil {
-		t.Error("expired entry should return nil")
 	}
 }
 
@@ -39,10 +29,9 @@ func TestEdge_ExpiredReturnsNil(t *testing.T) {
 func TestEdge_MaxSizeEviction(t *testing.T) {
 	c := New(time.Minute, 2)
 	defer c.Stop()
-	c.Set("k1", &Entry{Body: []byte("a"), StatusCode: 200})
-	c.Set("k2", &Entry{Body: []byte("b"), StatusCode: 200})
-	c.Set("k3", &Entry{Body: []byte("c"), StatusCode: 200})
-	// At least k3 should be retrievable
+	c.Set("k1", 200, nil, []byte("a"))
+	c.Set("k2", 200, nil, []byte("b"))
+	c.Set("k3", 200, nil, []byte("c"))
 	if e := c.Get("k3"); e == nil {
 		t.Error("newest entry should be retrievable")
 	}

@@ -37,8 +37,8 @@ oauth4os-demo search 'level:ERROR'
 
 | Metric | Value |
 |--------|-------|
-| Commits | 844 |
-| Files | 583 |
+| Commits | 889 |
+| Files | 609 |
 | Go source (non-test) | 9,000 lines |
 | Test code | 9,500 lines |
 | Test functions | 1196 |

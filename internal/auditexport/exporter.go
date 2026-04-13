@@ -22,6 +22,7 @@ type Exporter struct {
 	prefix   string
 	interval time.Duration
 	stopCh   chan struct{}
+	stopOnce sync.Once
 	OnFlush  func(count int, key string)
 }
 
@@ -73,7 +74,7 @@ func (e *Exporter) Flush() error {
 
 // Stop halts the flush loop and does a final flush.
 func (e *Exporter) Stop() error {
-	close(e.stopCh)
+	e.stopOnce.Do(func() { close(e.stopCh) })
 	return e.Flush()
 }
 

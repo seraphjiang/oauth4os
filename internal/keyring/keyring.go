@@ -29,6 +29,7 @@ type Ring struct {
 	bits      int
 	interval  time.Duration
 	stopCh    chan struct{}
+	stopOnce  sync.Once
 	OnRotate  func(kid string) // called after each rotation
 }
 
@@ -51,7 +52,7 @@ func (r *Ring) Current() *Key {
 
 // Stop halts the rotation goroutine.
 func (r *Ring) Stop() {
-	close(r.stopCh)
+	r.stopOnce.Do(func() { close(r.stopCh) })
 }
 
 func (r *Ring) rotate() error {

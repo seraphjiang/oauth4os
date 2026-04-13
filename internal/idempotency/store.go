@@ -22,6 +22,7 @@ type Store struct {
 	ttl     time.Duration
 	stopCh  chan struct{}
 	stopOnce sync.Once
+}
 
 // New creates a store with the given TTL for idempotency keys.
 func New(ttl time.Duration) *Store {

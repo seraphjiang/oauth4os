@@ -16,6 +16,7 @@ type Reloader struct {
 	cert              *tls.Certificate
 	modTime           time.Time
 	stopCh            chan struct{}
+	stopOnce          sync.Once
 	OnReload          func() // called after successful reload
 }
 
@@ -44,7 +45,7 @@ func (r *Reloader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error
 
 // Stop halts the polling goroutine.
 func (r *Reloader) Stop() {
-	close(r.stopCh)
+	r.stopOnce.Do(func() { close(r.stopCh) })
 }
 
 func (r *Reloader) load() error {

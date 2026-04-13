@@ -16,6 +16,7 @@ type OTLPTracer struct {
 	batch    []*Span
 	mu       sync.Mutex
 	stop     chan struct{}
+	stopOnce sync.Once
 }
 
 // NewOTLPTracer creates a tracer that batches spans and exports to the OTLP endpoint.
@@ -55,7 +56,7 @@ func (t *OTLPTracer) EndSpan(span *Span, status string) {
 
 // Stop flushes remaining spans and stops the exporter.
 func (t *OTLPTracer) Stop() {
-	close(t.stop)
+	t.stopOnce.Do(func() { close(t.stop) })
 	t.export()
 }
 

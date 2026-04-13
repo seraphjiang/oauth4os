@@ -23,6 +23,7 @@ type Checker struct {
 	url      string
 	interval time.Duration
 	stop     chan struct{}
+	stopOnce sync.Once
 }
 
 // New starts a background health checker that pings url every interval.
@@ -46,7 +47,7 @@ func (c *Checker) Status() Status {
 
 // Stop halts the background checker.
 func (c *Checker) Stop() {
-	close(c.stop)
+	c.stopOnce.Do(func() { close(c.stop) })
 }
 
 func (c *Checker) run() {

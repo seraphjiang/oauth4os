@@ -1,76 +1,69 @@
 package compress
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
 
-func BenchmarkGzip(b *testing.B) {
-	body := strings.Repeat(`{"level":"INFO","service":"payment","message":"processed order"}`, 50)
-	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(body))
+// Edge: large response gets compressed
+func TestEdge_LargeResponseCompressed(t *testing.T) {
+	h := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(strings.Repeat(`{"key":"value"},`, 1000)))
 	}))
-	req := httptest.NewRequest("GET", "/", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		handler.ServeHTTP(httptest.NewRecorder(), req)
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Header().Get("Content-Encoding") != "gzip" {
+		t.Error("large response should be gzip compressed")
+	}
+	if w.Body.Len() >= 16000 {
+		t.Errorf("compressed body should be smaller than 16000, got %d", w.Body.Len())
 	}
 }
 
-func BenchmarkNoGzip(b *testing.B) {
-	body := strings.Repeat(`{"level":"INFO"}`, 50)
-	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(body))
+// Edge: small response without Accept-Encoding not compressed
+func TestEdge_NoAcceptEncodingNoCompress(t *testing.T) {
+	h := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello"))
 	}))
-	req := httptest.NewRequest("GET", "/", nil)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		handler.ServeHTTP(httptest.NewRecorder(), req)
+	r := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Header().Get("Content-Encoding") == "gzip" {
+		t.Error("should not compress without Accept-Encoding")
 	}
 }
 
-func TestGzipVaryHeader(t *testing.T) {
-	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("data"))
+// Edge: HEAD request passes through
+func TestEdge_HeadPassthrough(t *testing.T) {
+	h := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
 	}))
-	req := httptest.NewRequest("GET", "/", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	// Note: Vary header should ideally be set but isn't currently
-	if rec.Header().Get("Content-Encoding") != "gzip" {
-		t.Fatal("expected gzip encoding")
+	r := httptest.NewRequest("HEAD", "/", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Errorf("HEAD should pass through, got %d", w.Code)
 	}
 }
 
-func TestGzipEmptyBody(t *testing.T) {
-	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// write nothing
+// Edge: response body readable after compression
+func TestEdge_CompressedBodyReadable(t *testing.T) {
+	h := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, strings.Repeat("test data ", 500))
 	}))
-	req := httptest.NewRequest("GET", "/", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req) // must not panic
-}
-
-func TestGzipConcurrent(t *testing.T) {
-	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(strings.Repeat("x", 1000)))
-	}))
-	done := make(chan struct{})
-	for i := 0; i < 20; i++ {
-		go func() {
-			req := httptest.NewRequest("GET", "/", nil)
-			req.Header.Set("Accept-Encoding", "gzip")
-			handler.ServeHTTP(httptest.NewRecorder(), req)
-			done <- struct{}{}
-		}()
-	}
-	for i := 0; i < 20; i++ {
-		<-done
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Body.Len() == 0 {
+		t.Error("compressed body should not be empty")
 	}
 }

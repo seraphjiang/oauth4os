@@ -943,6 +943,7 @@ func main() {
 		}
 	}
 	mux.HandleFunc("GET /register/", serveWebFile("register/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /developer/", serveWebFile("developer/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/clients", serveWebFile("admin/clients.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/tokens", serveWebFile("admin/tokens.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/api/stats", func(w http.ResponseWriter, r *http.Request) {
@@ -994,6 +995,13 @@ func main() {
 	mux.HandleFunc("GET /admin/config/", serveWebFile("admin/config.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /dashboard/", serveWebFile("dashboard/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /explorer/", serveWebFile("explorer/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /status/", serveWebFile("status/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /setup/", serveWebFile("setup/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /changelog/", serveWebFile("changelog/index.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /admin/tenants", serveWebFile("admin/tenants.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /demo/services.html", serveWebFile("demo/services.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /demo/alerts.html", serveWebFile("demo/alerts.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /demo/trace.html", serveWebFile("demo/trace.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /logs/", serveWebFile("logs/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /admin/feedback", serveWebFile("admin/feedback.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /my-feedback", serveWebFile("feedback/index.html", "text/html; charset=utf-8"))
@@ -1311,6 +1319,9 @@ func main() {
 	mux.HandleFunc("GET /developer/docs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, swaggerPage)
+	})
+	mux.HandleFunc("GET /swagger/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/developer/docs", http.StatusMovedPermanently)
 	})
 
 	// Serve landing page at root

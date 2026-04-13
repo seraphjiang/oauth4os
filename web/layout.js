@@ -18,7 +18,7 @@ const NAV=[
     {href:'/admin/policies',icon:'📜',label:'Policies'},
     {href:'/admin/keys',icon:'🔐',label:'Keys'},
     {href:'/admin/config/',icon:'🛠',label:'Config'},
-    {href:'/admin/tenants.html',icon:'🏢',label:'Tenants'},
+    {href:'/admin/tenants',icon:'🏢',label:'Tenants'},
     {href:'/admin/feedback',icon:'💬',label:'Feedback'},
   ]},
   {group:'Monitoring',items:[

@@ -24,3 +24,15 @@ func FuzzCheck(f *testing.F) {
 		a.Check(Request{ClientID: "app"}) // must not panic
 	})
 }
+
+// FuzzVerify ensures HMAC verification never panics on arbitrary signatures.
+func FuzzVerify(f *testing.F) {
+	f.Add([]byte(`{"event":"test"}`), "sha256=abc123")
+	f.Add([]byte{}, "")
+	f.Add([]byte(`null`), "sha256=")
+	f.Add([]byte(`x`), string(make([]byte, 10000)))
+	f.Fuzz(func(t *testing.T, body []byte, sig string) {
+		s := NewSender("test-secret")
+		s.Verify(body, sig) // must not panic
+	})
+}

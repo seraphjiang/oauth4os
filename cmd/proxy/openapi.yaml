@@ -1049,6 +1049,14 @@ paths:
       responses:
         '200': { description: SSE stream of metric snapshots }
 
+  /sse/logs:
+    get:
+      tags: [Streaming]
+      summary: Real-time access logs via Server-Sent Events
+      description: Pushes JSON access log entries as they occur. Connect with EventSource.
+      responses:
+        '200': { description: SSE stream of access log entries }
+
   /explorer/:
     get:
       tags: [UI]

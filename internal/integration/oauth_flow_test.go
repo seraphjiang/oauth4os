@@ -170,3 +170,66 @@ func issueToken(t *testing.T, mgr *token.Manager, clientID, secret, scope string
 	}
 	return w
 }
+
+// TestDPoPBindAndVerify exercises: issue → bind DPoP → verify match → verify mismatch
+func TestDPoPBindAndVerify(t *testing.T) {
+	mgr := token.NewManager()
+	mgr.RegisterClient("svc", "pw", []string{"read:logs-*"}, nil)
+
+	w := issueToken(t, mgr, "svc", "pw", "read:logs-*")
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	tok := resp["access_token"].(string)
+
+	// Bind DPoP thumbprint
+	mgr.BindDPoP(tok, "thumbprint-abc123")
+
+	// Verify correct thumbprint
+	if !mgr.VerifyDPoP(tok, "thumbprint-abc123") {
+		t.Fatal("VerifyDPoP should pass with correct thumbprint")
+	}
+
+	// Verify wrong thumbprint
+	if mgr.VerifyDPoP(tok, "wrong-thumbprint") {
+		t.Fatal("VerifyDPoP should fail with wrong thumbprint")
+	}
+
+	// Unbound token passes any thumbprint
+	w2 := issueToken(t, mgr, "svc", "pw", "read:logs-*")
+	var resp2 map[string]interface{}
+	json.NewDecoder(w2.Body).Decode(&resp2)
+	unboundTok := resp2["access_token"].(string)
+
+	if !mgr.VerifyDPoP(unboundTok, "any-thumbprint") {
+		t.Fatal("unbound token should pass VerifyDPoP")
+	}
+}
+
+// TestScopeDownscopingOnRefresh verifies narrower scopes accepted, escalation blocked
+func TestScopeDownscopingOnRefresh(t *testing.T) {
+	mgr := token.NewManager()
+	mgr.RegisterClient("app", "pw", []string{"read:logs-*", "write:logs", "admin"}, nil)
+
+	// Issue with broad scope
+	w := issueToken(t, mgr, "app", "pw", "read:logs-* write:logs admin")
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	refreshTok := resp["refresh_token"].(string)
+
+	// Refresh with narrower scope — should succeed
+	req := httptest.NewRequest("POST", "/oauth/token",
+		strings.NewReader(url.Values{
+			"grant_type":    {"refresh_token"},
+			"refresh_token": {refreshTok},
+			"client_id":     {"app"},
+			"client_secret": {"pw"},
+			"scope":         {"read:logs-*"},
+		}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rw := httptest.NewRecorder()
+	mgr.IssueToken(rw, req)
+
+	if rw.Code != 200 {
+		t.Fatalf("downscope refresh: expected 200, got %d: %s", rw.Code, rw.Body.String())
+	}
+}

@@ -13,28 +13,28 @@
 | Internal packages | 60 |
 | Packages with tests | 60 (100%) |
 | Packages with mutations | 60 (100%) |
-| Test functions | 1,052 |
-| Mutation tests | 317 (all killed) |
-| Fuzz targets | 50 |
-| Benchmarks | 89 |
-| Property tests | 37 |
+| Test functions | 1,068 |
+| Mutation tests | 331 (all killed) |
+| Fuzz targets | 51 |
+| Benchmarks | 92 |
+| Property tests | 39 |
 | E2E Go tests | 38 |
 | Bash test scripts | 18 |
 | Test files | 250+ |
 | Source lines | 11,804 |
 | Test lines | 22,903 |
 | Test:source ratio | 1.94:1 |
-| Commits | 916 |
+| Commits | 946 |
 
 ## Version Growth
 
 | Metric | v0.1.0 | v0.5.0 | v1.0.0 | v1.1.0 | v2.0.0 |
 |---|---|---|---|---|---|
 | Packages | 23 | 40 | 47 | 51 | 60 |
-| Tests | 292 | 395 | 846 | 932 | 1,052 |
-| Mutations | 14 | 29 | 213 | 259 | 317 |
-| Fuzz | 10 | 17 | 42 | 42 | 50 |
-| Benchmarks | 10 | 23 | 68 | 74 | 89 |
+| Tests | 292 | 395 | 846 | 932 | 1,068 |
+| Mutations | 14 | 29 | 213 | 259 | 331 |
+| Fuzz | 10 | 17 | 42 | 42 | 51 |
+| Benchmarks | 10 | 23 | 68 | 74 | 92 |
 
 ## Performance
 
@@ -67,14 +67,20 @@ Endpoints: 11/11 live (200)
 5. **Events Notifier** — goroutine leak: `drain()` ran forever with no `Stop()` method. Added `Stop()` with done channel
 6. **Accesslog rotate** — potential nil pointer panic if file reopen fails after rotation. Added stderr fallback
 7. **Keyring** — panic on `New(bits, 0)`: `rotateLoop` called `NewTicker(0)`. Now skips loop when interval ≤ 0
+8. **Idempotency** — panic on `New(0)`: `reap()` called `NewTicker(0)`. Same class as #7. Added zero-TTL guard
+9. **Cache** — panic on `New(0, N)`: `reap()` called `NewTicker(0)`. Same class as #7/#8. Added zero-TTL guard
+10. **Healthcheck** — panic on `New(url, 0, nil)`: `run()` called `NewTicker(0)`. Same class. Added zero-interval guard
+11. **Cache double-Stop** — `Stop()` calls `close(stopCh)` directly — double call panics. Fixed with `sync.Once`. Applied same fix to all 8 packages with Stop() methods
 
 ## Quality
 
-- Race detector: 0 races across all 47 packages
+- Race detector: 0 races across all 60 packages
 - go vet: 0 warnings
 - TODO/FIXME: 0 in production code
-- All 317 mutations killed
-- 50 fuzz targets — no panics found (44 targets × 30s marathon + 6 additional)
-- 37 property tests — no invariant violations
+- All 331 mutations killed
+- 51 fuzz targets — no panics found (44 targets × 30s marathon + 7 additional)
+- 39 property tests — no invariant violations
+- All Stop() methods hardened with sync.Once (8 packages)
+- All NewTicker call sites audited for zero-value panics (7 sites)
 
 **Verdict: PRODUCTION READY ✅**

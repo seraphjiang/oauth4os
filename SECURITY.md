@@ -61,10 +61,9 @@ See [docs/architecture.md](docs/architecture.md) for the full security architect
 
 | Version | Supported |
 |---------|-----------|
-| 0.4.x | ✅ Current |
-| 0.3.x | ✅ Security fixes |
-| 0.2.x | ❌ End of life |
-| 0.1.x | ❌ End of life |
+| 2.x   | ✅ Current |
+| 1.x   | ✅ Security fixes |
+| < 1.0 | ❌ End of life |
 
 ## Dependencies
 

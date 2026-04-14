@@ -24,7 +24,7 @@ v2 (new stable) ─ 100% traffic
 # Stable (already running)
 helm upgrade oauth4os deploy/helm/ \
   --set replicaCount=3 \
-  --set image.tag=v0.4.0
+  --set image.tag=v2.0.0
 
 # Canary (1 replica, same service)
 helm upgrade oauth4os-canary deploy/helm/ \

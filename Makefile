@@ -4,7 +4,7 @@ BINARY := oauth4os
 CLI := oauth4os-cli
 ECR_REPO := 544277935543.dkr.ecr.us-west-2.amazonaws.com/oauth4os
 
-.PHONY: build test vet lint docker push build-all release clean tidy
+.PHONY: build test test-all bench vet lint docker push build-all release clean tidy
 
 build:
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/proxy
@@ -12,6 +12,12 @@ build:
 
 test:
 	go test ./internal/... -count=1 -timeout 120s
+
+test-all:
+	go test ./... -count=1 -timeout 120s
+
+bench:
+	go test ./bench/... -bench=. -benchmem -count=1
 
 vet:
 	go vet ./...
